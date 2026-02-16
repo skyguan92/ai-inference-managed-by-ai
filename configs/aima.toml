@@ -1,0 +1,52 @@
+[general]
+data_dir = "~/.aima"
+hostname = ""
+device_id = ""
+
+[api]
+listen_addr = "127.0.0.1:9090"
+enable_cors = false
+tls_cert = ""
+tls_key = ""
+
+[gateway]
+request_timeout = "30s"
+max_request_size = "10MB"
+enable_tracing = false
+
+[resource]
+system_reserved_mb = 10240
+inference_pool_pct = 0.6
+container_pool_pct = 0.2
+pressure_threshold = 0.9
+
+[model]
+storage_dir = "~/.aima/models"
+default_source = "ollama"
+max_cache_gb = 50
+
+[engine]
+auto_start = true
+ollama_addr = "localhost:11434"
+
+[workflow]
+max_concurrent_steps = 10
+step_timeout = "5m"
+enable_caching = true
+
+[alert]
+enabled = true
+check_interval = "1m"
+
+[remote]
+enabled = false
+provider = "frp"
+
+[security]
+api_key = ""
+rate_limit_per_min = 120
+
+[logging]
+level = "info"
+format = "json"
+file = "~/.aima/logs/aima.log"
