@@ -1,0 +1,505 @@
+package pipeline
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
+)
+
+type CreateCommand struct {
+	store    PipelineStore
+	executor *Executor
+}
+
+func NewCreateCommand(store PipelineStore, executor *Executor) *CreateCommand {
+	return &CreateCommand{store: store, executor: executor}
+}
+
+func (c *CreateCommand) Name() string {
+	return "pipeline.create"
+}
+
+func (c *CreateCommand) Domain() string {
+	return "pipeline"
+}
+
+func (c *CreateCommand) Description() string {
+	return "Create a new pipeline with steps"
+}
+
+func (c *CreateCommand) InputSchema() unit.Schema {
+	return unit.Schema{
+		Type: "object",
+		Properties: map[string]unit.Field{
+			"name": {
+				Name: "name",
+				Schema: unit.Schema{
+					Type:        "string",
+					Description: "Pipeline name",
+					MinLength:   ptrInt(1),
+				},
+			},
+			"steps": {
+				Name: "steps",
+				Schema: unit.Schema{
+					Type:        "array",
+					Description: "Pipeline steps",
+					Items: &unit.Schema{
+						Type: "object",
+						Properties: map[string]unit.Field{
+							"id":         {Name: "id", Schema: unit.Schema{Type: "string"}},
+							"name":       {Name: "name", Schema: unit.Schema{Type: "string"}},
+							"type":       {Name: "type", Schema: unit.Schema{Type: "string"}},
+							"input":      {Name: "input", Schema: unit.Schema{Type: "object"}},
+							"depends_on": {Name: "depends_on", Schema: unit.Schema{Type: "array", Items: &unit.Schema{Type: "string"}}},
+						},
+					},
+				},
+			},
+			"config": {
+				Name: "config",
+				Schema: unit.Schema{
+					Type:        "object",
+					Description: "Optional pipeline configuration",
+				},
+			},
+		},
+		Required: []string{"name", "steps"},
+	}
+}
+
+func (c *CreateCommand) OutputSchema() unit.Schema {
+	return unit.Schema{
+		Type: "object",
+		Properties: map[string]unit.Field{
+			"pipeline_id": {
+				Name:   "pipeline_id",
+				Schema: unit.Schema{Type: "string"},
+			},
+		},
+	}
+}
+
+func (c *CreateCommand) Examples() []unit.Example {
+	return []unit.Example{
+		{
+			Input: map[string]any{
+				"name": "chat-pipeline",
+				"steps": []map[string]any{
+					{"id": "step1", "name": "Chat", "type": "inference.chat", "input": map[string]any{"model": "llama3"}},
+				},
+			},
+			Output:      map[string]any{"pipeline_id": "pipe-abc123"},
+			Description: "Create a simple chat pipeline",
+		},
+	}
+}
+
+func (c *CreateCommand) Execute(ctx context.Context, input any) (any, error) {
+	if c.store == nil {
+		return nil, ErrStoreNotSet
+	}
+
+	inputMap, ok := input.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+	}
+
+	name, _ := inputMap["name"].(string)
+	if name == "" {
+		return nil, fmt.Errorf("name is required: %w", ErrInvalidInput)
+	}
+
+	stepsRaw, ok := inputMap["steps"].([]any)
+	if !ok || len(stepsRaw) == 0 {
+		return nil, fmt.Errorf("steps is required and must be non-empty: %w", ErrInvalidInput)
+	}
+
+	steps := make([]PipelineStep, len(stepsRaw))
+	for i, s := range stepsRaw {
+		stepMap, ok := s.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("invalid step at index %d: %w", i, ErrInvalidInput)
+		}
+
+		step := PipelineStep{
+			ID:    fmt.Sprintf("%v", stepMap["id"]),
+			Name:  fmt.Sprintf("%v", stepMap["name"]),
+			Type:  fmt.Sprintf("%v", stepMap["type"]),
+			Input: make(map[string]any),
+		}
+
+		if input, ok := stepMap["input"].(map[string]any); ok {
+			step.Input = input
+		}
+
+		if deps, ok := stepMap["depends_on"].([]any); ok {
+			step.DependsOn = make([]string, len(deps))
+			for j, d := range deps {
+				step.DependsOn[j] = fmt.Sprintf("%v", d)
+			}
+		}
+
+		steps[i] = step
+	}
+
+	if valid, issues := ValidateSteps(steps); !valid {
+		return nil, fmt.Errorf("invalid steps: %v: %w", issues, ErrInvalidInput)
+	}
+
+	config, _ := inputMap["config"].(map[string]any)
+
+	now := time.Now().Unix()
+	pipeline := &Pipeline{
+		ID:        generateID("pipe"),
+		Name:      name,
+		Steps:     steps,
+		Status:    PipelineStatusIdle,
+		Config:    config,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	if err := c.store.CreatePipeline(ctx, pipeline); err != nil {
+		return nil, fmt.Errorf("create pipeline: %w", err)
+	}
+
+	return map[string]any{"pipeline_id": pipeline.ID}, nil
+}
+
+type DeleteCommand struct {
+	store PipelineStore
+}
+
+func NewDeleteCommand(store PipelineStore) *DeleteCommand {
+	return &DeleteCommand{store: store}
+}
+
+func (c *DeleteCommand) Name() string {
+	return "pipeline.delete"
+}
+
+func (c *DeleteCommand) Domain() string {
+	return "pipeline"
+}
+
+func (c *DeleteCommand) Description() string {
+	return "Delete a pipeline"
+}
+
+func (c *DeleteCommand) InputSchema() unit.Schema {
+	return unit.Schema{
+		Type: "object",
+		Properties: map[string]unit.Field{
+			"pipeline_id": {
+				Name: "pipeline_id",
+				Schema: unit.Schema{
+					Type:        "string",
+					Description: "Pipeline ID to delete",
+					MinLength:   ptrInt(1),
+				},
+			},
+		},
+		Required: []string{"pipeline_id"},
+	}
+}
+
+func (c *DeleteCommand) OutputSchema() unit.Schema {
+	return unit.Schema{
+		Type: "object",
+		Properties: map[string]unit.Field{
+			"success": {
+				Name:   "success",
+				Schema: unit.Schema{Type: "boolean"},
+			},
+		},
+	}
+}
+
+func (c *DeleteCommand) Examples() []unit.Example {
+	return []unit.Example{
+		{
+			Input:       map[string]any{"pipeline_id": "pipe-abc123"},
+			Output:      map[string]any{"success": true},
+			Description: "Delete a pipeline",
+		},
+	}
+}
+
+func (c *DeleteCommand) Execute(ctx context.Context, input any) (any, error) {
+	if c.store == nil {
+		return nil, ErrStoreNotSet
+	}
+
+	inputMap, ok := input.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+	}
+
+	pipelineID, _ := inputMap["pipeline_id"].(string)
+	if pipelineID == "" {
+		return nil, fmt.Errorf("pipeline_id is required: %w", ErrInvalidInput)
+	}
+
+	pipeline, err := c.store.GetPipeline(ctx, pipelineID)
+	if err != nil {
+		return nil, fmt.Errorf("get pipeline %s: %w", pipelineID, err)
+	}
+
+	if pipeline.Status == PipelineStatusRunning {
+		return nil, ErrPipelineRunning
+	}
+
+	if err := c.store.DeletePipeline(ctx, pipelineID); err != nil {
+		return nil, fmt.Errorf("delete pipeline %s: %w", pipelineID, err)
+	}
+
+	return map[string]any{"success": true}, nil
+}
+
+type RunCommand struct {
+	store    PipelineStore
+	executor *Executor
+}
+
+func NewRunCommand(store PipelineStore, executor *Executor) *RunCommand {
+	return &RunCommand{store: store, executor: executor}
+}
+
+func (c *RunCommand) Name() string {
+	return "pipeline.run"
+}
+
+func (c *RunCommand) Domain() string {
+	return "pipeline"
+}
+
+func (c *RunCommand) Description() string {
+	return "Run a pipeline"
+}
+
+func (c *RunCommand) InputSchema() unit.Schema {
+	return unit.Schema{
+		Type: "object",
+		Properties: map[string]unit.Field{
+			"pipeline_id": {
+				Name: "pipeline_id",
+				Schema: unit.Schema{
+					Type:        "string",
+					Description: "Pipeline ID to run",
+					MinLength:   ptrInt(1),
+				},
+			},
+			"input": {
+				Name: "input",
+				Schema: unit.Schema{
+					Type:        "object",
+					Description: "Input data for the pipeline",
+				},
+			},
+			"async": {
+				Name: "async",
+				Schema: unit.Schema{
+					Type:        "boolean",
+					Description: "Run asynchronously",
+					Default:     true,
+				},
+			},
+		},
+		Required: []string{"pipeline_id"},
+	}
+}
+
+func (c *RunCommand) OutputSchema() unit.Schema {
+	return unit.Schema{
+		Type: "object",
+		Properties: map[string]unit.Field{
+			"run_id": {
+				Name:   "run_id",
+				Schema: unit.Schema{Type: "string"},
+			},
+			"status": {
+				Name:   "status",
+				Schema: unit.Schema{Type: "string"},
+			},
+		},
+	}
+}
+
+func (c *RunCommand) Examples() []unit.Example {
+	return []unit.Example{
+		{
+			Input:       map[string]any{"pipeline_id": "pipe-abc123"},
+			Output:      map[string]any{"run_id": "run-xyz789", "status": "pending"},
+			Description: "Run a pipeline",
+		},
+		{
+			Input:       map[string]any{"pipeline_id": "pipe-abc123", "input": map[string]any{"query": "hello"}},
+			Output:      map[string]any{"run_id": "run-xyz789", "status": "pending"},
+			Description: "Run a pipeline with input",
+		},
+	}
+}
+
+func (c *RunCommand) Execute(ctx context.Context, input any) (any, error) {
+	if c.store == nil {
+		return nil, ErrStoreNotSet
+	}
+
+	inputMap, ok := input.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+	}
+
+	pipelineID, _ := inputMap["pipeline_id"].(string)
+	if pipelineID == "" {
+		return nil, fmt.Errorf("pipeline_id is required: %w", ErrInvalidInput)
+	}
+
+	pipeline, err := c.store.GetPipeline(ctx, pipelineID)
+	if err != nil {
+		return nil, fmt.Errorf("get pipeline %s: %w", pipelineID, err)
+	}
+
+	runInput, _ := inputMap["input"].(map[string]any)
+
+	run := &PipelineRun{
+		ID:          generateID("run"),
+		PipelineID:  pipelineID,
+		Status:      RunStatusPending,
+		Input:       runInput,
+		StepResults: make(map[string]any),
+		StartedAt:   time.Now(),
+	}
+
+	if err := c.store.CreateRun(ctx, run); err != nil {
+		return nil, fmt.Errorf("create run: %w", err)
+	}
+
+	pipeline.Status = PipelineStatusRunning
+	pipeline.UpdatedAt = time.Now().Unix()
+	if err := c.store.UpdatePipeline(ctx, pipeline); err != nil {
+		return nil, fmt.Errorf("update pipeline status: %w", err)
+	}
+
+	if c.executor != nil {
+		if err := c.executor.Execute(ctx, pipeline, run, runInput); err != nil {
+			run.Status = RunStatusFailed
+			run.Error = err.Error()
+			c.store.UpdateRun(ctx, run)
+			return nil, fmt.Errorf("execute pipeline: %w", err)
+		}
+	}
+
+	return map[string]any{"run_id": run.ID, "status": run.Status}, nil
+}
+
+type CancelCommand struct {
+	store    PipelineStore
+	executor *Executor
+}
+
+func NewCancelCommand(store PipelineStore, executor *Executor) *CancelCommand {
+	return &CancelCommand{store: store, executor: executor}
+}
+
+func (c *CancelCommand) Name() string {
+	return "pipeline.cancel"
+}
+
+func (c *CancelCommand) Domain() string {
+	return "pipeline"
+}
+
+func (c *CancelCommand) Description() string {
+	return "Cancel a running pipeline"
+}
+
+func (c *CancelCommand) InputSchema() unit.Schema {
+	return unit.Schema{
+		Type: "object",
+		Properties: map[string]unit.Field{
+			"run_id": {
+				Name: "run_id",
+				Schema: unit.Schema{
+					Type:        "string",
+					Description: "Run ID to cancel",
+					MinLength:   ptrInt(1),
+				},
+			},
+		},
+		Required: []string{"run_id"},
+	}
+}
+
+func (c *CancelCommand) OutputSchema() unit.Schema {
+	return unit.Schema{
+		Type: "object",
+		Properties: map[string]unit.Field{
+			"success": {
+				Name:   "success",
+				Schema: unit.Schema{Type: "boolean"},
+			},
+		},
+	}
+}
+
+func (c *CancelCommand) Examples() []unit.Example {
+	return []unit.Example{
+		{
+			Input:       map[string]any{"run_id": "run-xyz789"},
+			Output:      map[string]any{"success": true},
+			Description: "Cancel a running pipeline",
+		},
+	}
+}
+
+func (c *CancelCommand) Execute(ctx context.Context, input any) (any, error) {
+	if c.store == nil {
+		return nil, ErrStoreNotSet
+	}
+
+	inputMap, ok := input.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+	}
+
+	runID, _ := inputMap["run_id"].(string)
+	if runID == "" {
+		return nil, fmt.Errorf("run_id is required: %w", ErrInvalidInput)
+	}
+
+	run, err := c.store.GetRun(ctx, runID)
+	if err != nil {
+		return nil, fmt.Errorf("get run %s: %w", runID, err)
+	}
+
+	if run.Status != RunStatusPending && run.Status != RunStatusRunning {
+		return nil, ErrRunNotCancellable
+	}
+
+	cancelled := false
+	if c.executor != nil {
+		cancelled = c.executor.Cancel(runID)
+	}
+
+	if !cancelled {
+		run.Status = RunStatusCancelled
+		now := time.Now()
+		run.CompletedAt = &now
+		if err := c.store.UpdateRun(ctx, run); err != nil {
+			return nil, fmt.Errorf("update run: %w", err)
+		}
+	}
+
+	pipeline, err := c.store.GetPipeline(ctx, run.PipelineID)
+	if err == nil {
+		pipeline.Status = PipelineStatusIdle
+		pipeline.UpdatedAt = time.Now().Unix()
+		c.store.UpdatePipeline(ctx, pipeline)
+	}
+
+	return map[string]any{"success": true}, nil
+}
