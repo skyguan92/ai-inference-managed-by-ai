@@ -37,8 +37,8 @@ customModes:
       - mcp
       - browser
 
-  - slug: orchestrator
-    name: 🎯 Orchestrator
+  - slug: aima-orchestrator
+    name: 🎯 AIMA Orchestrator
     description: 编排者模式 - 不直接执行具体任务，专注于目标分解、任务调度和子代理委派
     roleDefinition: |-
       你是一个高级任务编排者（Orchestrator），负责管理复杂开发项目的整体流程。
