@@ -1,0 +1,35 @@
+name: batch_inference
+description: Batch processing for multiple inference requests
+
+config:
+  model: "llama3.2"
+  max_concurrent: 4
+  temperature: 0.7
+
+steps:
+  - id: prepare_batch
+    type: batch.prepare
+    input:
+      items: "${input.items}"
+      max_concurrent: "${config.max_concurrent}"
+  
+  - id: process_batch
+    type: batch.process
+    input:
+      model: "${config.model}"
+      temperature: "${config.temperature}"
+      batches: "${steps.prepare_batch.batches}"
+    depends_on:
+      - prepare_batch
+  
+  - id: aggregate_results
+    type: batch.aggregate
+    input:
+      results: "${steps.process_batch.results}"
+    depends_on:
+      - process_batch
+
+output:
+  results: "${steps.aggregate_results.results}"
+  total_processed: "${steps.aggregate_results.total}"
+  failed_count: "${steps.aggregate_results.failed}"

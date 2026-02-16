@@ -1,0 +1,49 @@
+name: rag_pipeline
+description: Retrieval-Augmented Generation for document Q&A
+
+config:
+  embedding_model: "text-embedding-3-small"
+  llm_model: "llama3.2"
+  top_k: 5
+
+steps:
+  - id: embed_query
+    type: inference.embed
+    input:
+      model: "${config.embedding_model}"
+      input: "${input.query}"
+  
+  - id: retrieve
+    type: retrieval.search
+    input:
+      query_embedding: "${steps.embed_query.embeddings}"
+      top_k: "${config.top_k}"
+  
+  - id: rerank
+    type: inference.rerank
+    input:
+      model: "rerank-1"
+      query: "${input.query}"
+      documents: "${steps.retrieve.documents}"
+    depends_on:
+      - retrieve
+  
+  - id: generate
+    type: inference.chat
+    input:
+      model: "${config.llm_model}"
+      messages:
+        - role: system
+          content: "Answer the question based on the provided context. If you cannot find the answer in the context, say so."
+        - role: user
+          content: |
+            Context: ${steps.rerank.results}
+            
+            Question: ${input.query}
+    depends_on:
+      - rerank
+
+output:
+  answer: "${steps.generate.content}"
+  sources: "${steps.rerank.results}"
+  confidence: "${steps.generate.finish_reason}"
