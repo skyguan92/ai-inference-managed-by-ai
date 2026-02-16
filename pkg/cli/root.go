@@ -10,6 +10,7 @@ import (
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/config"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/gateway"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/eventbus"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/registry"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -74,6 +75,12 @@ func (r *RootCommand) persistentPreRunE(cmd *cobra.Command, args []string) error
 	}
 
 	r.registry = unit.NewRegistry()
+
+	// Register all atomic units
+	if err := registry.RegisterAll(r.registry); err != nil {
+		return fmt.Errorf("register units: %w", err)
+	}
+
 	r.gateway = gateway.NewGateway(r.registry, gateway.WithTimeout(r.cfg.Gateway.RequestTimeoutD))
 
 	return nil
@@ -88,6 +95,7 @@ func (r *RootCommand) addSubCommands() {
 	r.cmd.AddCommand(NewInferenceCommand(r))
 	r.cmd.AddCommand(NewDeviceCommand(r))
 	r.cmd.AddCommand(NewEngineCommand(r))
+	r.cmd.AddCommand(NewWorkflowCommand(r))
 }
 
 func (r *RootCommand) Command() *cobra.Command {
