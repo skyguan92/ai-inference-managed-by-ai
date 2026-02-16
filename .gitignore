@@ -1,0 +1,50 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Build outputs
+/aima
+/cmd/aima/aima
+/bin/
+
+# Test outputs
+*.test
+*.out
+coverage.out
+coverage.html
+coverage_*.out
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local development
+.env
+.env.local
+*.local.md
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Dependencies
+vendor/
+
+# Debug
+debug
+__debug_bin*
