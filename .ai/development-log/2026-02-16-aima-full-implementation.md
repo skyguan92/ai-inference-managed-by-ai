@@ -112,8 +112,53 @@ pkg/workflow      84.4%
 3. `10f0e88` - feat(phase4): implement remaining domains
 4. `6d0b5ce` - feat(phase5): implement workflow orchestration layer
 
+## 集成测试和 E2E 测试 ✅
+
+### 集成测试 (test/integration/)
+| 测试套件 | 测试数 | 状态 |
+|---------|--------|------|
+| HTTP Server Integration | 10 | ✅ PASS |
+| MCP Server Integration | 13 | ✅ PASS |
+| Workflow Integration | 16 | ✅ PASS |
+| Full Stack Integration | 17 | ✅ PASS |
+| Registry Integration | 5 | ✅ PASS |
+| Gateway Integration | 6 | ✅ PASS |
+
+### E2E 测试 (test/e2e/)
+| 测试套件 | 测试数 | 状态 |
+|---------|--------|------|
+| Model Lifecycle | 6 | ✅ PASS |
+| Engine Lifecycle | 11 | ✅ PASS |
+| Service Lifecycle | 10 | ✅ PASS |
+| Pipeline Execution | 12 | ✅ PASS |
+| Inference Flow | 22 | ✅ PASS |
+| Alert Flow | 18 | ✅ PASS |
+
+### 测试命令
+```bash
+# 运行所有测试
+/usr/local/go/bin/go test ./... -cover
+
+# 运行集成测试
+/usr/local/go/bin/go test ./test/integration/... -v
+
+# 运行 E2E 测试
+/usr/local/go/bin/go test ./test/e2e/... -v
+```
+
+## Git 提交历史
+```
+05f034e test: add integration and E2E tests
+0a3b0ca feat(phase6): integrate all components and finalize
+6d0b5ce feat(phase5): implement workflow orchestration layer
+10f0e88 feat(phase4): implement remaining domains
+1f75d2e feat(phase2,phase3): implement core domains and adapters
+1b9575d feat(phase1): implement core framework
+```
+
 ## 后续任务
-- [ ] 集成测试
+- [x] 集成测试
+- [x] E2E 测试
 - [ ] 性能测试
 - [ ] API 文档生成
 - [ ] 部署脚本
