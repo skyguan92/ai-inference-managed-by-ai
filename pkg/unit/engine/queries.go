@@ -8,11 +8,16 @@ import (
 )
 
 type GetQuery struct {
-	store EngineStore
+	store  EngineStore
+	events unit.EventPublisher
 }
 
 func NewGetQuery(store EngineStore) *GetQuery {
 	return &GetQuery{store: store}
+}
+
+func NewGetQueryWithEvents(store EngineStore, events unit.EventPublisher) *GetQuery {
+	return &GetQuery{store: store, events: events}
 }
 
 func (q *GetQuery) Name() string {
@@ -70,26 +75,36 @@ func (q *GetQuery) Examples() []unit.Example {
 }
 
 func (q *GetQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	if q.store == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	name, _ := inputMap["name"].(string)
 	if name == "" {
-		return nil, ErrInvalidEngineName
+		err := ErrInvalidEngineName
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	engine, err := q.store.Get(ctx, name)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get engine %s: %w", name, err)
 	}
 
-	return map[string]any{
+	output := map[string]any{
 		"name":         engine.Name,
 		"type":         string(engine.Type),
 		"status":       string(engine.Status),
@@ -98,15 +113,22 @@ func (q *GetQuery) Execute(ctx context.Context, input any) (any, error) {
 		"models":       engine.Models,
 		"process_id":   engine.ProcessID,
 		"path":         engine.Path,
-	}, nil
+	}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type ListQuery struct {
-	store EngineStore
+	store  EngineStore
+	events unit.EventPublisher
 }
 
 func NewListQuery(store EngineStore) *ListQuery {
 	return &ListQuery{store: store}
+}
+
+func NewListQueryWithEvents(store EngineStore, events unit.EventPublisher) *ListQuery {
+	return &ListQuery{store: store, events: events}
 }
 
 func (q *ListQuery) Name() string {
@@ -215,8 +237,13 @@ func (q *ListQuery) Examples() []unit.Example {
 }
 
 func (q *ListQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	if q.store == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, _ := input.(map[string]any)
@@ -241,6 +268,7 @@ func (q *ListQuery) Execute(ctx context.Context, input any) (any, error) {
 
 	engines, total, err := q.store.List(ctx, filter)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("list engines: %w", err)
 	}
 
@@ -253,19 +281,26 @@ func (q *ListQuery) Execute(ctx context.Context, input any) (any, error) {
 		}
 	}
 
-	return map[string]any{
+	output := map[string]any{
 		"items": items,
 		"total": total,
-	}, nil
+	}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type FeaturesQuery struct {
 	store    EngineStore
 	provider EngineProvider
+	events   unit.EventPublisher
 }
 
 func NewFeaturesQuery(store EngineStore, provider EngineProvider) *FeaturesQuery {
 	return &FeaturesQuery{store: store, provider: provider}
+}
+
+func NewFeaturesQueryWithEvents(store EngineStore, provider EngineProvider, events unit.EventPublisher) *FeaturesQuery {
+	return &FeaturesQuery{store: store, provider: provider, events: events}
 }
 
 func (q *FeaturesQuery) Name() string {
@@ -325,31 +360,42 @@ func (q *FeaturesQuery) Examples() []unit.Example {
 }
 
 func (q *FeaturesQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	if q.store == nil || q.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	name, _ := inputMap["name"].(string)
 	if name == "" {
-		return nil, ErrInvalidEngineName
+		err := ErrInvalidEngineName
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	_, err := q.store.Get(ctx, name)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get engine %s: %w", name, err)
 	}
 
 	features, err := q.provider.GetFeatures(ctx, name)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get features for engine %s: %w", name, err)
 	}
 
-	return map[string]any{
+	output := map[string]any{
 		"supports_streaming":    features.SupportsStreaming,
 		"supports_batch":        features.SupportsBatch,
 		"supports_multimodal":   features.SupportsMultimodal,
@@ -360,7 +406,9 @@ func (q *FeaturesQuery) Execute(ctx context.Context, input any) (any, error) {
 		"max_batch_size":        features.MaxBatchSize,
 		"supports_gpu_layers":   features.SupportsGPULayers,
 		"supports_quantization": features.SupportsQuantization,
-	}, nil
+	}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 func ptrFloat(v float64) *float64 {

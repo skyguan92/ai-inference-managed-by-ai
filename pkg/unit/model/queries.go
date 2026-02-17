@@ -8,11 +8,16 @@ import (
 )
 
 type GetQuery struct {
-	store ModelStore
+	store  ModelStore
+	events unit.EventPublisher
 }
 
 func NewGetQuery(store ModelStore) *GetQuery {
 	return &GetQuery{store: store}
+}
+
+func NewGetQueryWithEvents(store ModelStore, events unit.EventPublisher) *GetQuery {
+	return &GetQuery{store: store, events: events}
 }
 
 func (q *GetQuery) Name() string {
@@ -69,22 +74,32 @@ func (q *GetQuery) Examples() []unit.Example {
 }
 
 func (q *GetQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	if q.store == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	modelID, _ := inputMap["model_id"].(string)
 	if modelID == "" {
-		return nil, ErrInvalidModelID
+		err := ErrInvalidModelID
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	model, err := q.store.Get(ctx, modelID)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get model %s: %w", modelID, err)
 	}
 
@@ -106,15 +121,21 @@ func (q *GetQuery) Execute(ctx context.Context, input any) (any, error) {
 		}
 	}
 
+	ec.PublishCompleted(result)
 	return result, nil
 }
 
 type ListQuery struct {
-	store ModelStore
+	store  ModelStore
+	events unit.EventPublisher
 }
 
 func NewListQuery(store ModelStore) *ListQuery {
 	return &ListQuery{store: store}
+}
+
+func NewListQueryWithEvents(store ModelStore, events unit.EventPublisher) *ListQuery {
+	return &ListQuery{store: store, events: events}
 }
 
 func (q *ListQuery) Name() string {
@@ -218,8 +239,13 @@ func (q *ListQuery) Examples() []unit.Example {
 }
 
 func (q *ListQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	if q.store == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, _ := input.(map[string]any)
@@ -247,6 +273,7 @@ func (q *ListQuery) Execute(ctx context.Context, input any) (any, error) {
 
 	models, total, err := q.store.List(ctx, filter)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("list models: %w", err)
 	}
 
@@ -260,18 +287,25 @@ func (q *ListQuery) Execute(ctx context.Context, input any) (any, error) {
 		}
 	}
 
-	return map[string]any{
+	output := map[string]any{
 		"items": items,
 		"total": total,
-	}, nil
+	}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type SearchQuery struct {
 	provider ModelProvider
+	events   unit.EventPublisher
 }
 
 func NewSearchQuery(provider ModelProvider) *SearchQuery {
 	return &SearchQuery{provider: provider}
+}
+
+func NewSearchQueryWithEvents(provider ModelProvider, events unit.EventPublisher) *SearchQuery {
+	return &SearchQuery{provider: provider, events: events}
 }
 
 func (q *SearchQuery) Name() string {
@@ -361,18 +395,27 @@ func (q *SearchQuery) Examples() []unit.Example {
 }
 
 func (q *SearchQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	if q.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	query, _ := inputMap["query"].(string)
 	if query == "" {
-		return nil, fmt.Errorf("query is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("query is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	source, _ := inputMap["source"].(string)
@@ -388,6 +431,7 @@ func (q *SearchQuery) Execute(ctx context.Context, input any) (any, error) {
 
 	results, err := q.provider.Search(ctx, query, source, modelType, limit)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("search models: %w", err)
 	}
 
@@ -403,16 +447,23 @@ func (q *SearchQuery) Execute(ctx context.Context, input any) (any, error) {
 		}
 	}
 
-	return map[string]any{"results": items}, nil
+	output := map[string]any{"results": items}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type EstimateResourcesQuery struct {
 	store    ModelStore
 	provider ModelProvider
+	events   unit.EventPublisher
 }
 
 func NewEstimateResourcesQuery(store ModelStore, provider ModelProvider) *EstimateResourcesQuery {
 	return &EstimateResourcesQuery{store: store, provider: provider}
+}
+
+func NewEstimateResourcesQueryWithEvents(store ModelStore, provider ModelProvider, events unit.EventPublisher) *EstimateResourcesQuery {
+	return &EstimateResourcesQuery{store: store, provider: provider, events: events}
 }
 
 func (q *EstimateResourcesQuery) Name() string {
@@ -483,43 +534,58 @@ func (q *EstimateResourcesQuery) Examples() []unit.Example {
 }
 
 func (q *EstimateResourcesQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	if q.store == nil || q.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	modelID, _ := inputMap["model_id"].(string)
 	if modelID == "" {
-		return nil, ErrInvalidModelID
+		err := ErrInvalidModelID
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	model, err := q.store.Get(ctx, modelID)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get model %s: %w", modelID, err)
 	}
 
 	if model.Requirements != nil {
-		return map[string]any{
+		output := map[string]any{
 			"memory_min":         model.Requirements.MemoryMin,
 			"memory_recommended": model.Requirements.MemoryRecommended,
 			"gpu_type":           model.Requirements.GPUType,
-		}, nil
+		}
+		ec.PublishCompleted(output)
+		return output, nil
 	}
 
 	req, err := q.provider.EstimateResources(ctx, modelID)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("estimate resources for model %s: %w", modelID, err)
 	}
 
-	return map[string]any{
+	output := map[string]any{
 		"memory_min":         req.MemoryMin,
 		"memory_recommended": req.MemoryRecommended,
 		"gpu_type":           req.GPUType,
-	}, nil
+	}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 func toInt(v any) (int, bool) {

@@ -38,10 +38,15 @@ type DeviceHealth struct {
 
 type DetectCommand struct {
 	provider DeviceProvider
+	events   unit.EventPublisher
 }
 
 func NewDetectCommand(provider DeviceProvider) *DetectCommand {
 	return &DetectCommand{provider: provider}
+}
+
+func NewDetectCommandWithEvents(provider DeviceProvider, events unit.EventPublisher) *DetectCommand {
+	return &DetectCommand{provider: provider, events: events}
 }
 
 func (c *DetectCommand) Name() string {
@@ -99,12 +104,18 @@ func (c *DetectCommand) Examples() []unit.Example {
 }
 
 func (c *DetectCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	devices, err := c.provider.Detect(ctx)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("detect devices: %w", err)
 	}
 
@@ -120,15 +131,22 @@ func (c *DetectCommand) Execute(ctx context.Context, input any) (any, error) {
 		}
 	}
 
-	return map[string]any{"devices": result}, nil
+	output := map[string]any{"devices": result}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type SetPowerLimitCommand struct {
 	provider DeviceProvider
+	events   unit.EventPublisher
 }
 
 func NewSetPowerLimitCommand(provider DeviceProvider) *SetPowerLimitCommand {
 	return &SetPowerLimitCommand{provider: provider}
+}
+
+func NewSetPowerLimitCommandWithEvents(provider DeviceProvider, events unit.EventPublisher) *SetPowerLimitCommand {
+	return &SetPowerLimitCommand{provider: provider, events: events}
 }
 
 func (c *SetPowerLimitCommand) Name() string {
@@ -190,30 +208,44 @@ func (c *SetPowerLimitCommand) Examples() []unit.Example {
 }
 
 func (c *SetPowerLimitCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: expected map[string]any")
+		err := fmt.Errorf("invalid input type: expected map[string]any")
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	deviceID, _ := inputMap["device_id"].(string)
 	if deviceID == "" {
-		return nil, ErrInvalidDeviceID
+		err := ErrInvalidDeviceID
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	limitWatts, ok := toFloat64(inputMap["limit_watts"])
 	if !ok || limitWatts <= 0 {
-		return nil, ErrInvalidPowerLimit
+		err := ErrInvalidPowerLimit
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	if err := c.provider.SetPowerLimit(ctx, deviceID, limitWatts); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("set power limit for device %s: %w", deviceID, err)
 	}
 
-	return map[string]any{"success": true}, nil
+	output := map[string]any{"success": true}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 func ptrFloat(v float64) *float64 {
