@@ -184,10 +184,68 @@ result, err := cmd.Execute(ctx, input)
 
 ## 验收标准检查
 
-- [x] 所有 Command 都有事件发布
-- [x] 所有 Query 都有事件发布
-- [x] 事件包含完整的上下文信息 (unit_name, input, output/error, timestamp, correlation_id)
+### 已完成
+- [x] 核心框架 (pkg/unit/events.go)
+- [x] model 领域 - Command 和 Query
+  - [x] CreateCommand, DeleteCommand, PullCommand, ImportCommand, VerifyCommand
+  - [x] GetQuery, ListQuery, SearchQuery, EstimateResourcesQuery
+- [x] engine 领域 - Command 和 Query
+  - [x] StartCommand, StopCommand, RestartCommand, InstallCommand
+  - [x] GetQuery, ListQuery, FeaturesQuery
+- [x] device 领域 - Command
+  - [x] DetectCommand, SetPowerLimitCommand
+- [x] inference 领域 - 部分 Command
+  - [x] ChatCommand
+
+### 待完成
+- [ ] inference 领域 - 剩余 Command 和 Query
+  - [ ] CompleteCommand, EmbedCommand, TranscribeCommand, SynthesizeCommand
+  - [ ] GenerateImageCommand, GenerateVideoCommand, RerankCommand, DetectCommand
+  - [ ] ModelsQuery, VoicesQuery
+- [ ] resource 领域 - Command 和 Query
+  - [ ] AllocateCommand, ReleaseCommand, UpdateSlotCommand
+  - [ ] StatusQuery, BudgetQuery, AllocationsQuery, CanAllocateQuery
+- [ ] service 领域 - Command 和 Query
+  - [ ] CreateCommand, DeleteCommand, ScaleCommand, StartCommand, StopCommand
+  - [ ] GetQuery, ListQuery, RecommendQuery
+- [ ] app 领域 - Command 和 Query
+  - [ ] InstallCommand, UninstallCommand, StartCommand, StopCommand
+  - [ ] GetQuery, ListQuery, LogsQuery, TemplatesQuery
+- [ ] pipeline 领域 - Command 和 Query
+  - [ ] CreateCommand, DeleteCommand, RunCommand, CancelCommand
+  - [ ] GetQuery, ListQuery, StatusQuery, ValidateQuery
+- [ ] alert 领域 - Command 和 Query
+  - [ ] CreateRuleCommand, UpdateRuleCommand, DeleteRuleCommand
+  - [ ] AcknowledgeCommand, ResolveCommand
+  - [ ] ListRulesQuery, HistoryQuery, ActiveQuery
+- [ ] remote 领域 - Command 和 Query
+  - [ ] EnableCommand, DisableCommand, ExecCommand
+  - [ ] StatusQuery, AuditQuery
 - [ ] 单元测试验证事件发布
+
+## 已完成示例
+
+model、engine、device 领域已完成，作为其他领域的参考实现。
+
+## 剩余任务
+
+需要按照 model/commands.go 和 model/queries.go 的模式，为以下领域添加事件发布：
+
+1. **inference**: ChatCommand, CompleteCommand, EmbedCommand, TranscribeCommand, SynthesizeCommand, GenerateImageCommand, GenerateVideoCommand, RerankCommand, DetectCommand, ModelsQuery, VoicesQuery
+
+2. **resource**: AllocateCommand, ReleaseCommand, UpdateSlotCommand, StatusQuery, BudgetQuery, AllocationsQuery, CanAllocateQuery
+
+3. **service**: CreateCommand, DeleteCommand, ScaleCommand, StartCommand, StopCommand, GetQuery, ListQuery, RecommendQuery
+
+4. **app**: InstallCommand, UninstallCommand, StartCommand, StopCommand, GetQuery, ListQuery, LogsQuery, TemplatesQuery
+
+5. **pipeline**: CreateCommand, DeleteCommand, RunCommand, CancelCommand, GetQuery, ListQuery, StatusQuery, ValidateQuery
+
+6. **alert**: CreateRuleCommand, UpdateRuleCommand, DeleteRuleCommand, AcknowledgeCommand, ResolveCommand, ListRulesQuery, HistoryQuery, ActiveQuery
+
+7. **remote**: EnableCommand, DisableCommand, ExecCommand, StatusQuery, AuditQuery
+
+每个领域的修改模式相同，可以参考 model 和 engine 领域的实现。
 
 ## 注意事项
 
