@@ -66,6 +66,19 @@ func TestExtractFlags(t *testing.T) {
 	assert.Equal(t, "true", result["verbose"])
 }
 
+func TestExtractFlags_NoChangedFlags(t *testing.T) {
+	cmd := &cobra.Command{}
+	cmd.Flags().String("name", "", "name")
+	cmd.Flags().Int("count", 0, "count")
+
+	cmd.ParseFlags([]string{})
+
+	flags := cmd.Flags()
+	result := extractFlags(flags)
+
+	assert.Empty(t, result)
+}
+
 func TestRunExec_MissingUnit(t *testing.T) {
 	registry := unit.NewRegistry()
 	gw := gateway.NewGateway(registry)
@@ -108,4 +121,75 @@ func TestRunExec_InvalidJSON(t *testing.T) {
 	err := runExec(context.Background(), root, "model.list", "{invalid json", cmd)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "parse input JSON")
+}
+
+func TestRunExec_WithFlags(t *testing.T) {
+	registry := unit.NewRegistry()
+	gw := gateway.NewGateway(registry)
+
+	buf := &bytes.Buffer{}
+	root := &RootCommand{
+		gateway:  gw,
+		registry: registry,
+		opts: &OutputOptions{
+			Format: OutputJSON,
+			Writer: buf,
+		},
+	}
+
+	cmd := &cobra.Command{}
+	cmd.Flags().String("source", "", "source")
+	cmd.Flags().String("repo", "", "repo")
+	cmd.Flags().String("input", "", "input")
+	cmd.Flags().String("output", "", "output")
+	cmd.Flags().Bool("quiet", false, "quiet")
+	cmd.Flags().String("config", "", "config")
+	cmd.Flags().Bool("help", false, "help")
+	cmd.ParseFlags([]string{"--source", "ollama", "--repo", "test"})
+
+	err := runExec(context.Background(), root, "model.pull", "", cmd)
+	require.Error(t, err)
+}
+
+func TestRunExec_WithValidJSONInput(t *testing.T) {
+	registry := unit.NewRegistry()
+	gw := gateway.NewGateway(registry)
+
+	buf := &bytes.Buffer{}
+	root := &RootCommand{
+		gateway:  gw,
+		registry: registry,
+		opts: &OutputOptions{
+			Format: OutputJSON,
+			Writer: buf,
+		},
+	}
+
+	cmd := &cobra.Command{}
+	cmd.ParseFlags([]string{})
+
+	err := runExec(context.Background(), root, "model.list", `{"type":"llm"}`, cmd)
+	require.Error(t, err)
+}
+
+func TestRunExec_CommandType(t *testing.T) {
+	registry := unit.NewRegistry()
+	gw := gateway.NewGateway(registry)
+
+	buf := &bytes.Buffer{}
+	root := &RootCommand{
+		gateway:  gw,
+		registry: registry,
+		opts: &OutputOptions{
+			Format: OutputTable,
+			Writer: buf,
+		},
+	}
+
+	cmd := &cobra.Command{}
+	cmd.ParseFlags([]string{})
+
+	err := runExec(context.Background(), root, "model.pull", `{"source":"ollama","repo":"test"}`, cmd)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
 }

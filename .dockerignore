@@ -1,0 +1,11 @@
+.git
+.github
+.ai
+*.md
+*.test
+*_test.go
+coverage.out
+dist
+tmp
+.env
+.env.*

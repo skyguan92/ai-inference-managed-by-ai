@@ -381,4 +381,145 @@ func TestGetFields(t *testing.T) {
 		fields := getFields(data)
 		assert.Contains(t, fields, "name")
 	})
+
+	t.Run("struct with json omitempty", func(t *testing.T) {
+		type TestStruct struct {
+			Name  string `json:"name,omitempty"`
+			Value int    `json:"value,omitempty"`
+		}
+		data := TestStruct{Name: "test", Value: 42}
+
+		fields := getFields(data)
+		assert.Contains(t, fields, "name")
+		assert.Contains(t, fields, "value")
+	})
+
+	t.Run("struct with unexported fields", func(t *testing.T) {
+		type TestStruct struct {
+			Name  string
+			value int
+		}
+		data := TestStruct{Name: "test", value: 42}
+
+		fields := getFields(data)
+		assert.Contains(t, fields, "Name")
+		assert.Len(t, fields, 1)
+	})
+}
+
+func TestFormatJSON_Error(t *testing.T) {
+	ch := make(chan int)
+	_, err := formatJSON(ch)
+	assert.Error(t, err)
+}
+
+func TestFormatTable_Array(t *testing.T) {
+	data := [3]string{"item1", "item2", "item3"}
+	output, err := formatTable(data)
+	assert.NoError(t, err)
+	assert.Contains(t, output, "value")
+}
+
+func TestFormatSliceTable_EmptySlice(t *testing.T) {
+	data := []int{}
+	output, err := formatSliceTable(data)
+	assert.NoError(t, err)
+	assert.Contains(t, output, "No items")
+}
+
+func TestFormatMapTable_NonMap(t *testing.T) {
+	output, err := formatMapTable("not a map")
+	assert.NoError(t, err)
+	assert.Contains(t, output, "not a map")
+}
+
+func TestGetFieldValues_Struct(t *testing.T) {
+	type TestStruct struct {
+		Name  string `json:"name"`
+		Value int    `json:"value"`
+	}
+	data := TestStruct{Name: "test", Value: 42}
+	fields := []string{"name", "value"}
+	values := getFieldValues(data, fields)
+
+	assert.Equal(t, "test", values[0])
+	assert.Equal(t, "42", values[1])
+}
+
+func TestGetFieldValues_MissingField(t *testing.T) {
+	type TestStruct struct {
+		Name string `json:"name"`
+	}
+	data := TestStruct{Name: "test"}
+	fields := []string{"name", "missing"}
+	values := getFieldValues(data, fields)
+
+	assert.Equal(t, "test", values[0])
+	assert.Equal(t, "", values[1])
+}
+
+func TestGetFieldValues_MapWithMissingKey(t *testing.T) {
+	data := map[string]any{"name": "test"}
+	fields := []string{"name", "missing"}
+	values := getFieldValues(data, fields)
+
+	assert.Equal(t, "test", values[0])
+	assert.Equal(t, "", values[1])
+}
+
+func TestFormatValue_Float32(t *testing.T) {
+	result := formatValue(float32(3.14159))
+	assert.Contains(t, result, "3.14")
+}
+
+func TestFormatValue_Float64(t *testing.T) {
+	result := formatValue(3.14159)
+	assert.Contains(t, result, "3.14")
+}
+
+func TestFormatValue_IntTypes(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    any
+		expected string
+	}{
+		{"int8", int8(8), "8"},
+		{"int16", int16(16), "16"},
+		{"int32", int32(32), "32"},
+		{"int64", int64(64), "64"},
+		{"uint", uint(1), "1"},
+		{"uint8", uint8(8), "8"},
+		{"uint16", uint16(16), "16"},
+		{"uint32", uint32(32), "32"},
+		{"uint64", uint64(64), "64"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := formatValue(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestFormatValue_ComplexType(t *testing.T) {
+	type ComplexStruct struct {
+		Field1 string
+		Field2 int
+	}
+	result := formatValue(ComplexStruct{Field1: "test", Field2: 42})
+	assert.Contains(t, result, "Field1")
+}
+
+func TestFormatStructTable(t *testing.T) {
+	type TestStruct struct {
+		Name  string `json:"name"`
+		Value int    `json:"value"`
+	}
+	data := TestStruct{Name: "test", Value: 42}
+
+	output, err := formatStructTable(data)
+	assert.NoError(t, err)
+	assert.Contains(t, output, "name")
+	assert.Contains(t, output, "test")
 }

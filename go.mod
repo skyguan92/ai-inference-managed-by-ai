@@ -4,12 +4,15 @@ go 1.23.0
 
 require (
 	github.com/BurntSushi/toml v1.6.0
+	github.com/docker/docker v27.5.1+incompatible
+	github.com/docker/go-connections v0.5.0
 	github.com/google/uuid v1.6.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
 	gopkg.in/yaml.v3 v3.0.1
+	modernc.org/sqlite v1.29.10
 )
 
 require (

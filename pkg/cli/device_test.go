@@ -105,3 +105,67 @@ func TestDeviceMetricsCommand_Flags(t *testing.T) {
 	historyFlag := cmd.Flags().Lookup("history")
 	assert.NotNil(t, historyFlag)
 }
+
+func TestRunDeviceInfo(t *testing.T) {
+	registry := unit.NewRegistry()
+	gw := gateway.NewGateway(registry)
+
+	buf := &bytes.Buffer{}
+	root := &RootCommand{
+		gateway:  gw,
+		registry: registry,
+		opts:     &OutputOptions{Format: OutputJSON, Writer: buf},
+	}
+
+	err := runDeviceInfo(context.Background(), root, "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestRunDeviceInfo_WithDeviceID(t *testing.T) {
+	registry := unit.NewRegistry()
+	gw := gateway.NewGateway(registry)
+
+	buf := &bytes.Buffer{}
+	root := &RootCommand{
+		gateway:  gw,
+		registry: registry,
+		opts:     &OutputOptions{Format: OutputJSON, Writer: buf},
+	}
+
+	err := runDeviceInfo(context.Background(), root, "gpu0")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestRunDeviceMetrics(t *testing.T) {
+	registry := unit.NewRegistry()
+	gw := gateway.NewGateway(registry)
+
+	buf := &bytes.Buffer{}
+	root := &RootCommand{
+		gateway:  gw,
+		registry: registry,
+		opts:     &OutputOptions{Format: OutputJSON, Writer: buf},
+	}
+
+	err := runDeviceMetrics(context.Background(), root, "", false)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestRunDeviceMetrics_WithDeviceID(t *testing.T) {
+	registry := unit.NewRegistry()
+	gw := gateway.NewGateway(registry)
+
+	buf := &bytes.Buffer{}
+	root := &RootCommand{
+		gateway:  gw,
+		registry: registry,
+		opts:     &OutputOptions{Format: OutputJSON, Writer: buf},
+	}
+
+	err := runDeviceMetrics(context.Background(), root, "gpu0", true)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}

@@ -1,52 +1,66 @@
+# AIMA Configuration
+# AI-Inference Managed by AI 主配置文件
+
+# 通用设置
 [general]
-data_dir = "~/.aima"
-hostname = ""
-device_id = ""
+data_dir = "~/.aima"        # 数据存储根目录
+hostname = ""               # 主机名，为空时自动检测
+device_id = ""              # 设备唯一标识，为空时自动生成
 
+# API 服务设置
 [api]
-listen_addr = "127.0.0.1:9090"
-enable_cors = false
-tls_cert = ""
-tls_key = ""
+listen_addr = "127.0.0.1:9090"  # 监听地址
+enable_cors = false             # 是否启用 CORS
+tls_cert = ""                   # TLS 证书路径
+tls_key = ""                    # TLS 私钥路径
 
+# 网关设置
 [gateway]
-request_timeout = "30s"
-max_request_size = "10MB"
-enable_tracing = false
+request_timeout = "30s"     # 请求超时时间
+max_request_size = "10MB"   # 最大请求体大小
+enable_tracing = false      # 是否启用分布式追踪
 
+# 资源管理设置
 [resource]
-system_reserved_mb = 10240
-inference_pool_pct = 0.6
-container_pool_pct = 0.2
-pressure_threshold = 0.9
+system_reserved_mb = 10240      # 系统保留内存 (MB)
+inference_pool_pct = 0.6        # 推理池内存占比
+container_pool_pct = 0.2        # 容器池内存占比
+pressure_threshold = 0.9        # 资源压力告警阈值
 
+# 模型管理设置
 [model]
-storage_dir = "~/.aima/models"
-default_source = "ollama"
-max_cache_gb = 50
+storage_dir = "~/.aima/models"  # 模型存储目录
+default_source = "ollama"       # 默认模型源 (ollama/huggingface/modelscope)
+max_cache_gb = 50               # 最大缓存大小 (GB)
 
+# 推理引擎设置
 [engine]
-auto_start = true
-ollama_addr = "localhost:11434"
+auto_start = true           # 是否自动启动引擎
+ollama_addr = "localhost:11434"  # Ollama 服务地址
 
+# 工作流设置
 [workflow]
-max_concurrent_steps = 10
-step_timeout = "5m"
-enable_caching = true
+max_concurrent_steps = 10   # 最大并发步骤数
+step_timeout = "5m"         # 单步骤超时时间
+enable_caching = true       # 是否启用结果缓存
 
+# 告警设置
 [alert]
-enabled = true
-check_interval = "1m"
+enabled = true              # 是否启用告警
+check_interval = "1m"       # 检查间隔
 
+# 远程访问设置
 [remote]
-enabled = false
-provider = "frp"
+enabled = false             # 是否启用远程访问
+provider = "frp"            # 穿透方案 (frp/ngrok)
 
+# 安全设置
 [security]
-api_key = ""
-rate_limit_per_min = 120
+api_key = ""                # API 密钥，为空时禁用认证
+rate_limit_per_min = 120    # 每分钟请求限制
 
+# 日志设置
 [logging]
-level = "info"
-format = "json"
-file = "~/.aima/logs/aima.log"
+level = "info"              # 日志级别 (debug/info/warn/error)
+format = "json"             # 日志格式 (json/text)
+file = "~/.aima/logs/aima.log"  # 日志文件路径

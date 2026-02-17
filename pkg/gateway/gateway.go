@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/workflow"
 )
 
 const (
@@ -51,6 +52,7 @@ type Pagination struct {
 
 type Gateway struct {
 	registry       *unit.Registry
+	workflowEngine *workflow.WorkflowEngine
 	requestTimeout time.Duration
 }
 
@@ -59,6 +61,12 @@ type GatewayOption func(*Gateway)
 func WithTimeout(timeout time.Duration) GatewayOption {
 	return func(g *Gateway) {
 		g.requestTimeout = timeout
+	}
+}
+
+func WithWorkflowEngine(engine *workflow.WorkflowEngine) GatewayOption {
+	return func(g *Gateway) {
+		g.workflowEngine = engine
 	}
 }
 
@@ -156,7 +164,7 @@ func (g *Gateway) execute(ctx context.Context, req *Request) (any, error) {
 	case TypeResource:
 		return g.executeResource(ctx, req)
 	case TypeWorkflow:
-		return nil, NewErrorInfo(ErrCodeInternalError, "workflow not implemented")
+		return g.executeWorkflow(ctx, req)
 	default:
 		return nil, NewErrorInfo(ErrCodeInvalidRequest, "unknown request type: "+req.Type)
 	}
@@ -199,6 +207,24 @@ func (g *Gateway) executeResource(ctx context.Context, req *Request) (any, error
 	result, err := res.Get(ctx)
 	if err != nil {
 		return nil, NewErrorInfoWithDetails(ErrCodeExecutionFailed, "resource get failed", err.Error())
+	}
+
+	return result, nil
+}
+
+func (g *Gateway) executeWorkflow(ctx context.Context, req *Request) (any, error) {
+	if g.workflowEngine == nil {
+		return nil, NewErrorInfo(ErrCodeInternalError, "workflow engine not configured")
+	}
+
+	def, err := g.workflowEngine.GetWorkflow(ctx, req.Unit)
+	if err != nil {
+		return nil, NewErrorInfoWithDetails(ErrCodeUnitNotFound, "workflow not found: "+req.Unit, err.Error())
+	}
+
+	result, err := g.workflowEngine.Execute(ctx, def, req.Input)
+	if err != nil {
+		return nil, NewErrorInfoWithDetails(ErrCodeExecutionFailed, "workflow execution failed", err.Error())
 	}
 
 	return result, nil

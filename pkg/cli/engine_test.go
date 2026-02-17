@@ -113,3 +113,83 @@ func TestEngineListCommand_Execute(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }
+
+func TestRunEngineStart(t *testing.T) {
+	registry := unit.NewRegistry()
+	gw := gateway.NewGateway(registry)
+
+	buf := &bytes.Buffer{}
+	root := &RootCommand{
+		gateway:  gw,
+		registry: registry,
+		opts:     &OutputOptions{Format: OutputJSON, Writer: buf},
+	}
+
+	err := runEngineStart(context.Background(), root, "ollama", "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestRunEngineStart_WithConfig(t *testing.T) {
+	registry := unit.NewRegistry()
+	gw := gateway.NewGateway(registry)
+
+	buf := &bytes.Buffer{}
+	root := &RootCommand{
+		gateway:  gw,
+		registry: registry,
+		opts:     &OutputOptions{Format: OutputJSON, Writer: buf},
+	}
+
+	err := runEngineStart(context.Background(), root, "ollama", "/path/to/config.json")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestRunEngineStop(t *testing.T) {
+	registry := unit.NewRegistry()
+	gw := gateway.NewGateway(registry)
+
+	buf := &bytes.Buffer{}
+	root := &RootCommand{
+		gateway:  gw,
+		registry: registry,
+		opts:     &OutputOptions{Format: OutputJSON, Writer: buf},
+	}
+
+	err := runEngineStop(context.Background(), root, "ollama", false, 30)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestRunEngineStop_Force(t *testing.T) {
+	registry := unit.NewRegistry()
+	gw := gateway.NewGateway(registry)
+
+	buf := &bytes.Buffer{}
+	root := &RootCommand{
+		gateway:  gw,
+		registry: registry,
+		opts:     &OutputOptions{Format: OutputJSON, Writer: buf},
+	}
+
+	err := runEngineStop(context.Background(), root, "ollama", true, 10)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestRunEngineList_WithFilters(t *testing.T) {
+	registry := unit.NewRegistry()
+	gw := gateway.NewGateway(registry)
+
+	buf := &bytes.Buffer{}
+	root := &RootCommand{
+		gateway:  gw,
+		registry: registry,
+		opts:     &OutputOptions{Format: OutputJSON, Writer: buf},
+	}
+
+	err := runEngineList(context.Background(), root, "ollama", "running")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
