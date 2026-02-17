@@ -9,10 +9,15 @@ import (
 
 type ChatCommand struct {
 	provider InferenceProvider
+	events   unit.EventPublisher
 }
 
 func NewChatCommand(provider InferenceProvider) *ChatCommand {
 	return &ChatCommand{provider: provider}
+}
+
+func NewChatCommandWithEvents(provider InferenceProvider, events unit.EventPublisher) *ChatCommand {
+	return &ChatCommand{provider: provider, events: events}
 }
 
 func (c *ChatCommand) Name() string {
@@ -182,23 +187,34 @@ func (c *ChatCommand) Examples() []unit.Example {
 }
 
 func (c *ChatCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	model, _ := inputMap["model"].(string)
 	if model == "" {
-		return nil, ErrModelNotSpecified
+		err := ErrModelNotSpecified
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	msgsRaw, ok := inputMap["messages"].([]any)
 	if !ok || len(msgsRaw) == 0 {
-		return nil, fmt.Errorf("messages are required: %w", ErrInvalidInput)
+		err := fmt.Errorf("messages are required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	messages := make([]Message, len(msgsRaw))
@@ -256,10 +272,11 @@ func (c *ChatCommand) Execute(ctx context.Context, input any) (any, error) {
 
 	resp, err := c.provider.Chat(ctx, model, messages, opts)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("chat completion failed: %w", err)
 	}
 
-	return map[string]any{
+	output := map[string]any{
 		"content":       resp.Content,
 		"finish_reason": resp.FinishReason,
 		"usage": map[string]any{
@@ -269,7 +286,93 @@ func (c *ChatCommand) Execute(ctx context.Context, input any) (any, error) {
 		},
 		"model": resp.Model,
 		"id":    resp.ID,
-	}, nil
+	}
+	ec.PublishCompleted(output)
+	return output, nil
+}
+
+// SupportsStreaming returns true as chat command supports streaming
+func (c *ChatCommand) SupportsStreaming() bool {
+	return true
+}
+
+// ExecuteStream executes the chat command in streaming mode
+func (c *ChatCommand) ExecuteStream(ctx context.Context, input any, stream chan<- unit.StreamChunk) error {
+	if c.provider == nil {
+		return ErrProviderNotSet
+	}
+
+	inputMap, ok := input.(map[string]any)
+	if !ok {
+		return fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+	}
+
+	model, _ := inputMap["model"].(string)
+	if model == "" {
+		return ErrModelNotSpecified
+	}
+
+	msgsRaw, ok := inputMap["messages"].([]any)
+	if !ok || len(msgsRaw) == 0 {
+		return fmt.Errorf("messages are required: %w", ErrInvalidInput)
+	}
+
+	messages := make([]Message, len(msgsRaw))
+	for i, m := range msgsRaw {
+		mMap, ok := m.(map[string]any)
+		if !ok {
+			return fmt.Errorf("invalid message format: %w", ErrInvalidInput)
+		}
+		messages[i] = Message{
+			Role:    mMap["role"].(string),
+			Content: mMap["content"].(string),
+		}
+	}
+
+	opts := ChatOptions{Stream: true}
+	if v, ok := inputMap["temperature"]; ok {
+		if f, ok := toFloat64(v); ok {
+			opts.Temperature = &f
+		}
+	}
+	if v, ok := inputMap["max_tokens"]; ok {
+		if i, ok := toInt(v); ok {
+			opts.MaxTokens = &i
+		}
+	}
+
+	// Create internal channel for provider stream
+	providerStream := make(chan ChatStreamChunk, 10)
+	defer close(providerStream)
+
+	// Run provider stream in goroutine
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- c.provider.ChatStream(ctx, model, messages, opts, providerStream)
+	}()
+
+	// Forward chunks from provider to unit stream
+	for {
+		select {
+		case chunk, ok := <-providerStream:
+			if !ok {
+				return <-errChan
+			}
+			stream <- unit.StreamChunk{
+				Type: "content",
+				Data: chunk.Content,
+				Metadata: map[string]any{
+					"finish_reason": chunk.FinishReason,
+					"model":         chunk.Model,
+					"id":            chunk.ID,
+				},
+			}
+		case err := <-errChan:
+			return err
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 }
 
 type CompleteCommand struct {
@@ -444,6 +547,78 @@ func (c *CompleteCommand) Execute(ctx context.Context, input any) (any, error) {
 			"total_tokens":      resp.Usage.TotalTokens,
 		},
 	}, nil
+}
+
+// SupportsStreaming returns true as complete command supports streaming
+func (c *CompleteCommand) SupportsStreaming() bool {
+	return true
+}
+
+// ExecuteStream executes the complete command in streaming mode
+func (c *CompleteCommand) ExecuteStream(ctx context.Context, input any, stream chan<- unit.StreamChunk) error {
+	if c.provider == nil {
+		return ErrProviderNotSet
+	}
+
+	inputMap, ok := input.(map[string]any)
+	if !ok {
+		return fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+	}
+
+	model, _ := inputMap["model"].(string)
+	if model == "" {
+		return ErrModelNotSpecified
+	}
+
+	prompt, _ := inputMap["prompt"].(string)
+	if prompt == "" {
+		return fmt.Errorf("prompt is required: %w", ErrInvalidInput)
+	}
+
+	opts := CompleteOptions{Stream: true}
+	if v, ok := inputMap["temperature"]; ok {
+		if f, ok := toFloat64(v); ok {
+			opts.Temperature = &f
+		}
+	}
+	if v, ok := inputMap["max_tokens"]; ok {
+		if i, ok := toInt(v); ok {
+			opts.MaxTokens = &i
+		}
+	}
+
+	// Create internal channel for provider stream
+	providerStream := make(chan CompleteStreamChunk, 10)
+	defer close(providerStream)
+
+	// Run provider stream in goroutine
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- c.provider.CompleteStream(ctx, model, prompt, opts, providerStream)
+	}()
+
+	// Forward chunks from provider to unit stream
+	for {
+		select {
+		case chunk, ok := <-providerStream:
+			if !ok {
+				return <-errChan
+			}
+			stream <- unit.StreamChunk{
+				Type: "content",
+				Data: chunk.Text,
+				Metadata: map[string]any{
+					"finish_reason": chunk.FinishReason,
+					"model":         chunk.Model,
+					"id":            chunk.ID,
+				},
+			}
+		case err := <-errChan:
+			return err
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 }
 
 type EmbedCommand struct {
