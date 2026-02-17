@@ -240,6 +240,11 @@ func registerModelDomain(registry *unit.Registry, options *Options) error {
 		return err
 	}
 
+	// Register ResourceFactory for dynamic resource creation
+	if err := registry.RegisterResourceFactory(model.NewModelResourceFactory(store)); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -260,6 +265,11 @@ func registerDeviceDomain(registry *unit.Registry, options *Options) error {
 		return err
 	}
 	if err := registry.RegisterQuery(device.NewHealthQuery(provider)); err != nil {
+		return err
+	}
+
+	// Register ResourceFactory for dynamic resource creation
+	if err := registry.RegisterResourceFactory(device.NewDeviceResourceFactory(provider)); err != nil {
 		return err
 	}
 
@@ -294,6 +304,11 @@ func registerEngineDomain(registry *unit.Registry, options *Options) error {
 		return err
 	}
 	if err := registry.RegisterQuery(engine.NewFeaturesQuery(store, provider)); err != nil {
+		return err
+	}
+
+	// Register ResourceFactory for dynamic resource creation
+	if err := registry.RegisterResourceFactory(engine.NewEngineResourceFactory(store)); err != nil {
 		return err
 	}
 
@@ -338,6 +353,11 @@ func registerInferenceDomain(registry *unit.Registry, options *Options) error {
 		return err
 	}
 
+	// Register ResourceFactory for dynamic resource creation
+	if err := registry.RegisterResourceFactory(inference.NewInferenceResourceFactory(provider)); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -373,6 +393,11 @@ func registerResourceDomain(registry *unit.Registry, options *Options) error {
 		if err := registry.RegisterQuery(resource.NewCanAllocateQuery(provider)); err != nil {
 			return err
 		}
+	}
+
+	// Register ResourceFactory for dynamic resource creation
+	if err := registry.RegisterResourceFactory(resource.NewResourceFactory(provider, store)); err != nil {
+		return err
 	}
 
 	return nil
@@ -414,6 +439,11 @@ func registerServiceDomain(registry *unit.Registry, options *Options) error {
 		}
 	}
 
+	// Register ResourceFactory for dynamic resource creation
+	if err := registry.RegisterResourceFactory(service.NewServiceResourceFactory(store, provider)); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -453,6 +483,11 @@ func registerAppDomain(registry *unit.Registry, options *Options) error {
 		}
 	}
 
+	// Register ResourceFactory for dynamic resource creation
+	if err := registry.RegisterResourceFactory(app.NewAppResourceFactory(store, provider)); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -489,6 +524,11 @@ func registerPipelineDomain(registry *unit.Registry, options *Options) error {
 		return err
 	}
 	if err := registry.RegisterQuery(pipeline.NewValidateQuery()); err != nil {
+		return err
+	}
+
+	// Register ResourceFactory for dynamic resource creation
+	if err := registry.RegisterResourceFactory(pipeline.NewPipelineResourceFactory(store)); err != nil {
 		return err
 	}
 
@@ -558,6 +598,11 @@ func registerAlertDomain(registry *unit.Registry, options *Options) error {
 		return err
 	}
 
+	// Register ResourceFactory for dynamic resource creation
+	if err := registry.RegisterResourceFactory(alert.NewAlertResourceFactory(store)); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -583,6 +628,11 @@ func registerRemoteDomain(registry *unit.Registry, options *Options) error {
 		return err
 	}
 	if err := registry.RegisterQuery(remote.NewAuditQuery(store)); err != nil {
+		return err
+	}
+
+	// Register ResourceFactory for dynamic resource creation
+	if err := registry.RegisterResourceFactory(remote.NewRemoteResourceFactory(store)); err != nil {
 		return err
 	}
 

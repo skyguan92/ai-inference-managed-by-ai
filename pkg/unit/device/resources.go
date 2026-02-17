@@ -15,6 +15,49 @@ type DeviceInfoResource struct {
 	provider DeviceProvider
 }
 
+// DeviceResourceFactory creates device Resource instances dynamically based on URI patterns.
+type DeviceResourceFactory struct {
+	provider DeviceProvider
+}
+
+func NewDeviceResourceFactory(provider DeviceProvider) *DeviceResourceFactory {
+	return &DeviceResourceFactory{provider: provider}
+}
+
+func (f *DeviceResourceFactory) CanCreate(uri string) bool {
+	return strings.HasPrefix(uri, "asms://device/")
+}
+
+func (f *DeviceResourceFactory) Create(uri string) (unit.Resource, error) {
+	// Parse URI: asms://device/{id}/info, asms://device/{id}/metrics, asms://device/{id}/health
+	if !strings.HasPrefix(uri, "asms://device/") {
+		return nil, fmt.Errorf("invalid device URI: %s", uri)
+	}
+
+	parts := strings.Split(strings.TrimPrefix(uri, "asms://device/"), "/")
+	if len(parts) < 2 {
+		return nil, fmt.Errorf("invalid device URI format: %s", uri)
+	}
+
+	deviceID := parts[0]
+	resourceType := parts[1]
+
+	switch resourceType {
+	case "info":
+		return NewDeviceInfoResource(deviceID, f.provider), nil
+	case "metrics":
+		return NewDeviceMetricsResource(deviceID, f.provider), nil
+	case "health":
+		return NewDeviceHealthResource(deviceID, f.provider), nil
+	default:
+		return nil, fmt.Errorf("unknown device resource type: %s", resourceType)
+	}
+}
+
+func (f *DeviceResourceFactory) Pattern() string {
+	return "asms://device/*"
+}
+
 func NewDeviceInfoResource(deviceID string, provider DeviceProvider) *DeviceInfoResource {
 	return &DeviceInfoResource{
 		deviceID: deviceID,

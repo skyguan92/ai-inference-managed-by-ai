@@ -21,6 +21,37 @@ func NewStatusResource(provider ResourceProvider, store ResourceStore) *StatusRe
 	return &StatusResource{provider: provider, store: store}
 }
 
+// ResourceFactory creates resource Resource instances dynamically based on URI patterns.
+type ResourceFactory struct {
+	provider ResourceProvider
+	store    ResourceStore
+}
+
+func NewResourceFactory(provider ResourceProvider, store ResourceStore) *ResourceFactory {
+	return &ResourceFactory{provider: provider, store: store}
+}
+
+func (f *ResourceFactory) CanCreate(uri string) bool {
+	return strings.HasPrefix(uri, "asms://resource/")
+}
+
+func (f *ResourceFactory) Create(uri string) (unit.Resource, error) {
+	switch uri {
+	case "asms://resource/status":
+		return NewStatusResource(f.provider, f.store), nil
+	case "asms://resource/budget":
+		return NewBudgetResource(f.provider), nil
+	case "asms://resource/allocations":
+		return NewAllocationsResource(f.store), nil
+	default:
+		return nil, fmt.Errorf("unknown resource URI: %s", uri)
+	}
+}
+
+func (f *ResourceFactory) Pattern() string {
+	return "asms://resource/*"
+}
+
 func (r *StatusResource) URI() string {
 	return "asms://resource/status"
 }

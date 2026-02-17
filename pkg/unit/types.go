@@ -79,3 +79,14 @@ type Resource interface {
 	Get(ctx context.Context) (any, error)
 	Watch(ctx context.Context) (<-chan ResourceUpdate, error)
 }
+
+// ResourceFactory creates Resource instances dynamically based on URI patterns.
+// It is used to handle dynamic URI patterns like asms://model/{id}.
+type ResourceFactory interface {
+	// CanCreate returns true if this factory can create a resource for the given URI
+	CanCreate(uri string) bool
+	// Create creates a new Resource instance for the given URI
+	Create(uri string) (Resource, error)
+	// Pattern returns the URI pattern this factory handles (e.g., "asms://model/*")
+	Pattern() string
+}

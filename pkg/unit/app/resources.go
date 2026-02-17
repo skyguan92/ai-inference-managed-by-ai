@@ -24,6 +24,35 @@ func NewAppResource(id string, store AppStore, provider AppProvider) *AppResourc
 	}
 }
 
+// AppResourceFactory creates app Resource instances dynamically based on URI patterns.
+type AppResourceFactory struct {
+	store    AppStore
+	provider AppProvider
+}
+
+func NewAppResourceFactory(store AppStore, provider AppProvider) *AppResourceFactory {
+	return &AppResourceFactory{store: store, provider: provider}
+}
+
+func (f *AppResourceFactory) CanCreate(uri string) bool {
+	return strings.HasPrefix(uri, "asms://app/") || uri == "asms://apps/templates"
+}
+
+func (f *AppResourceFactory) Create(uri string) (unit.Resource, error) {
+	if uri == "asms://apps/templates" {
+		return NewTemplatesResource(f.provider), nil
+	}
+	appID := strings.TrimPrefix(uri, "asms://app/")
+	if appID == "" {
+		return nil, fmt.Errorf("invalid app URI: %s", uri)
+	}
+	return NewAppResource(appID, f.store, f.provider), nil
+}
+
+func (f *AppResourceFactory) Pattern() string {
+	return "asms://app/*"
+}
+
 func (r *AppResource) URI() string {
 	return fmt.Sprintf("asms://app/%s", r.id)
 }

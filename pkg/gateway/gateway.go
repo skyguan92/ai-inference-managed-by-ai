@@ -199,7 +199,12 @@ func (g *Gateway) executeQuery(ctx context.Context, req *Request) (any, error) {
 }
 
 func (g *Gateway) executeResource(ctx context.Context, req *Request) (any, error) {
+	// First try direct lookup
 	res := g.registry.GetResource(req.Unit)
+	if res == nil {
+		// Try with factory (for dynamic URIs like asms://model/{id})
+		res = g.registry.GetResourceWithFactory(req.Unit)
+	}
 	if res == nil {
 		return nil, NewErrorInfo(ErrCodeResourceNotFound, "resource not found: "+req.Unit)
 	}

@@ -22,6 +22,31 @@ func NewEngineResource(name string, store EngineStore) *EngineResource {
 	}
 }
 
+// EngineResourceFactory creates EngineResource instances dynamically based on URI patterns.
+type EngineResourceFactory struct {
+	store EngineStore
+}
+
+func NewEngineResourceFactory(store EngineStore) *EngineResourceFactory {
+	return &EngineResourceFactory{store: store}
+}
+
+func (f *EngineResourceFactory) CanCreate(uri string) bool {
+	return strings.HasPrefix(uri, "asms://engine/")
+}
+
+func (f *EngineResourceFactory) Create(uri string) (unit.Resource, error) {
+	engineName := strings.TrimPrefix(uri, "asms://engine/")
+	if engineName == "" {
+		return nil, fmt.Errorf("invalid engine URI: %s", uri)
+	}
+	return NewEngineResource(engineName, f.store), nil
+}
+
+func (f *EngineResourceFactory) Pattern() string {
+	return "asms://engine/*"
+}
+
 func (r *EngineResource) URI() string {
 	return fmt.Sprintf("asms://engine/%s", r.name)
 }

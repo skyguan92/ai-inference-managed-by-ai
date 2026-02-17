@@ -44,12 +44,22 @@ type ModelProvider interface {
 	EstimateResources(ctx context.Context, modelID string) (*ModelRequirements, error)
 }
 
+// EventPublisher interface for publishing events
+type EventPublisher interface {
+	Publish(event any) error
+}
+
 type CreateCommand struct {
-	store ModelStore
+	store  ModelStore
+	events EventPublisher
 }
 
 func NewCreateCommand(store ModelStore) *CreateCommand {
 	return &CreateCommand{store: store}
+}
+
+func NewCreateCommandWithEvents(store ModelStore, events EventPublisher) *CreateCommand {
+	return &CreateCommand{store: store, events: events}
 }
 
 func (c *CreateCommand) Name() string {
@@ -176,15 +186,28 @@ func (c *CreateCommand) Execute(ctx context.Context, input any) (any, error) {
 		return nil, fmt.Errorf("create model: %w", err)
 	}
 
+	// Publish event if event publisher is set
+	if c.events != nil {
+		if err := c.events.Publish(NewCreatedEvent(model)); err != nil {
+			// Log error but don't fail the command
+			fmt.Printf("warning: failed to publish model.created event: %v\n", err)
+		}
+	}
+
 	return map[string]any{"model_id": model.ID}, nil
 }
 
 type DeleteCommand struct {
-	store ModelStore
+	store  ModelStore
+	events EventPublisher
 }
 
 func NewDeleteCommand(store ModelStore) *DeleteCommand {
 	return &DeleteCommand{store: store}
+}
+
+func NewDeleteCommandWithEvents(store ModelStore, events EventPublisher) *DeleteCommand {
+	return &DeleteCommand{store: store, events: events}
 }
 
 func (c *DeleteCommand) Name() string {
@@ -264,12 +287,20 @@ func (c *DeleteCommand) Execute(ctx context.Context, input any) (any, error) {
 		return nil, ErrInvalidModelID
 	}
 
-	if _, err := c.store.Get(ctx, modelID); err != nil {
+	model, err := c.store.Get(ctx, modelID)
+	if err != nil {
 		return nil, fmt.Errorf("get model %s: %w", modelID, err)
 	}
 
 	if err := c.store.Delete(ctx, modelID); err != nil {
 		return nil, fmt.Errorf("delete model %s: %w", modelID, err)
+	}
+
+	// Publish event if event publisher is set
+	if c.events != nil {
+		if err := c.events.Publish(NewDeletedEvent(modelID, model.Name)); err != nil {
+			fmt.Printf("warning: failed to publish model.deleted event: %v\n", err)
+		}
 	}
 
 	return map[string]any{"success": true}, nil

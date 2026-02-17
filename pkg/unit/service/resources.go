@@ -24,6 +24,35 @@ func NewServiceResource(id string, store ServiceStore, provider ServiceProvider)
 	}
 }
 
+// ServiceResourceFactory creates service Resource instances dynamically based on URI patterns.
+type ServiceResourceFactory struct {
+	store    ServiceStore
+	provider ServiceProvider
+}
+
+func NewServiceResourceFactory(store ServiceStore, provider ServiceProvider) *ServiceResourceFactory {
+	return &ServiceResourceFactory{store: store, provider: provider}
+}
+
+func (f *ServiceResourceFactory) CanCreate(uri string) bool {
+	return strings.HasPrefix(uri, "asms://service/") || uri == "asms://services"
+}
+
+func (f *ServiceResourceFactory) Create(uri string) (unit.Resource, error) {
+	if uri == "asms://services" {
+		return NewServicesResource(f.store), nil
+	}
+	serviceID := strings.TrimPrefix(uri, "asms://service/")
+	if serviceID == "" {
+		return nil, fmt.Errorf("invalid service URI: %s", uri)
+	}
+	return NewServiceResource(serviceID, f.store, f.provider), nil
+}
+
+func (f *ServiceResourceFactory) Pattern() string {
+	return "asms://service/*"
+}
+
 func (r *ServiceResource) URI() string {
 	return fmt.Sprintf("asms://service/%s", r.id)
 }

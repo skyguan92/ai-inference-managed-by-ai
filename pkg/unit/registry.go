@@ -10,6 +10,7 @@ var (
 	ErrCommandAlreadyRegistered  = errors.New("command already registered")
 	ErrQueryAlreadyRegistered    = errors.New("query already registered")
 	ErrResourceAlreadyRegistered = errors.New("resource already registered")
+	ErrFactoryAlreadyRegistered  = errors.New("resource factory already registered")
 	ErrCommandNotFound           = errors.New("command not found")
 	ErrQueryNotFound             = errors.New("query not found")
 	ErrResourceNotFound          = errors.New("resource not found")
@@ -18,18 +19,20 @@ var (
 // Registry is the central registry for all atomic units (Commands, Queries, Resources).
 // It provides thread-safe registration and lookup operations.
 type Registry struct {
-	commands  map[string]Command
-	queries   map[string]Query
-	resources map[string]Resource
-	mu        sync.RWMutex
+	commands          map[string]Command
+	queries           map[string]Query
+	resources         map[string]Resource
+	resourceFactories []ResourceFactory
+	mu                sync.RWMutex
 }
 
 // NewRegistry creates a new empty Registry.
 func NewRegistry() *Registry {
 	return &Registry{
-		commands:  make(map[string]Command),
-		queries:   make(map[string]Query),
-		resources: make(map[string]Resource),
+		commands:          make(map[string]Command),
+		queries:           make(map[string]Query),
+		resources:         make(map[string]Resource),
+		resourceFactories: make([]ResourceFactory, 0),
 	}
 }
 
@@ -93,6 +96,20 @@ func (r *Registry) RegisterResource(res Resource) error {
 	return nil
 }
 
+// RegisterResourceFactory registers a ResourceFactory with the registry.
+// It is used to handle dynamic URI patterns like asms://model/{id}.
+func (r *Registry) RegisterResourceFactory(factory ResourceFactory) error {
+	if factory == nil {
+		return ErrResourceNotFound
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.resourceFactories = append(r.resourceFactories, factory)
+	return nil
+}
+
 // GetCommand retrieves a Command by name. Returns nil if not found.
 func (r *Registry) GetCommand(name string) Command {
 	r.mu.RLock()
@@ -109,12 +126,44 @@ func (r *Registry) GetQuery(name string) Query {
 	return r.queries[name]
 }
 
-// GetResource retrieves a Resource by URI. Returns nil if not found.
+// GetResource retrieves a Resource by URI. If not found directly, it tries
+// to create a Resource using registered ResourceFactory instances.
+// Returns nil if not found in any collection or factory.
 func (r *Registry) GetResource(uri string) Resource {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	return r.resources[uri]
+	// First, try to find directly registered resource
+	if res, ok := r.resources[uri]; ok {
+		return res
+	}
+
+	// Return nil - caller should use GetResourceWithFactory for factory creation
+	return nil
+}
+
+// GetResourceWithFactory tries to create a Resource using registered factories.
+// It first checks directly registered resources, then tries each factory.
+func (r *Registry) GetResourceWithFactory(uri string) Resource {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	// First, try to find directly registered resource
+	if res, ok := r.resources[uri]; ok {
+		return res
+	}
+
+	// Try each factory
+	for _, factory := range r.resourceFactories {
+		if factory.CanCreate(uri) {
+			res, err := factory.Create(uri)
+			if err == nil && res != nil {
+				return res
+			}
+		}
+	}
+
+	return nil
 }
 
 // ListCommands returns all registered Commands.
@@ -150,6 +199,16 @@ func (r *Registry) ListResources() []Resource {
 	for _, res := range r.resources {
 		result = append(result, res)
 	}
+	return result
+}
+
+// ListResourceFactories returns all registered ResourceFactories.
+func (r *Registry) ListResourceFactories() []ResourceFactory {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	result := make([]ResourceFactory, 0, len(r.resourceFactories))
+	result = append(result, r.resourceFactories...)
 	return result
 }
 
