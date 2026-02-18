@@ -242,3 +242,99 @@ func (g *Gateway) Registry() *unit.Registry {
 func (g *Gateway) Timeout() time.Duration {
 	return g.requestTimeout
 }
+
+// StreamResponse represents a single chunk in a streaming response
+type StreamResponse struct {
+	Data     any        `json:"data,omitempty"`
+	Metadata any        `json:"metadata,omitempty"`
+	Done     bool       `json:"done,omitempty"`
+	Error    *ErrorInfo `json:"error,omitempty"`
+}
+
+// HandleStream executes a streaming command and returns a channel of chunks
+// This method is used for Server-Sent Events (SSE) streaming
+func (g *Gateway) HandleStream(ctx context.Context, req *Request) (<-chan StreamResponse, error) {
+	if err := g.validateRequest(req); err != nil {
+		return nil, err
+	}
+
+	if req.Type != TypeCommand {
+		return nil, NewErrorInfo(ErrCodeInvalidRequest, "streaming only supports commands")
+	}
+
+	// Check if command supports streaming
+	cmd := g.registry.GetCommand(req.Unit)
+	if cmd == nil {
+		return nil, NewErrorInfo(ErrCodeUnitNotFound, "command not found: "+req.Unit)
+	}
+
+	streamingCmd, ok := cmd.(unit.StreamingCommand)
+	if !ok || !streamingCmd.SupportsStreaming() {
+		return nil, NewErrorInfo(ErrCodeInvalidRequest, "command does not support streaming: "+req.Unit)
+	}
+
+	requestID := unit.GenerateRequestID()
+	ctx = unit.WithRequestID(ctx, requestID)
+
+	timeout := req.Options.Timeout
+	if timeout <= 0 {
+		timeout = g.requestTimeout
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+
+	// Create output channel
+	stream := make(chan StreamResponse, 10)
+
+	// Run command in goroutine
+	go func() {
+		defer close(stream)
+		defer cancel()
+
+		// Internal channel to receive chunks from command
+		unitStream := make(chan unit.StreamChunk, 10)
+
+		// Execute streaming command in separate goroutine
+		errChan := make(chan error, 1)
+		go func() {
+			errChan <- streamingCmd.ExecuteStream(ctx, req.Input, unitStream)
+			close(unitStream)
+		}()
+
+		// Forward chunks from unit stream to gateway stream
+		for chunk := range unitStream {
+			resp := StreamResponse{
+				Data:     chunk.Data,
+				Metadata: chunk.Metadata,
+			}
+			if chunk.Type == "done" {
+				resp.Done = true
+			}
+			select {
+			case stream <- resp:
+			case <-ctx.Done():
+				return
+			}
+		}
+
+		// Check for execution error
+		if err := <-errChan; err != nil {
+			select {
+			case stream <- StreamResponse{
+				Error: ToErrorInfo(err),
+				Done:  true,
+			}:
+			case <-ctx.Done():
+			}
+			return
+		}
+
+		// Send done signal
+		select {
+		case stream <- StreamResponse{Done: true}:
+		case <-ctx.Done():
+		}
+	}()
+
+	return stream, nil
+}

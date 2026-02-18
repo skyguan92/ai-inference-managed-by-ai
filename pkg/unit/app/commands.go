@@ -11,10 +11,15 @@ import (
 type InstallCommand struct {
 	store    AppStore
 	provider AppProvider
+	events   unit.EventPublisher
 }
 
 func NewInstallCommand(store AppStore, provider AppProvider) *InstallCommand {
 	return &InstallCommand{store: store, provider: provider}
+}
+
+func NewInstallCommandWithEvents(store AppStore, provider AppProvider, events unit.EventPublisher) *InstallCommand {
+	return &InstallCommand{store: store, provider: provider, events: events}
 }
 
 func (c *InstallCommand) Name() string {
@@ -88,18 +93,27 @@ func (c *InstallCommand) Examples() []unit.Example {
 }
 
 func (c *InstallCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.store == nil || c.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	template, _ := inputMap["template"].(string)
 	if template == "" {
-		return nil, fmt.Errorf("template is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("template is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	name, _ := inputMap["name"].(string)
@@ -114,6 +128,7 @@ func (c *InstallCommand) Execute(ctx context.Context, input any) (any, error) {
 
 	result, err := c.provider.Install(ctx, template, name, config)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("install app from template %s: %w", template, err)
 	}
 
@@ -129,19 +144,27 @@ func (c *InstallCommand) Execute(ctx context.Context, input any) (any, error) {
 	}
 
 	if err := c.store.Create(ctx, app); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("save app %s: %w", name, err)
 	}
 
-	return map[string]any{"app_id": result.AppID}, nil
+	output := map[string]any{"app_id": result.AppID}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type UninstallCommand struct {
 	store    AppStore
 	provider AppProvider
+	events   unit.EventPublisher
 }
 
 func NewUninstallCommand(store AppStore, provider AppProvider) *UninstallCommand {
 	return &UninstallCommand{store: store, provider: provider}
+}
+
+func NewUninstallCommandWithEvents(store AppStore, provider AppProvider, events unit.EventPublisher) *UninstallCommand {
+	return &UninstallCommand{store: store, provider: provider, events: events}
 }
 
 func (c *UninstallCommand) Name() string {
@@ -208,22 +231,32 @@ func (c *UninstallCommand) Examples() []unit.Example {
 }
 
 func (c *UninstallCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.store == nil || c.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	appID, _ := inputMap["app_id"].(string)
 	if appID == "" {
-		return nil, fmt.Errorf("app_id is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("app_id is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	app, err := c.store.Get(ctx, appID)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get app %s: %w", appID, err)
 	}
 
@@ -234,25 +267,34 @@ func (c *UninstallCommand) Execute(ctx context.Context, input any) (any, error) 
 
 	result, err := c.provider.Uninstall(ctx, appID, removeData)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("uninstall app %s: %w", appID, err)
 	}
 
 	if err := c.store.Delete(ctx, appID); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("delete app %s from store: %w", appID, err)
 	}
 
 	_ = app
 
-	return map[string]any{"success": result.Success}, nil
+	output := map[string]any{"success": result.Success}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type StartCommand struct {
 	store    AppStore
 	provider AppProvider
+	events   unit.EventPublisher
 }
 
 func NewStartCommand(store AppStore, provider AppProvider) *StartCommand {
 	return &StartCommand{store: store, provider: provider}
+}
+
+func NewStartCommandWithEvents(store AppStore, provider AppProvider, events unit.EventPublisher) *StartCommand {
+	return &StartCommand{store: store, provider: provider, events: events}
 }
 
 func (c *StartCommand) Name() string {
@@ -307,31 +349,43 @@ func (c *StartCommand) Examples() []unit.Example {
 }
 
 func (c *StartCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.store == nil || c.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	appID, _ := inputMap["app_id"].(string)
 	if appID == "" {
-		return nil, fmt.Errorf("app_id is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("app_id is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	app, err := c.store.Get(ctx, appID)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get app %s: %w", appID, err)
 	}
 
 	if app.Status == AppStatusRunning {
+		ec.PublishFailed(ErrAppAlreadyRunning)
 		return nil, ErrAppAlreadyRunning
 	}
 
 	result, err := c.provider.Start(ctx, appID)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("start app %s: %w", appID, err)
 	}
 
@@ -339,19 +393,27 @@ func (c *StartCommand) Execute(ctx context.Context, input any) (any, error) {
 	app.UpdatedAt = time.Now().Unix()
 
 	if err := c.store.Update(ctx, app); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("update app %s: %w", appID, err)
 	}
 
-	return map[string]any{"success": result.Success}, nil
+	output := map[string]any{"success": result.Success}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type StopCommand struct {
 	store    AppStore
 	provider AppProvider
+	events   unit.EventPublisher
 }
 
 func NewStopCommand(store AppStore, provider AppProvider) *StopCommand {
 	return &StopCommand{store: store, provider: provider}
+}
+
+func NewStopCommandWithEvents(store AppStore, provider AppProvider, events unit.EventPublisher) *StopCommand {
+	return &StopCommand{store: store, provider: provider, events: events}
 }
 
 func (c *StopCommand) Name() string {
@@ -418,26 +480,37 @@ func (c *StopCommand) Examples() []unit.Example {
 }
 
 func (c *StopCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.store == nil || c.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	appID, _ := inputMap["app_id"].(string)
 	if appID == "" {
-		return nil, fmt.Errorf("app_id is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("app_id is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	app, err := c.store.Get(ctx, appID)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get app %s: %w", appID, err)
 	}
 
 	if app.Status != AppStatusRunning {
+		ec.PublishFailed(ErrAppNotRunning)
 		return nil, ErrAppNotRunning
 	}
 
@@ -448,6 +521,7 @@ func (c *StopCommand) Execute(ctx context.Context, input any) (any, error) {
 
 	result, err := c.provider.Stop(ctx, appID, timeout)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("stop app %s: %w", appID, err)
 	}
 
@@ -455,10 +529,13 @@ func (c *StopCommand) Execute(ctx context.Context, input any) (any, error) {
 	app.UpdatedAt = time.Now().Unix()
 
 	if err := c.store.Update(ctx, app); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("update app %s: %w", appID, err)
 	}
 
-	return map[string]any{"success": result.Success}, nil
+	output := map[string]any{"success": result.Success}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 func toInt(v any) (int, bool) {

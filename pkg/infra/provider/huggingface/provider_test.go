@@ -393,78 +393,78 @@ func TestProvider_Search(t *testing.T) {
 
 func TestProvider_DetectModelType(t *testing.T) {
 	tests := []struct {
-		name        string
-		info        *ModelInfo
-		expected    string
+		name     string
+		info     *ModelInfo
+		expected string
 	}{
 		{
-			name: "text-generation pipeline",
-			info: &ModelInfo{PipelineTag: "text-generation"},
+			name:     "text-generation pipeline",
+			info:     &ModelInfo{PipelineTag: "text-generation"},
 			expected: "llm",
 		},
 		{
-			name: "image-text-to-text pipeline",
-			info: &ModelInfo{PipelineTag: "image-text-to-text"},
+			name:     "image-text-to-text pipeline",
+			info:     &ModelInfo{PipelineTag: "image-text-to-text"},
 			expected: "vlm",
 		},
 		{
-			name: "automatic-speech-recognition pipeline",
-			info: &ModelInfo{PipelineTag: "automatic-speech-recognition"},
+			name:     "automatic-speech-recognition pipeline",
+			info:     &ModelInfo{PipelineTag: "automatic-speech-recognition"},
 			expected: "asr",
 		},
 		{
-			name: "text-to-speech pipeline",
-			info: &ModelInfo{PipelineTag: "text-to-speech"},
+			name:     "text-to-speech pipeline",
+			info:     &ModelInfo{PipelineTag: "text-to-speech"},
 			expected: "tts",
 		},
 		{
-			name: "feature-extraction pipeline",
-			info: &ModelInfo{PipelineTag: "feature-extraction"},
+			name:     "feature-extraction pipeline",
+			info:     &ModelInfo{PipelineTag: "feature-extraction"},
 			expected: "embedding",
 		},
 		{
-			name: "text-to-image pipeline",
-			info: &ModelInfo{PipelineTag: "text-to-image"},
+			name:     "text-to-image pipeline",
+			info:     &ModelInfo{PipelineTag: "text-to-image"},
 			expected: "diffusion",
 		},
 		{
-			name: "text-to-video pipeline",
-			info: &ModelInfo{PipelineTag: "text-to-video"},
+			name:     "text-to-video pipeline",
+			info:     &ModelInfo{PipelineTag: "text-to-video"},
 			expected: "video_gen",
 		},
 		{
-			name: "object-detection pipeline",
-			info: &ModelInfo{PipelineTag: "object-detection"},
+			name:     "object-detection pipeline",
+			info:     &ModelInfo{PipelineTag: "object-detection"},
 			expected: "detection",
 		},
 		{
-			name: "reranking pipeline",
-			info: &ModelInfo{PipelineTag: "reranking"},
+			name:     "reranking pipeline",
+			info:     &ModelInfo{PipelineTag: "reranking"},
 			expected: "rerank",
 		},
 		{
-			name: "tag-based llm",
-			info: &ModelInfo{Tags: []string{"causal-lm", "pytorch"}},
+			name:     "tag-based llm",
+			info:     &ModelInfo{Tags: []string{"causal-lm", "pytorch"}},
 			expected: "llm",
 		},
 		{
-			name: "tag-based vlm",
-			info: &ModelInfo{Tags: []string{"vision-language"}},
+			name:     "tag-based vlm",
+			info:     &ModelInfo{Tags: []string{"vision-language"}},
 			expected: "vlm",
 		},
 		{
-			name: "tag-based asr",
-			info: &ModelInfo{Tags: []string{"speech-recognition"}},
+			name:     "tag-based asr",
+			info:     &ModelInfo{Tags: []string{"speech-recognition"}},
 			expected: "asr",
 		},
 		{
-			name: "tag-based diffusion",
-			info: &ModelInfo{Tags: []string{"stable-diffusion"}},
+			name:     "tag-based diffusion",
+			info:     &ModelInfo{Tags: []string{"stable-diffusion"}},
 			expected: "diffusion",
 		},
 		{
-			name: "default to llm",
-			info: &ModelInfo{},
+			name:     "default to llm",
+			info:     &ModelInfo{},
 			expected: "llm",
 		},
 	}

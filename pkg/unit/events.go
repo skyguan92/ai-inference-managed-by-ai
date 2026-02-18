@@ -34,17 +34,17 @@ type ExecutionEvent struct {
 // Type returns the event type
 func (e *ExecutionEvent) Type() string { return e.EventType }
 
-// GetDomain returns the domain
-func (e *ExecutionEvent) GetDomain() string { return e.Domain }
+// Domain returns the domain
+func (e *ExecutionEvent) Domain() string { return e.Domain }
 
 // Payload returns the event payload
 func (e *ExecutionEvent) Payload() any { return e }
 
-// GetTimestamp returns the timestamp
-func (e *ExecutionEvent) GetTimestamp() time.Time { return e.Timestamp }
+// Timestamp returns the timestamp
+func (e *ExecutionEvent) Timestamp() time.Time { return e.Timestamp }
 
-// GetCorrelationID returns the correlation ID
-func (e *ExecutionEvent) GetCorrelationID() string { return e.CorrelationID }
+// CorrelationID returns the correlation ID
+func (e *ExecutionEvent) CorrelationID() string { return e.CorrelationID }
 
 // EventPublisher interface for publishing events
 type EventPublisher interface {

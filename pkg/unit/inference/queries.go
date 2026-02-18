@@ -9,10 +9,15 @@ import (
 
 type ModelsQuery struct {
 	provider InferenceProvider
+	events   unit.EventPublisher
 }
 
 func NewModelsQuery(provider InferenceProvider) *ModelsQuery {
 	return &ModelsQuery{provider: provider}
+}
+
+func NewModelsQueryWithEvents(provider InferenceProvider, events unit.EventPublisher) *ModelsQuery {
+	return &ModelsQuery{provider: provider, events: events}
 }
 
 func (q *ModelsQuery) Name() string {
@@ -74,8 +79,13 @@ func (q *ModelsQuery) Examples() []unit.Example {
 }
 
 func (q *ModelsQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	if q.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, _ := input.(map[string]any)
@@ -83,6 +93,7 @@ func (q *ModelsQuery) Execute(ctx context.Context, input any) (any, error) {
 
 	models, err := q.provider.ListModels(ctx, modelType)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("list models: %w", err)
 	}
 
@@ -99,15 +110,22 @@ func (q *ModelsQuery) Execute(ctx context.Context, input any) (any, error) {
 		}
 	}
 
-	return map[string]any{"models": items}, nil
+	output := map[string]any{"models": items}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type VoicesQuery struct {
 	provider InferenceProvider
+	events   unit.EventPublisher
 }
 
 func NewVoicesQuery(provider InferenceProvider) *VoicesQuery {
 	return &VoicesQuery{provider: provider}
+}
+
+func NewVoicesQueryWithEvents(provider InferenceProvider, events unit.EventPublisher) *VoicesQuery {
+	return &VoicesQuery{provider: provider, events: events}
 }
 
 func (q *VoicesQuery) Name() string {
@@ -168,8 +186,13 @@ func (q *VoicesQuery) Examples() []unit.Example {
 }
 
 func (q *VoicesQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	if q.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, _ := input.(map[string]any)
@@ -177,6 +200,7 @@ func (q *VoicesQuery) Execute(ctx context.Context, input any) (any, error) {
 
 	voices, err := q.provider.ListVoices(ctx, model)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("list voices: %w", err)
 	}
 
@@ -191,5 +215,7 @@ func (q *VoicesQuery) Execute(ctx context.Context, input any) (any, error) {
 		}
 	}
 
-	return map[string]any{"voices": items}, nil
+	output := map[string]any{"voices": items}
+	ec.PublishCompleted(output)
+	return output, nil
 }

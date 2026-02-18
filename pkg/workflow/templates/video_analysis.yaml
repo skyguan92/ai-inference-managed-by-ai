@@ -1,26 +1,23 @@
 name: video_analysis
-description: Video analysis pipeline with frame extraction and understanding
+description: 视频分析 - Video analysis pipeline with frame extraction and understanding
 
 config:
   frame_interval: 30
-  vision_model: "llava"
+  vlm_model: "llava"
   llm_model: "llama3.2"
-  max_frames: 10
 
 steps:
   - id: extract_frames
-    type: video.extract_frames
+    type: resource.extract_frames
     input:
       video: "${input.video}"
       interval: "${config.frame_interval}"
-      max_frames: "${config.max_frames}"
   
   - id: analyze_frames
-    type: batch.process
+    type: inference.batch_describe
     input:
-      model: "${config.vision_model}"
-      items: "${steps.extract_frames.frames}"
-      prompt: "Describe what is happening in this frame."
+      model: "${config.vlm_model}"
+      images: "${steps.extract_frames.frames}"
     depends_on:
       - extract_frames
   
@@ -30,17 +27,11 @@ steps:
       model: "${config.llm_model}"
       messages:
         - role: system
-          content: "You are a video analysis expert. Summarize the video content based on frame descriptions."
+          content: "总结视频内容"
         - role: user
-          content: |
-            Frame descriptions:
-            ${steps.analyze_frames.results}
-            
-            Task: ${input.task}
+          content: "帧分析结果: ${steps.analyze_frames.descriptions}"
     depends_on:
       - analyze_frames
 
 output:
-  summary: "${steps.summarize.content}"
-  frame_analyses: "${steps.analyze_frames.results}"
-  frame_count: "${steps.extract_frames.frame_count}"
+  summary: "${steps.summarize.response.content}"

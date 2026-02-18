@@ -377,10 +377,15 @@ func (c *ChatCommand) ExecuteStream(ctx context.Context, input any, stream chan<
 
 type CompleteCommand struct {
 	provider InferenceProvider
+	events   unit.EventPublisher
 }
 
 func NewCompleteCommand(provider InferenceProvider) *CompleteCommand {
 	return &CompleteCommand{provider: provider}
+}
+
+func NewCompleteCommandWithEvents(provider InferenceProvider, events unit.EventPublisher) *CompleteCommand {
+	return &CompleteCommand{provider: provider, events: events}
 }
 
 func (c *CompleteCommand) Name() string {
@@ -488,23 +493,34 @@ func (c *CompleteCommand) Examples() []unit.Example {
 }
 
 func (c *CompleteCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	model, _ := inputMap["model"].(string)
 	if model == "" {
-		return nil, ErrModelNotSpecified
+		err := ErrModelNotSpecified
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	prompt, _ := inputMap["prompt"].(string)
 	if prompt == "" {
-		return nil, fmt.Errorf("prompt is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("prompt is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	opts := CompleteOptions{}
@@ -535,10 +551,11 @@ func (c *CompleteCommand) Execute(ctx context.Context, input any) (any, error) {
 
 	resp, err := c.provider.Complete(ctx, model, prompt, opts)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("completion failed: %w", err)
 	}
 
-	return map[string]any{
+	output := map[string]any{
 		"text":          resp.Text,
 		"finish_reason": resp.FinishReason,
 		"usage": map[string]any{
@@ -546,7 +563,9 @@ func (c *CompleteCommand) Execute(ctx context.Context, input any) (any, error) {
 			"completion_tokens": resp.Usage.CompletionTokens,
 			"total_tokens":      resp.Usage.TotalTokens,
 		},
-	}, nil
+	}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 // SupportsStreaming returns true as complete command supports streaming
@@ -623,10 +642,15 @@ func (c *CompleteCommand) ExecuteStream(ctx context.Context, input any, stream c
 
 type EmbedCommand struct {
 	provider InferenceProvider
+	events   unit.EventPublisher
 }
 
 func NewEmbedCommand(provider InferenceProvider) *EmbedCommand {
 	return &EmbedCommand{provider: provider}
+}
+
+func NewEmbedCommandWithEvents(provider InferenceProvider, events unit.EventPublisher) *EmbedCommand {
+	return &EmbedCommand{provider: provider, events: events}
 }
 
 func (c *EmbedCommand) Name() string {
@@ -704,18 +728,27 @@ func (c *EmbedCommand) Examples() []unit.Example {
 }
 
 func (c *EmbedCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	model, _ := inputMap["model"].(string)
 	if model == "" {
-		return nil, ErrModelNotSpecified
+		err := ErrModelNotSpecified
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	var texts []string
@@ -730,29 +763,39 @@ func (c *EmbedCommand) Execute(ctx context.Context, input any) (any, error) {
 	case []string:
 		texts = v
 	default:
-		return nil, fmt.Errorf("input must be string or array: %w", ErrInvalidInput)
+		err := fmt.Errorf("input must be string or array: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	resp, err := c.provider.Embed(ctx, model, texts)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("embedding failed: %w", err)
 	}
 
-	return map[string]any{
+	output := map[string]any{
 		"embeddings": resp.Embeddings,
 		"usage": map[string]any{
 			"prompt_tokens": resp.Usage.PromptTokens,
 			"total_tokens":  resp.Usage.TotalTokens,
 		},
-	}, nil
+	}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type TranscribeCommand struct {
 	provider InferenceProvider
+	events   unit.EventPublisher
 }
 
 func NewTranscribeCommand(provider InferenceProvider) *TranscribeCommand {
 	return &TranscribeCommand{provider: provider}
+}
+
+func NewTranscribeCommandWithEvents(provider InferenceProvider, events unit.EventPublisher) *TranscribeCommand {
+	return &TranscribeCommand{provider: provider, events: events}
 }
 
 func (c *TranscribeCommand) Name() string {
@@ -826,23 +869,34 @@ func (c *TranscribeCommand) Examples() []unit.Example {
 }
 
 func (c *TranscribeCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	model, _ := inputMap["model"].(string)
 	if model == "" {
-		return nil, ErrModelNotSpecified
+		err := ErrModelNotSpecified
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	audioRaw, _ := inputMap["audio"].(string)
 	if audioRaw == "" {
-		return nil, fmt.Errorf("audio is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("audio is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	audio := []byte(audioRaw)
@@ -850,6 +904,7 @@ func (c *TranscribeCommand) Execute(ctx context.Context, input any) (any, error)
 
 	resp, err := c.provider.Transcribe(ctx, model, audio, language)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("transcription failed: %w", err)
 	}
 
@@ -863,20 +918,27 @@ func (c *TranscribeCommand) Execute(ctx context.Context, input any) (any, error)
 		}
 	}
 
-	return map[string]any{
+	output := map[string]any{
 		"text":     resp.Text,
 		"language": resp.Language,
 		"duration": resp.Duration,
 		"segments": segments,
-	}, nil
+	}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type SynthesizeCommand struct {
 	provider InferenceProvider
+	events   unit.EventPublisher
 }
 
 func NewSynthesizeCommand(provider InferenceProvider) *SynthesizeCommand {
 	return &SynthesizeCommand{provider: provider}
+}
+
+func NewSynthesizeCommandWithEvents(provider InferenceProvider, events unit.EventPublisher) *SynthesizeCommand {
+	return &SynthesizeCommand{provider: provider, events: events}
 }
 
 func (c *SynthesizeCommand) Name() string {
@@ -950,45 +1012,64 @@ func (c *SynthesizeCommand) Examples() []unit.Example {
 }
 
 func (c *SynthesizeCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	model, _ := inputMap["model"].(string)
 	if model == "" {
-		return nil, ErrModelNotSpecified
+		err := ErrModelNotSpecified
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	text, _ := inputMap["text"].(string)
 	if text == "" {
-		return nil, fmt.Errorf("text is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("text is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	voice, _ := inputMap["voice"].(string)
 
 	resp, err := c.provider.Synthesize(ctx, model, text, voice)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("synthesis failed: %w", err)
 	}
 
-	return map[string]any{
+	output := map[string]any{
 		"audio":    string(resp.Audio),
 		"format":   resp.Format,
 		"duration": resp.Duration,
-	}, nil
+	}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type GenerateImageCommand struct {
 	provider InferenceProvider
+	events   unit.EventPublisher
 }
 
 func NewGenerateImageCommand(provider InferenceProvider) *GenerateImageCommand {
 	return &GenerateImageCommand{provider: provider}
+}
+
+func NewGenerateImageCommandWithEvents(provider InferenceProvider, events unit.EventPublisher) *GenerateImageCommand {
+	return &GenerateImageCommand{provider: provider, events: events}
 }
 
 func (c *GenerateImageCommand) Name() string {
@@ -1102,23 +1183,34 @@ func (c *GenerateImageCommand) Examples() []unit.Example {
 }
 
 func (c *GenerateImageCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	model, _ := inputMap["model"].(string)
 	if model == "" {
-		return nil, ErrModelNotSpecified
+		err := ErrModelNotSpecified
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	prompt, _ := inputMap["prompt"].(string)
 	if prompt == "" {
-		return nil, fmt.Errorf("prompt is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("prompt is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	opts := ImageOptions{}
@@ -1139,6 +1231,7 @@ func (c *GenerateImageCommand) Execute(ctx context.Context, input any) (any, err
 
 	resp, err := c.provider.GenerateImage(ctx, model, prompt, opts)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("image generation failed: %w", err)
 	}
 
@@ -1151,18 +1244,25 @@ func (c *GenerateImageCommand) Execute(ctx context.Context, input any) (any, err
 		}
 	}
 
-	return map[string]any{
+	output := map[string]any{
 		"images": images,
 		"format": resp.Format,
-	}, nil
+	}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type GenerateVideoCommand struct {
 	provider InferenceProvider
+	events   unit.EventPublisher
 }
 
 func NewGenerateVideoCommand(provider InferenceProvider) *GenerateVideoCommand {
 	return &GenerateVideoCommand{provider: provider}
+}
+
+func NewGenerateVideoCommandWithEvents(provider InferenceProvider, events unit.EventPublisher) *GenerateVideoCommand {
+	return &GenerateVideoCommand{provider: provider, events: events}
 }
 
 func (c *GenerateVideoCommand) Name() string {
@@ -1250,23 +1350,34 @@ func (c *GenerateVideoCommand) Examples() []unit.Example {
 }
 
 func (c *GenerateVideoCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	model, _ := inputMap["model"].(string)
 	if model == "" {
-		return nil, ErrModelNotSpecified
+		err := ErrModelNotSpecified
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	prompt, _ := inputMap["prompt"].(string)
 	if prompt == "" {
-		return nil, fmt.Errorf("prompt is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("prompt is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	opts := VideoOptions{}
@@ -1288,22 +1399,30 @@ func (c *GenerateVideoCommand) Execute(ctx context.Context, input any) (any, err
 
 	resp, err := c.provider.GenerateVideo(ctx, model, prompt, opts)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("video generation failed: %w", err)
 	}
 
-	return map[string]any{
+	output := map[string]any{
 		"video":    string(resp.Video),
 		"format":   resp.Format,
 		"duration": resp.Duration,
-	}, nil
+	}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type RerankCommand struct {
 	provider InferenceProvider
+	events   unit.EventPublisher
 }
 
 func NewRerankCommand(provider InferenceProvider) *RerankCommand {
 	return &RerankCommand{provider: provider}
+}
+
+func NewRerankCommandWithEvents(provider InferenceProvider, events unit.EventPublisher) *RerankCommand {
+	return &RerankCommand{provider: provider, events: events}
 }
 
 func (c *RerankCommand) Name() string {
@@ -1384,28 +1503,41 @@ func (c *RerankCommand) Examples() []unit.Example {
 }
 
 func (c *RerankCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	model, _ := inputMap["model"].(string)
 	if model == "" {
-		return nil, ErrModelNotSpecified
+		err := ErrModelNotSpecified
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	query, _ := inputMap["query"].(string)
 	if query == "" {
-		return nil, fmt.Errorf("query is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("query is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	docsRaw, ok := inputMap["documents"].([]any)
 	if !ok || len(docsRaw) == 0 {
-		return nil, fmt.Errorf("documents are required: %w", ErrInvalidInput)
+		err := fmt.Errorf("documents are required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	documents := make([]string, len(docsRaw))
@@ -1415,6 +1547,7 @@ func (c *RerankCommand) Execute(ctx context.Context, input any) (any, error) {
 
 	resp, err := c.provider.Rerank(ctx, model, query, documents)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("rerank failed: %w", err)
 	}
 
@@ -1427,15 +1560,22 @@ func (c *RerankCommand) Execute(ctx context.Context, input any) (any, error) {
 		}
 	}
 
-	return map[string]any{"results": results}, nil
+	output := map[string]any{"results": results}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type DetectCommand struct {
 	provider InferenceProvider
+	events   unit.EventPublisher
 }
 
 func NewDetectCommand(provider InferenceProvider) *DetectCommand {
 	return &DetectCommand{provider: provider}
+}
+
+func NewDetectCommandWithEvents(provider InferenceProvider, events unit.EventPublisher) *DetectCommand {
+	return &DetectCommand{provider: provider, events: events}
 }
 
 func (c *DetectCommand) Name() string {
@@ -1513,27 +1653,39 @@ func (c *DetectCommand) Examples() []unit.Example {
 }
 
 func (c *DetectCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	model, _ := inputMap["model"].(string)
 	if model == "" {
-		return nil, ErrModelNotSpecified
+		err := ErrModelNotSpecified
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	imageRaw, _ := inputMap["image"].(string)
 	if imageRaw == "" {
-		return nil, fmt.Errorf("image is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("image is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	resp, err := c.provider.Detect(ctx, model, []byte(imageRaw))
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("detection failed: %w", err)
 	}
 
@@ -1546,7 +1698,9 @@ func (c *DetectCommand) Execute(ctx context.Context, input any) (any, error) {
 		}
 	}
 
-	return map[string]any{"detections": detections}, nil
+	output := map[string]any{"detections": detections}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 func ptrFloat(v float64) *float64 {

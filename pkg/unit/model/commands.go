@@ -2,7 +2,6 @@ package model
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -11,14 +10,7 @@ import (
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
 )
 
-var (
-	ErrModelNotFound      = errors.New("model not found")
-	ErrInvalidModelID     = errors.New("invalid model id")
-	ErrInvalidInput       = errors.New("invalid input")
-	ErrModelAlreadyExists = errors.New("model already exists")
-	ErrPullInProgress     = errors.New("pull already in progress")
-	ErrProviderNotSet     = errors.New("model provider not set")
-)
+// Domain errors are defined in errors.go
 
 type ModelStore interface {
 	Create(ctx context.Context, model *Model) error

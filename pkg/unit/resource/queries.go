@@ -10,10 +10,15 @@ import (
 type StatusQuery struct {
 	provider ResourceProvider
 	store    ResourceStore
+	events   unit.EventPublisher
 }
 
 func NewStatusQuery(provider ResourceProvider, store ResourceStore) *StatusQuery {
 	return &StatusQuery{provider: provider, store: store}
+}
+
+func NewStatusQueryWithEvents(provider ResourceProvider, store ResourceStore, events unit.EventPublisher) *StatusQuery {
+	return &StatusQuery{provider: provider, store: store, events: events}
 }
 
 func (q *StatusQuery) Name() string {
@@ -101,12 +106,18 @@ func (q *StatusQuery) Examples() []unit.Example {
 }
 
 func (q *StatusQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	if q.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	status, err := q.provider.GetStatus(ctx)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get resource status: %w", err)
 	}
 
@@ -114,6 +125,7 @@ func (q *StatusQuery) Execute(ctx context.Context, input any) (any, error) {
 	if q.store != nil {
 		storeSlots, _, err := q.store.ListSlots(ctx, SlotFilter{})
 		if err != nil {
+			ec.PublishFailed(err)
 			return nil, fmt.Errorf("list slots: %w", err)
 		}
 		for _, s := range storeSlots {
@@ -141,7 +153,7 @@ func (q *StatusQuery) Execute(ctx context.Context, input any) (any, error) {
 		}
 	}
 
-	return map[string]any{
+	output := map[string]any{
 		"memory": map[string]any{
 			"total":     status.Memory.Total,
 			"used":      status.Memory.Used,
@@ -154,15 +166,22 @@ func (q *StatusQuery) Execute(ctx context.Context, input any) (any, error) {
 		},
 		"slots":    slots,
 		"pressure": string(status.Pressure),
-	}, nil
+	}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type BudgetQuery struct {
 	provider ResourceProvider
+	events   unit.EventPublisher
 }
 
 func NewBudgetQuery(provider ResourceProvider) *BudgetQuery {
 	return &BudgetQuery{provider: provider}
+}
+
+func NewBudgetQueryWithEvents(provider ResourceProvider, events unit.EventPublisher) *BudgetQuery {
+	return &BudgetQuery{provider: provider, events: events}
 }
 
 func (q *BudgetQuery) Name() string {
@@ -224,12 +243,18 @@ func (q *BudgetQuery) Examples() []unit.Example {
 }
 
 func (q *BudgetQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	if q.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	budget, err := q.provider.GetBudget(ctx)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get resource budget: %w", err)
 	}
 
@@ -243,19 +268,26 @@ func (q *BudgetQuery) Execute(ctx context.Context, input any) (any, error) {
 		}
 	}
 
-	return map[string]any{
+	output := map[string]any{
 		"total":    budget.Total,
 		"reserved": budget.Reserved,
 		"pools":    pools,
-	}, nil
+	}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type AllocationsQuery struct {
-	store ResourceStore
+	store  ResourceStore
+	events unit.EventPublisher
 }
 
 func NewAllocationsQuery(store ResourceStore) *AllocationsQuery {
 	return &AllocationsQuery{store: store}
+}
+
+func NewAllocationsQueryWithEvents(store ResourceStore, events unit.EventPublisher) *AllocationsQuery {
+	return &AllocationsQuery{store: store, events: events}
 }
 
 func (q *AllocationsQuery) Name() string {
@@ -335,8 +367,13 @@ func (q *AllocationsQuery) Examples() []unit.Example {
 }
 
 func (q *AllocationsQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	if q.store == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, _ := input.(map[string]any)
@@ -351,6 +388,7 @@ func (q *AllocationsQuery) Execute(ctx context.Context, input any) (any, error) 
 
 	slots, _, err := q.store.ListSlots(ctx, filter)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("list allocations: %w", err)
 	}
 
@@ -367,15 +405,22 @@ func (q *AllocationsQuery) Execute(ctx context.Context, input any) (any, error) 
 		}
 	}
 
-	return map[string]any{"allocations": allocations}, nil
+	output := map[string]any{"allocations": allocations}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type CanAllocateQuery struct {
 	provider ResourceProvider
+	events   unit.EventPublisher
 }
 
 func NewCanAllocateQuery(provider ResourceProvider) *CanAllocateQuery {
 	return &CanAllocateQuery{provider: provider}
+}
+
+func NewCanAllocateQueryWithEvents(provider ResourceProvider, events unit.EventPublisher) *CanAllocateQuery {
+	return &CanAllocateQuery{provider: provider, events: events}
 }
 
 func (q *CanAllocateQuery) Name() string {
@@ -447,17 +492,25 @@ func (q *CanAllocateQuery) Examples() []unit.Example {
 }
 
 func (q *CanAllocateQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	if q.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: expected map[string]any")
+		err := fmt.Errorf("invalid input type: expected map[string]any")
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	memoryBytes, ok := toUint64(inputMap["memory_bytes"])
 	if !ok || memoryBytes == 0 {
+		ec.PublishFailed(ErrInvalidMemoryValue)
 		return nil, ErrInvalidMemoryValue
 	}
 
@@ -468,6 +521,7 @@ func (q *CanAllocateQuery) Execute(ctx context.Context, input any) (any, error) 
 
 	result, err := q.provider.CanAllocate(ctx, memoryBytes, priority)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("check allocation: %w", err)
 	}
 
@@ -478,5 +532,6 @@ func (q *CanAllocateQuery) Execute(ctx context.Context, input any) (any, error) 
 		output["reason"] = result.Reason
 	}
 
+	ec.PublishCompleted(output)
 	return output, nil
 }

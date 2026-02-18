@@ -1,42 +1,26 @@
 name: multimodal_chat
-description: Multimodal chat with image and text understanding
+description: 多模态对话 - Multimodal chat with image and text understanding
 
 config:
-  vision_model: "llava"
+  vlm_model: "llava"
   llm_model: "llama3.2"
-  max_tokens: 2048
 
 steps:
   - id: analyze_image
-    type: inference.chat
+    type: inference.describe
     input:
-      model: "${config.vision_model}"
-      messages:
-        - role: user
-          content:
-            - type: text
-              text: "Describe this image in detail."
-            - type: image_url
-              image_url:
-                url: "${input.image}"
-    on_failure: continue
+      model: "${config.vlm_model}"
+      image: "${input.image}"
   
-  - id: generate_response
+  - id: chat
     type: inference.chat
     input:
       model: "${config.llm_model}"
-      max_tokens: "${config.max_tokens}"
       messages:
-        - role: system
-          content: "You are a helpful assistant that can analyze images and answer questions about them."
         - role: user
-          content: |
-            Image analysis: ${steps.analyze_image.content}
-            
-            User question: ${input.question}
+          content: "图片内容: ${steps.analyze_image.description}\n${input.question}"
     depends_on:
       - analyze_image
 
 output:
-  image_description: "${steps.analyze_image.content}"
-  response: "${steps.generate_response.content}"
+  response: "${steps.chat.response.content}"

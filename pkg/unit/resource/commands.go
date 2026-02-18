@@ -11,10 +11,15 @@ import (
 type AllocateCommand struct {
 	store    ResourceStore
 	provider ResourceProvider
+	events   unit.EventPublisher
 }
 
 func NewAllocateCommand(store ResourceStore, provider ResourceProvider) *AllocateCommand {
 	return &AllocateCommand{store: store, provider: provider}
+}
+
+func NewAllocateCommandWithEvents(store ResourceStore, provider ResourceProvider, events unit.EventPublisher) *AllocateCommand {
+	return &AllocateCommand{store: store, provider: provider, events: events}
 }
 
 func (c *AllocateCommand) Name() string {
@@ -102,28 +107,39 @@ func (c *AllocateCommand) Examples() []unit.Example {
 }
 
 func (c *AllocateCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.store == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: expected map[string]any")
+		err := fmt.Errorf("invalid input type: expected map[string]any")
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	name, _ := inputMap["name"].(string)
 	if name == "" {
-		return nil, fmt.Errorf("name is required")
+		err := fmt.Errorf("name is required")
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	slotTypeStr, _ := inputMap["type"].(string)
 	slotType := SlotType(slotTypeStr)
 	if !IsValidSlotType(slotType) {
+		ec.PublishFailed(ErrInvalidSlotType)
 		return nil, ErrInvalidSlotType
 	}
 
 	memoryBytes, ok := toUint64(inputMap["memory_bytes"])
 	if !ok || memoryBytes == 0 {
+		ec.PublishFailed(ErrInvalidMemoryValue)
 		return nil, ErrInvalidMemoryValue
 	}
 
@@ -140,6 +156,7 @@ func (c *AllocateCommand) Execute(ctx context.Context, input any) (any, error) {
 	if c.provider != nil {
 		canAlloc, err := c.provider.CanAllocate(ctx, memoryBytes, priority)
 		if err != nil {
+			ec.PublishFailed(err)
 			return nil, fmt.Errorf("check allocation: %w", err)
 		}
 		if !canAlloc.CanAllocate {
@@ -147,7 +164,9 @@ func (c *AllocateCommand) Execute(ctx context.Context, input any) (any, error) {
 			if reason == "" {
 				reason = "insufficient resources"
 			}
-			return nil, fmt.Errorf("%s: %w", reason, ErrInsufficientMemory)
+			err := fmt.Errorf("%s: %w", reason, ErrInsufficientMemory)
+			ec.PublishFailed(err)
+			return nil, err
 		}
 	}
 
@@ -165,18 +184,26 @@ func (c *AllocateCommand) Execute(ctx context.Context, input any) (any, error) {
 	}
 
 	if err := c.store.CreateSlot(ctx, slot); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("create slot: %w", err)
 	}
 
-	return map[string]any{"slot_id": slot.ID}, nil
+	output := map[string]any{"slot_id": slot.ID}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type ReleaseCommand struct {
-	store ResourceStore
+	store  ResourceStore
+	events unit.EventPublisher
 }
 
 func NewReleaseCommand(store ResourceStore) *ReleaseCommand {
 	return &ReleaseCommand{store: store}
+}
+
+func NewReleaseCommandWithEvents(store ResourceStore, events unit.EventPublisher) *ReleaseCommand {
+	return &ReleaseCommand{store: store, events: events}
 }
 
 func (c *ReleaseCommand) Name() string {
@@ -230,33 +257,49 @@ func (c *ReleaseCommand) Examples() []unit.Example {
 }
 
 func (c *ReleaseCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.store == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: expected map[string]any")
+		err := fmt.Errorf("invalid input type: expected map[string]any")
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	slotID, _ := inputMap["slot_id"].(string)
 	if slotID == "" {
+		ec.PublishFailed(ErrInvalidSlotID)
 		return nil, ErrInvalidSlotID
 	}
 
 	if err := c.store.DeleteSlot(ctx, slotID); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("release slot %s: %w", slotID, err)
 	}
 
-	return map[string]any{"success": true}, nil
+	output := map[string]any{"success": true}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type UpdateSlotCommand struct {
-	store ResourceStore
+	store  ResourceStore
+	events unit.EventPublisher
 }
 
 func NewUpdateSlotCommand(store ResourceStore) *UpdateSlotCommand {
 	return &UpdateSlotCommand{store: store}
+}
+
+func NewUpdateSlotCommandWithEvents(store ResourceStore, events unit.EventPublisher) *UpdateSlotCommand {
+	return &UpdateSlotCommand{store: store, events: events}
 }
 
 func (c *UpdateSlotCommand) Name() string {
@@ -326,22 +369,31 @@ func (c *UpdateSlotCommand) Examples() []unit.Example {
 }
 
 func (c *UpdateSlotCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.store == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: expected map[string]any")
+		err := fmt.Errorf("invalid input type: expected map[string]any")
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	slotID, _ := inputMap["slot_id"].(string)
 	if slotID == "" {
+		ec.PublishFailed(ErrInvalidSlotID)
 		return nil, ErrInvalidSlotID
 	}
 
 	slot, err := c.store.GetSlot(ctx, slotID)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get slot %s: %w", slotID, err)
 	}
 
@@ -352,6 +404,7 @@ func (c *UpdateSlotCommand) Execute(ctx context.Context, input any) (any, error)
 	if statusStr, ok := inputMap["status"].(string); ok {
 		status := SlotStatus(statusStr)
 		if !IsValidSlotStatus(status) {
+			ec.PublishFailed(ErrInvalidSlotStatus)
 			return nil, ErrInvalidSlotStatus
 		}
 		slot.Status = status
@@ -360,10 +413,13 @@ func (c *UpdateSlotCommand) Execute(ctx context.Context, input any) (any, error)
 	slot.UpdatedAt = time.Now().Unix()
 
 	if err := c.store.UpdateSlot(ctx, slot); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("update slot %s: %w", slotID, err)
 	}
 
-	return map[string]any{"success": true}, nil
+	output := map[string]any{"success": true}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 func ptrFloat(v float64) *float64 {

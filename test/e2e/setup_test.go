@@ -206,6 +206,59 @@ func (m *MockInferenceProvider) ListVoices(ctx context.Context, modelID string) 
 	}, nil
 }
 
+func (m *MockInferenceProvider) ChatStream(ctx context.Context, modelID string, messages []inference.Message, opts inference.ChatOptions, stream chan<- inference.ChatStreamChunk) error {
+	// Send mock chunks
+	chunks := []string{"Hello! ", "I'm ", "a ", "mock ", "streaming ", "response."}
+	for _, chunk := range chunks {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case stream <- inference.ChatStreamChunk{
+			Content: chunk,
+			Model:   modelID,
+			ID:      "chat-" + uuid.New().String()[:8],
+		}:
+		}
+	}
+	// Send final chunk
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case stream <- inference.ChatStreamChunk{
+		Content:      "",
+		FinishReason: "stop",
+		Usage:        &inference.Usage{PromptTokens: 10, CompletionTokens: 6, TotalTokens: 16},
+	}:
+	}
+	return nil
+}
+
+func (m *MockInferenceProvider) CompleteStream(ctx context.Context, modelID string, prompt string, opts inference.CompleteOptions, stream chan<- inference.CompleteStreamChunk) error {
+	// Send mock chunks
+	chunks := []string{"This ", "is ", "a ", "mock ", "completion."}
+	for _, chunk := range chunks {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case stream <- inference.CompleteStreamChunk{
+			Text:  chunk,
+			Model: modelID,
+		}:
+		}
+	}
+	// Send final chunk
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case stream <- inference.CompleteStreamChunk{
+		Text:         "",
+		FinishReason: "stop",
+		Usage:        &inference.Usage{PromptTokens: 5, CompletionTokens: 5, TotalTokens: 10},
+	}:
+	}
+	return nil
+}
+
 func assertSuccess(t *testing.T, resp *gateway.Response, msgAndArgs ...interface{}) {
 	t.Helper()
 	if !resp.Success {

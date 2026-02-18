@@ -11,10 +11,15 @@ import (
 type CreateCommand struct {
 	store    PipelineStore
 	executor *Executor
+	events   unit.EventPublisher
 }
 
 func NewCreateCommand(store PipelineStore, executor *Executor) *CreateCommand {
 	return &CreateCommand{store: store, executor: executor}
+}
+
+func NewCreateCommandWithEvents(store PipelineStore, executor *Executor, events unit.EventPublisher) *CreateCommand {
+	return &CreateCommand{store: store, executor: executor, events: events}
 }
 
 func (c *CreateCommand) Name() string {
@@ -98,30 +103,43 @@ func (c *CreateCommand) Examples() []unit.Example {
 }
 
 func (c *CreateCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.store == nil {
-		return nil, ErrStoreNotSet
+		err := ErrStoreNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	name, _ := inputMap["name"].(string)
 	if name == "" {
-		return nil, fmt.Errorf("name is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("name is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	stepsRaw, ok := inputMap["steps"].([]any)
 	if !ok || len(stepsRaw) == 0 {
-		return nil, fmt.Errorf("steps is required and must be non-empty: %w", ErrInvalidInput)
+		err := fmt.Errorf("steps is required and must be non-empty: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	steps := make([]PipelineStep, len(stepsRaw))
 	for i, s := range stepsRaw {
 		stepMap, ok := s.(map[string]any)
 		if !ok {
-			return nil, fmt.Errorf("invalid step at index %d: %w", i, ErrInvalidInput)
+			err := fmt.Errorf("invalid step at index %d: %w", i, ErrInvalidInput)
+			ec.PublishFailed(err)
+			return nil, err
 		}
 
 		step := PipelineStep{
@@ -146,7 +164,9 @@ func (c *CreateCommand) Execute(ctx context.Context, input any) (any, error) {
 	}
 
 	if valid, issues := ValidateSteps(steps); !valid {
-		return nil, fmt.Errorf("invalid steps: %v: %w", issues, ErrInvalidInput)
+		err := fmt.Errorf("invalid steps: %v: %w", issues, ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	config, _ := inputMap["config"].(map[string]any)
@@ -163,18 +183,26 @@ func (c *CreateCommand) Execute(ctx context.Context, input any) (any, error) {
 	}
 
 	if err := c.store.CreatePipeline(ctx, pipeline); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("create pipeline: %w", err)
 	}
 
-	return map[string]any{"pipeline_id": pipeline.ID}, nil
+	output := map[string]any{"pipeline_id": pipeline.ID}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type DeleteCommand struct {
-	store PipelineStore
+	store  PipelineStore
+	events unit.EventPublisher
 }
 
 func NewDeleteCommand(store PipelineStore) *DeleteCommand {
 	return &DeleteCommand{store: store}
+}
+
+func NewDeleteCommandWithEvents(store PipelineStore, events unit.EventPublisher) *DeleteCommand {
+	return &DeleteCommand{store: store, events: events}
 }
 
 func (c *DeleteCommand) Name() string {
@@ -229,43 +257,62 @@ func (c *DeleteCommand) Examples() []unit.Example {
 }
 
 func (c *DeleteCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.store == nil {
-		return nil, ErrStoreNotSet
+		err := ErrStoreNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	pipelineID, _ := inputMap["pipeline_id"].(string)
 	if pipelineID == "" {
-		return nil, fmt.Errorf("pipeline_id is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("pipeline_id is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	pipeline, err := c.store.GetPipeline(ctx, pipelineID)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get pipeline %s: %w", pipelineID, err)
 	}
 
 	if pipeline.Status == PipelineStatusRunning {
+		ec.PublishFailed(ErrPipelineRunning)
 		return nil, ErrPipelineRunning
 	}
 
 	if err := c.store.DeletePipeline(ctx, pipelineID); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("delete pipeline %s: %w", pipelineID, err)
 	}
 
-	return map[string]any{"success": true}, nil
+	output := map[string]any{"success": true}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type RunCommand struct {
 	store    PipelineStore
 	executor *Executor
+	events   unit.EventPublisher
 }
 
 func NewRunCommand(store PipelineStore, executor *Executor) *RunCommand {
 	return &RunCommand{store: store, executor: executor}
+}
+
+func NewRunCommandWithEvents(store PipelineStore, executor *Executor, events unit.EventPublisher) *RunCommand {
+	return &RunCommand{store: store, executor: executor, events: events}
 }
 
 func (c *RunCommand) Name() string {
@@ -344,22 +391,32 @@ func (c *RunCommand) Examples() []unit.Example {
 }
 
 func (c *RunCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.store == nil {
-		return nil, ErrStoreNotSet
+		err := ErrStoreNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	pipelineID, _ := inputMap["pipeline_id"].(string)
 	if pipelineID == "" {
-		return nil, fmt.Errorf("pipeline_id is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("pipeline_id is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	pipeline, err := c.store.GetPipeline(ctx, pipelineID)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get pipeline %s: %w", pipelineID, err)
 	}
 
@@ -375,12 +432,14 @@ func (c *RunCommand) Execute(ctx context.Context, input any) (any, error) {
 	}
 
 	if err := c.store.CreateRun(ctx, run); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("create run: %w", err)
 	}
 
 	pipeline.Status = PipelineStatusRunning
 	pipeline.UpdatedAt = time.Now().Unix()
 	if err := c.store.UpdatePipeline(ctx, pipeline); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("update pipeline status: %w", err)
 	}
 
@@ -389,20 +448,28 @@ func (c *RunCommand) Execute(ctx context.Context, input any) (any, error) {
 			run.Status = RunStatusFailed
 			run.Error = err.Error()
 			c.store.UpdateRun(ctx, run)
+			ec.PublishFailed(err)
 			return nil, fmt.Errorf("execute pipeline: %w", err)
 		}
 	}
 
-	return map[string]any{"run_id": run.ID, "status": run.Status}, nil
+	output := map[string]any{"run_id": run.ID, "status": run.Status}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type CancelCommand struct {
 	store    PipelineStore
 	executor *Executor
+	events   unit.EventPublisher
 }
 
 func NewCancelCommand(store PipelineStore, executor *Executor) *CancelCommand {
 	return &CancelCommand{store: store, executor: executor}
+}
+
+func NewCancelCommandWithEvents(store PipelineStore, executor *Executor, events unit.EventPublisher) *CancelCommand {
+	return &CancelCommand{store: store, executor: executor, events: events}
 }
 
 func (c *CancelCommand) Name() string {
@@ -457,26 +524,37 @@ func (c *CancelCommand) Examples() []unit.Example {
 }
 
 func (c *CancelCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.store == nil {
-		return nil, ErrStoreNotSet
+		err := ErrStoreNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	runID, _ := inputMap["run_id"].(string)
 	if runID == "" {
-		return nil, fmt.Errorf("run_id is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("run_id is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	run, err := c.store.GetRun(ctx, runID)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get run %s: %w", runID, err)
 	}
 
 	if run.Status != RunStatusPending && run.Status != RunStatusRunning {
+		ec.PublishFailed(ErrRunNotCancellable)
 		return nil, ErrRunNotCancellable
 	}
 
@@ -490,6 +568,7 @@ func (c *CancelCommand) Execute(ctx context.Context, input any) (any, error) {
 		now := time.Now()
 		run.CompletedAt = &now
 		if err := c.store.UpdateRun(ctx, run); err != nil {
+			ec.PublishFailed(err)
 			return nil, fmt.Errorf("update run: %w", err)
 		}
 	}
@@ -501,5 +580,7 @@ func (c *CancelCommand) Execute(ctx context.Context, input any) (any, error) {
 		c.store.UpdatePipeline(ctx, pipeline)
 	}
 
-	return map[string]any{"success": true}, nil
+	output := map[string]any{"success": true}
+	ec.PublishCompleted(output)
+	return output, nil
 }

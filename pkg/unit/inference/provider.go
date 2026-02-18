@@ -2,19 +2,12 @@ package inference
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-var (
-	ErrProviderNotSet    = errors.New("inference provider not set")
-	ErrInvalidInput      = errors.New("invalid input")
-	ErrModelNotSpecified = errors.New("model not specified")
-	ErrInferenceFailed   = errors.New("inference failed")
-	ErrUnsupportedModel  = errors.New("unsupported model type")
-)
+// Domain errors are defined in errors.go
 
 type InferenceProvider interface {
 	Chat(ctx context.Context, model string, messages []Message, opts ChatOptions) (*ChatResponse, error)
@@ -28,6 +21,10 @@ type InferenceProvider interface {
 	Detect(ctx context.Context, model string, image []byte) (*DetectionResponse, error)
 	ListModels(ctx context.Context, modelType string) ([]InferenceModel, error)
 	ListVoices(ctx context.Context, model string) ([]Voice, error)
+
+	// Streaming methods
+	ChatStream(ctx context.Context, model string, messages []Message, opts ChatOptions, stream chan<- ChatStreamChunk) error
+	CompleteStream(ctx context.Context, model string, prompt string, opts CompleteOptions, stream chan<- CompleteStreamChunk) error
 }
 
 type ChatOptions struct {
@@ -305,4 +302,91 @@ func (m *MockProvider) ListVoices(ctx context.Context, model string) ([]Voice, e
 	}
 
 	return voices, nil
+}
+
+// ChatStream streams chat completion results through the channel
+func (m *MockProvider) ChatStream(ctx context.Context, model string, messages []Message, opts ChatOptions, stream chan<- ChatStreamChunk) error {
+	if m.chatErr != nil {
+		return m.chatErr
+	}
+
+	promptTokens := 0
+	for _, msg := range messages {
+		promptTokens += len(msg.Content) / 4
+	}
+
+	// Simulate streaming by sending chunks
+	chunks := []string{"This ", "is ", "a ", "mock ", "streaming ", "response ", "from ", "the ", "AI ", "model."}
+
+	for _, chunk := range chunks {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case stream <- ChatStreamChunk{
+			Content: chunk,
+			Model:   model,
+			ID:      "chatcmpl-" + uuid.New().String()[:8],
+			Created: time.Now().Unix(),
+		}:
+		}
+	}
+
+	// Send final chunk with finish_reason
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case stream <- ChatStreamChunk{
+		Content:      "",
+		FinishReason: "stop",
+		Model:        model,
+		Usage: &Usage{
+			PromptTokens:     promptTokens,
+			CompletionTokens: 10,
+			TotalTokens:      promptTokens + 10,
+		},
+	}:
+	}
+
+	return nil
+}
+
+// CompleteStream streams completion results through the channel
+func (m *MockProvider) CompleteStream(ctx context.Context, model string, prompt string, opts CompleteOptions, stream chan<- CompleteStreamChunk) error {
+	if m.completeErr != nil {
+		return m.completeErr
+	}
+
+	promptTokens := len(prompt) / 4
+
+	// Simulate streaming
+	chunks := []string{"This ", "is ", "a ", "mock ", "completion ", "response."}
+
+	for _, chunk := range chunks {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case stream <- CompleteStreamChunk{
+			Text:  chunk,
+			Model: model,
+			ID:    "cmpl-" + uuid.New().String()[:8],
+		}:
+		}
+	}
+
+	// Send final chunk
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case stream <- CompleteStreamChunk{
+		Text:         "",
+		FinishReason: "stop",
+		Usage: &Usage{
+			PromptTokens:     promptTokens,
+			CompletionTokens: 6,
+			TotalTokens:      promptTokens + 6,
+		},
+	}:
+	}
+
+	return nil
 }

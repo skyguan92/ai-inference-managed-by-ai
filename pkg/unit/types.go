@@ -90,3 +90,21 @@ type ResourceFactory interface {
 	// Pattern returns the URI pattern this factory handles (e.g., "asms://model/*")
 	Pattern() string
 }
+
+// StreamChunk represents a single chunk in a streaming response.
+type StreamChunk struct {
+	Type     string `json:"type"`               // "content", "error", "done"
+	Data     any    `json:"data"`               // actual chunk data (e.g., string content)
+	Metadata any    `json:"metadata,omitempty"` // optional metadata (usage, finish_reason, etc.)
+}
+
+// StreamingCommand extends Command with streaming capabilities.
+// Commands that support streaming should implement this interface.
+type StreamingCommand interface {
+	Command
+	// SupportsStreaming returns true if this command supports streaming output
+	SupportsStreaming() bool
+	// ExecuteStream executes the command and streams results through the channel
+	// The channel will be closed when the stream is complete
+	ExecuteStream(ctx context.Context, input any, stream chan<- StreamChunk) error
+}

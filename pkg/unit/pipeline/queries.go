@@ -8,11 +8,16 @@ import (
 )
 
 type GetQuery struct {
-	store PipelineStore
+	store  PipelineStore
+	events unit.EventPublisher
 }
 
 func NewGetQuery(store PipelineStore) *GetQuery {
 	return &GetQuery{store: store}
+}
+
+func NewGetQueryWithEvents(store PipelineStore, events unit.EventPublisher) *GetQuery {
+	return &GetQuery{store: store, events: events}
 }
 
 func (q *GetQuery) Name() string {
@@ -82,40 +87,57 @@ func (q *GetQuery) Examples() []unit.Example {
 }
 
 func (q *GetQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	if q.store == nil {
-		return nil, ErrStoreNotSet
+		err := ErrStoreNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	pipelineID, _ := inputMap["pipeline_id"].(string)
 	if pipelineID == "" {
-		return nil, fmt.Errorf("pipeline_id is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("pipeline_id is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	pipeline, err := q.store.GetPipeline(ctx, pipelineID)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get pipeline %s: %w", pipelineID, err)
 	}
 
-	return map[string]any{
+	output := map[string]any{
 		"id":     pipeline.ID,
 		"name":   pipeline.Name,
 		"steps":  pipeline.Steps,
 		"status": string(pipeline.Status),
 		"config": pipeline.Config,
-	}, nil
+	}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type ListQuery struct {
-	store PipelineStore
+	store  PipelineStore
+	events unit.EventPublisher
 }
 
 func NewListQuery(store PipelineStore) *ListQuery {
 	return &ListQuery{store: store}
+}
+
+func NewListQueryWithEvents(store PipelineStore, events unit.EventPublisher) *ListQuery {
+	return &ListQuery{store: store, events: events}
 }
 
 func (q *ListQuery) Name() string {
@@ -200,8 +222,13 @@ func (q *ListQuery) Examples() []unit.Example {
 }
 
 func (q *ListQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	if q.store == nil {
-		return nil, ErrStoreNotSet
+		err := ErrStoreNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, _ := input.(map[string]any)
@@ -223,6 +250,7 @@ func (q *ListQuery) Execute(ctx context.Context, input any) (any, error) {
 
 	pipelines, total, err := q.store.ListPipelines(ctx, filter)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("list pipelines: %w", err)
 	}
 
@@ -235,18 +263,25 @@ func (q *ListQuery) Execute(ctx context.Context, input any) (any, error) {
 		}
 	}
 
-	return map[string]any{
+	output := map[string]any{
 		"pipelines": items,
 		"total":     total,
-	}, nil
+	}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type StatusQuery struct {
-	store PipelineStore
+	store  PipelineStore
+	events unit.EventPublisher
 }
 
 func NewStatusQuery(store PipelineStore) *StatusQuery {
 	return &StatusQuery{store: store}
+}
+
+func NewStatusQueryWithEvents(store PipelineStore, events unit.EventPublisher) *StatusQuery {
+	return &StatusQuery{store: store, events: events}
 }
 
 func (q *StatusQuery) Name() string {
@@ -299,22 +334,32 @@ func (q *StatusQuery) Examples() []unit.Example {
 }
 
 func (q *StatusQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	if q.store == nil {
-		return nil, ErrStoreNotSet
+		err := ErrStoreNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	runID, _ := inputMap["run_id"].(string)
 	if runID == "" {
-		return nil, fmt.Errorf("run_id is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("run_id is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	run, err := q.store.GetRun(ctx, runID)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get run %s: %w", runID, err)
 	}
 
@@ -327,13 +372,20 @@ func (q *StatusQuery) Execute(ctx context.Context, input any) (any, error) {
 		result["error"] = run.Error
 	}
 
+	ec.PublishCompleted(result)
 	return result, nil
 }
 
-type ValidateQuery struct{}
+type ValidateQuery struct {
+	events unit.EventPublisher
+}
 
 func NewValidateQuery() *ValidateQuery {
 	return &ValidateQuery{}
+}
+
+func NewValidateQueryWithEvents(events unit.EventPublisher) *ValidateQuery {
+	return &ValidateQuery{events: events}
 }
 
 func (q *ValidateQuery) Name() string {
@@ -417,21 +469,30 @@ func (q *ValidateQuery) Examples() []unit.Example {
 }
 
 func (q *ValidateQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	stepsRaw, ok := inputMap["steps"].([]any)
 	if !ok {
-		return nil, fmt.Errorf("steps is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("steps is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	steps := make([]PipelineStep, len(stepsRaw))
 	for i, s := range stepsRaw {
 		stepMap, ok := s.(map[string]any)
 		if !ok {
-			return nil, fmt.Errorf("invalid step at index %d: %w", i, ErrInvalidInput)
+			err := fmt.Errorf("invalid step at index %d: %w", i, ErrInvalidInput)
+			ec.PublishFailed(err)
+			return nil, err
 		}
 
 		step := PipelineStep{
@@ -456,8 +517,10 @@ func (q *ValidateQuery) Execute(ctx context.Context, input any) (any, error) {
 
 	valid, issues := ValidateSteps(steps)
 
-	return map[string]any{
+	output := map[string]any{
 		"valid":  valid,
 		"issues": issues,
-	}, nil
+	}
+	ec.PublishCompleted(output)
+	return output, nil
 }

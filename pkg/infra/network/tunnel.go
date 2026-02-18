@@ -22,9 +22,9 @@ type TunnelProvider interface {
 }
 
 type TunnelStatus struct {
-	Enabled  bool
-	URL      string
-	Uptime   time.Duration
+	Enabled bool
+	URL     string
+	Uptime  time.Duration
 }
 
 type FRPTunnel struct {

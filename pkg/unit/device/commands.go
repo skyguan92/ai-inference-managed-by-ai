@@ -2,18 +2,12 @@ package device
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
 )
 
-var (
-	ErrDeviceNotFound    = errors.New("device not found")
-	ErrInvalidDeviceID   = errors.New("invalid device id")
-	ErrInvalidPowerLimit = errors.New("invalid power limit")
-	ErrProviderNotSet    = errors.New("device provider not set")
-)
+// Domain errors are defined in errors.go
 
 type DeviceProvider interface {
 	Detect(ctx context.Context) ([]DeviceInfo, error)

@@ -2,21 +2,13 @@ package alert
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-var (
-	ErrRuleNotFound    = errors.New("rule not found")
-	ErrAlertNotFound   = errors.New("alert not found")
-	ErrRuleExists      = errors.New("rule already exists")
-	ErrInvalidRuleID   = errors.New("invalid rule id")
-	ErrInvalidAlertID  = errors.New("invalid alert id")
-	ErrInvalidSeverity = errors.New("invalid severity")
-)
+// Domain errors are defined in errors.go
 
 type Store interface {
 	CreateRule(ctx context.Context, rule *AlertRule) error

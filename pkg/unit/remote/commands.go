@@ -12,10 +12,15 @@ import (
 type EnableCommand struct {
 	store    RemoteStore
 	provider RemoteProvider
+	events   unit.EventPublisher
 }
 
 func NewEnableCommand(store RemoteStore, provider RemoteProvider) *EnableCommand {
 	return &EnableCommand{store: store, provider: provider}
+}
+
+func NewEnableCommandWithEvents(store RemoteStore, provider RemoteProvider, events unit.EventPublisher) *EnableCommand {
+	return &EnableCommand{store: store, provider: provider, events: events}
 }
 
 func (c *EnableCommand) Name() string {
@@ -93,23 +98,33 @@ func (c *EnableCommand) Examples() []unit.Example {
 }
 
 func (c *EnableCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.store == nil || c.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	providerStr, _ := inputMap["provider"].(string)
 	if providerStr == "" {
-		return nil, fmt.Errorf("provider is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("provider is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 	provider := TunnelProvider(providerStr)
 
 	existingTunnel, err := c.store.GetTunnel(ctx)
 	if err == nil && existingTunnel != nil && existingTunnel.Status == TunnelStatusConnected {
+		ec.PublishFailed(ErrTunnelAlreadyEnabled)
 		return nil, ErrTunnelAlreadyEnabled
 	}
 
@@ -131,26 +146,35 @@ func (c *EnableCommand) Execute(ctx context.Context, input any) (any, error) {
 
 	tunnel, err := c.provider.Enable(ctx, config)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("enable tunnel: %w", err)
 	}
 
 	if err := c.store.SetTunnel(ctx, tunnel); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("save tunnel: %w", err)
 	}
 
-	return map[string]any{
+	output := map[string]any{
 		"tunnel_id":  tunnel.ID,
 		"public_url": tunnel.PublicURL,
-	}, nil
+	}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type DisableCommand struct {
 	store    RemoteStore
 	provider RemoteProvider
+	events   unit.EventPublisher
 }
 
 func NewDisableCommand(store RemoteStore, provider RemoteProvider) *DisableCommand {
 	return &DisableCommand{store: store, provider: provider}
+}
+
+func NewDisableCommandWithEvents(store RemoteStore, provider RemoteProvider, events unit.EventPublisher) *DisableCommand {
+	return &DisableCommand{store: store, provider: provider, events: events}
 }
 
 func (c *DisableCommand) Name() string {
@@ -192,33 +216,48 @@ func (c *DisableCommand) Examples() []unit.Example {
 }
 
 func (c *DisableCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.store == nil || c.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	_, err := c.store.GetTunnel(ctx)
 	if err != nil {
+		ec.PublishFailed(ErrTunnelNotConnected)
 		return nil, ErrTunnelNotConnected
 	}
 
 	if err := c.provider.Disable(ctx); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("disable tunnel: %w", err)
 	}
 
 	if err := c.store.DeleteTunnel(ctx); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("delete tunnel: %w", err)
 	}
 
-	return map[string]any{"success": true}, nil
+	output := map[string]any{"success": true}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type ExecCommand struct {
 	store    RemoteStore
 	provider RemoteProvider
+	events   unit.EventPublisher
 }
 
 func NewExecCommand(store RemoteStore, provider RemoteProvider) *ExecCommand {
 	return &ExecCommand{store: store, provider: provider}
+}
+
+func NewExecCommandWithEvents(store RemoteStore, provider RemoteProvider, events unit.EventPublisher) *ExecCommand {
+	return &ExecCommand{store: store, provider: provider, events: events}
 }
 
 func (c *ExecCommand) Name() string {
@@ -287,22 +326,32 @@ func (c *ExecCommand) Examples() []unit.Example {
 }
 
 func (c *ExecCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.store == nil || c.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	command, _ := inputMap["command"].(string)
 	if command == "" {
-		return nil, fmt.Errorf("command is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("command is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	_, err := c.store.GetTunnel(ctx)
 	if err != nil {
+		ec.PublishFailed(ErrTunnelNotConnected)
 		return nil, ErrTunnelNotConnected
 	}
 
@@ -314,6 +363,7 @@ func (c *ExecCommand) Execute(ctx context.Context, input any) (any, error) {
 	startTime := time.Now()
 	result, err := c.provider.Exec(ctx, command, timeout)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("execute command: %w", err)
 	}
 
@@ -326,12 +376,15 @@ func (c *ExecCommand) Execute(ctx context.Context, input any) (any, error) {
 	}
 
 	if err := c.store.AddAuditRecord(ctx, record); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("save audit record: %w", err)
 	}
 
-	return map[string]any{
+	output := map[string]any{
 		"stdout":    result.Stdout,
 		"stderr":    result.Stderr,
 		"exit_code": result.ExitCode,
-	}, nil
+	}
+	ec.PublishCompleted(output)
+	return output, nil
 }

@@ -10,10 +10,15 @@ import (
 type GetQuery struct {
 	store    ServiceStore
 	provider ServiceProvider
+	events   unit.EventPublisher
 }
 
 func NewGetQuery(store ServiceStore, provider ServiceProvider) *GetQuery {
 	return &GetQuery{store: store, provider: provider}
+}
+
+func NewGetQueryWithEvents(store ServiceStore, provider ServiceProvider, events unit.EventPublisher) *GetQuery {
+	return &GetQuery{store: store, provider: provider, events: events}
 }
 
 func (q *GetQuery) Name() string {
@@ -84,22 +89,32 @@ func (q *GetQuery) Examples() []unit.Example {
 }
 
 func (q *GetQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	if q.store == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	serviceID, _ := inputMap["service_id"].(string)
 	if serviceID == "" {
-		return nil, fmt.Errorf("service_id is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("service_id is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	service, err := q.store.Get(ctx, serviceID)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get service %s: %w", serviceID, err)
 	}
 
@@ -127,15 +142,21 @@ func (q *GetQuery) Execute(ctx context.Context, input any) (any, error) {
 		}
 	}
 
+	ec.PublishCompleted(result)
 	return result, nil
 }
 
 type ListQuery struct {
-	store ServiceStore
+	store  ServiceStore
+	events unit.EventPublisher
 }
 
 func NewListQuery(store ServiceStore) *ListQuery {
 	return &ListQuery{store: store}
+}
+
+func NewListQueryWithEvents(store ServiceStore, events unit.EventPublisher) *ListQuery {
+	return &ListQuery{store: store, events: events}
 }
 
 func (q *ListQuery) Name() string {
@@ -234,8 +255,13 @@ func (q *ListQuery) Examples() []unit.Example {
 }
 
 func (q *ListQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	if q.store == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, _ := input.(map[string]any)
@@ -260,6 +286,7 @@ func (q *ListQuery) Execute(ctx context.Context, input any) (any, error) {
 
 	services, total, err := q.store.List(ctx, filter)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("list services: %w", err)
 	}
 
@@ -274,18 +301,25 @@ func (q *ListQuery) Execute(ctx context.Context, input any) (any, error) {
 		}
 	}
 
-	return map[string]any{
+	output := map[string]any{
 		"services": items,
 		"total":    total,
-	}, nil
+	}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type RecommendQuery struct {
 	provider ServiceProvider
+	events   unit.EventPublisher
 }
 
 func NewRecommendQuery(provider ServiceProvider) *RecommendQuery {
 	return &RecommendQuery{provider: provider}
+}
+
+func NewRecommendQueryWithEvents(provider ServiceProvider, events unit.EventPublisher) *RecommendQuery {
+	return &RecommendQuery{provider: provider, events: events}
 }
 
 func (q *RecommendQuery) Name() string {
@@ -350,30 +384,42 @@ func (q *RecommendQuery) Examples() []unit.Example {
 }
 
 func (q *RecommendQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	if q.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	modelID, _ := inputMap["model_id"].(string)
 	if modelID == "" {
-		return nil, fmt.Errorf("model_id is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("model_id is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	hint, _ := inputMap["hint"].(string)
 
 	rec, err := q.provider.GetRecommendation(ctx, modelID, hint)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get recommendation: %w", err)
 	}
 
-	return map[string]any{
+	output := map[string]any{
 		"resource_class":      string(rec.ResourceClass),
 		"replicas":            rec.Replicas,
 		"expected_throughput": rec.ExpectedThroughput,
-	}, nil
+	}
+	ec.PublishCompleted(output)
+	return output, nil
 }

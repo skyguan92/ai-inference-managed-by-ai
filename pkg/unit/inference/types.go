@@ -112,3 +112,23 @@ type InferenceModel struct {
 	MaxTokens   int      `json:"max_tokens,omitempty"`
 	Modalities  []string `json:"modalities,omitempty"`
 }
+
+// ChatStreamChunk represents a single chunk in a streaming chat response
+type ChatStreamChunk struct {
+	ID                string `json:"id,omitempty"`
+	Model             string `json:"model,omitempty"`
+	Created           int64  `json:"created,omitempty"`
+	Content           string `json:"content"`
+	FinishReason      string `json:"finish_reason,omitempty"`
+	Usage             *Usage `json:"usage,omitempty"`
+	SystemFingerprint string `json:"system_fingerprint,omitempty"`
+}
+
+// CompleteStreamChunk represents a single chunk in a streaming completion response
+type CompleteStreamChunk struct {
+	ID           string `json:"id,omitempty"`
+	Model        string `json:"model,omitempty"`
+	Text         string `json:"text"`
+	FinishReason string `json:"finish_reason,omitempty"`
+	Usage        *Usage `json:"usage,omitempty"`
+}

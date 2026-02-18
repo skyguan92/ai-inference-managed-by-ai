@@ -2,23 +2,13 @@ package app
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-var (
-	ErrAppNotFound       = errors.New("app not found")
-	ErrInvalidAppID      = errors.New("invalid app id")
-	ErrInvalidInput      = errors.New("invalid input")
-	ErrAppAlreadyExists  = errors.New("app already exists")
-	ErrProviderNotSet    = errors.New("app provider not set")
-	ErrAppNotRunning     = errors.New("app not running")
-	ErrAppAlreadyRunning = errors.New("app already running")
-	ErrTemplateNotFound  = errors.New("template not found")
-)
+// Domain errors are defined in errors.go
 
 type AppStore interface {
 	Create(ctx context.Context, app *App) error
