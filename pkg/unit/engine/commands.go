@@ -12,10 +12,15 @@ import (
 type StartCommand struct {
 	store    EngineStore
 	provider EngineProvider
+	events   unit.EventPublisher
 }
 
 func NewStartCommand(store EngineStore, provider EngineProvider) *StartCommand {
 	return &StartCommand{store: store, provider: provider}
+}
+
+func NewStartCommandWithEvents(store EngineStore, provider EngineProvider, events unit.EventPublisher) *StartCommand {
+	return &StartCommand{store: store, provider: provider, events: events}
 }
 
 func (c *StartCommand) Name() string {
@@ -86,27 +91,39 @@ func (c *StartCommand) Examples() []unit.Example {
 }
 
 func (c *StartCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.store == nil || c.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	name, _ := inputMap["name"].(string)
 	if name == "" {
-		return nil, fmt.Errorf("name is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("name is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	engine, err := c.store.Get(ctx, name)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get engine %s: %w", name, err)
 	}
 
 	if engine.Status == EngineStatusRunning {
-		return nil, ErrEngineAlreadyRunning
+		err := ErrEngineAlreadyRunning
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	var config map[string]any
@@ -116,6 +133,7 @@ func (c *StartCommand) Execute(ctx context.Context, input any) (any, error) {
 
 	result, err := c.provider.Start(ctx, name, config)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("start engine %s: %w", name, err)
 	}
 
@@ -127,22 +145,30 @@ func (c *StartCommand) Execute(ctx context.Context, input any) (any, error) {
 	}
 
 	if err := c.store.Update(ctx, engine); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("update engine %s: %w", name, err)
 	}
 
-	return map[string]any{
+	output := map[string]any{
 		"process_id": result.ProcessID,
 		"status":     string(result.Status),
-	}, nil
+	}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type StopCommand struct {
 	store    EngineStore
 	provider EngineProvider
+	events   unit.EventPublisher
 }
 
 func NewStopCommand(store EngineStore, provider EngineProvider) *StopCommand {
 	return &StopCommand{store: store, provider: provider}
+}
+
+func NewStopCommandWithEvents(store EngineStore, provider EngineProvider, events unit.EventPublisher) *StopCommand {
+	return &StopCommand{store: store, provider: provider, events: events}
 }
 
 func (c *StopCommand) Name() string {
@@ -216,27 +242,39 @@ func (c *StopCommand) Examples() []unit.Example {
 }
 
 func (c *StopCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.store == nil || c.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	name, _ := inputMap["name"].(string)
 	if name == "" {
-		return nil, fmt.Errorf("name is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("name is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	engine, err := c.store.Get(ctx, name)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get engine %s: %w", name, err)
 	}
 
 	if engine.Status != EngineStatusRunning {
-		return nil, ErrEngineNotRunning
+		err := ErrEngineNotRunning
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	force := false
@@ -251,6 +289,7 @@ func (c *StopCommand) Execute(ctx context.Context, input any) (any, error) {
 
 	result, err := c.provider.Stop(ctx, name, force, timeout)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("stop engine %s: %w", name, err)
 	}
 
@@ -259,19 +298,27 @@ func (c *StopCommand) Execute(ctx context.Context, input any) (any, error) {
 	engine.UpdatedAt = time.Now().Unix()
 
 	if err := c.store.Update(ctx, engine); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("update engine %s: %w", name, err)
 	}
 
-	return map[string]any{"success": result.Success}, nil
+	output := map[string]any{"success": result.Success}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type RestartCommand struct {
 	store    EngineStore
 	provider EngineProvider
+	events   unit.EventPublisher
 }
 
 func NewRestartCommand(store EngineStore, provider EngineProvider) *RestartCommand {
 	return &RestartCommand{store: store, provider: provider}
+}
+
+func NewRestartCommandWithEvents(store EngineStore, provider EngineProvider, events unit.EventPublisher) *RestartCommand {
+	return &RestartCommand{store: store, provider: provider, events: events}
 }
 
 func (c *RestartCommand) Name() string {
@@ -330,28 +377,39 @@ func (c *RestartCommand) Examples() []unit.Example {
 }
 
 func (c *RestartCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.store == nil || c.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	name, _ := inputMap["name"].(string)
 	if name == "" {
-		return nil, fmt.Errorf("name is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("name is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	engine, err := c.store.Get(ctx, name)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get engine %s: %w", name, err)
 	}
 
 	if engine.Status == EngineStatusRunning {
 		_, err := c.provider.Stop(ctx, name, false, 30)
 		if err != nil {
+			ec.PublishFailed(err)
 			return nil, fmt.Errorf("stop engine %s during restart: %w", name, err)
 		}
 	}
@@ -359,6 +417,7 @@ func (c *RestartCommand) Execute(ctx context.Context, input any) (any, error) {
 	config := engine.Config
 	result, err := c.provider.Start(ctx, name, config)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("start engine %s during restart: %w", name, err)
 	}
 
@@ -367,22 +426,30 @@ func (c *RestartCommand) Execute(ctx context.Context, input any) (any, error) {
 	engine.UpdatedAt = time.Now().Unix()
 
 	if err := c.store.Update(ctx, engine); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("update engine %s: %w", name, err)
 	}
 
-	return map[string]any{
+	output := map[string]any{
 		"process_id": result.ProcessID,
 		"status":     string(result.Status),
-	}, nil
+	}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type InstallCommand struct {
 	store    EngineStore
 	provider EngineProvider
+	events   unit.EventPublisher
 }
 
 func NewInstallCommand(store EngineStore, provider EngineProvider) *InstallCommand {
 	return &InstallCommand{store: store, provider: provider}
+}
+
+func NewInstallCommandWithEvents(store EngineStore, provider EngineProvider, events unit.EventPublisher) *InstallCommand {
+	return &InstallCommand{store: store, provider: provider, events: events}
 }
 
 func (c *InstallCommand) Name() string {
@@ -464,24 +531,34 @@ func (c *InstallCommand) Examples() []unit.Example {
 }
 
 func (c *InstallCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.store == nil || c.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	name, _ := inputMap["name"].(string)
 	if name == "" {
-		return nil, fmt.Errorf("name is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("name is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	version, _ := inputMap["version"].(string)
 
 	result, err := c.provider.Install(ctx, name, version)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("install engine %s: %w", name, err)
 	}
 
@@ -501,14 +578,17 @@ func (c *InstallCommand) Execute(ctx context.Context, input any) (any, error) {
 
 	if err := c.store.Create(ctx, engine); err != nil {
 		if err != ErrEngineAlreadyExists {
+			ec.PublishFailed(err)
 			return nil, fmt.Errorf("save engine %s: %w", name, err)
 		}
 	}
 
-	return map[string]any{
+	output := map[string]any{
 		"success": result.Success,
 		"path":    result.Path,
-	}, nil
+	}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 func toInt(v any) (int, bool) {

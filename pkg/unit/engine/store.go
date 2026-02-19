@@ -2,22 +2,13 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-var (
-	ErrEngineNotFound       = errors.New("engine not found")
-	ErrInvalidEngineName    = errors.New("invalid engine name")
-	ErrInvalidInput         = errors.New("invalid input")
-	ErrEngineAlreadyExists  = errors.New("engine already exists")
-	ErrProviderNotSet       = errors.New("engine provider not set")
-	ErrEngineNotRunning     = errors.New("engine not running")
-	ErrEngineAlreadyRunning = errors.New("engine already running")
-)
+// Domain errors are defined in errors.go
 
 type EngineStore interface {
 	Create(ctx context.Context, engine *Engine) error

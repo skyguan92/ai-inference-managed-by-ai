@@ -3,7 +3,10 @@ package gateway
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"testing"
+
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
 )
 
 func TestErrorInfo_Error(t *testing.T) {
@@ -94,6 +97,31 @@ func TestToErrorInfo(t *testing.T) {
 			t.Errorf("Message = %q, want %q", got.Message, "something went wrong")
 		}
 	})
+
+	t.Run("UnitError", func(t *testing.T) {
+		ue := unit.NewError(unit.ErrCodeNotFound, "model not found")
+		got := ToErrorInfo(ue)
+
+		if got.Code != string(unit.ErrCodeNotFound) {
+			t.Errorf("Code = %q, want %q", got.Code, unit.ErrCodeNotFound)
+		}
+		if got.Message != "model not found" {
+			t.Errorf("Message = %q, want %q", got.Message, "model not found")
+		}
+	})
+
+	t.Run("UnitError with details", func(t *testing.T) {
+		ue := unit.NewDomainError("model", unit.ErrCodeModelNotFound, "model xyz not found").
+			WithDetails("model_id", "xyz")
+		got := ToErrorInfo(ue)
+
+		if got.Code != string(unit.ErrCodeModelNotFound) {
+			t.Errorf("Code = %q, want %q", got.Code, unit.ErrCodeModelNotFound)
+		}
+		if got.Details == nil {
+			t.Error("Details should not be nil")
+		}
+	})
 }
 
 func TestErrorInfo_JSON(t *testing.T) {
@@ -143,6 +171,211 @@ func TestErrorInfo_Is(t *testing.T) {
 			t.Error("errors.Is should return false for non-ErrorInfo target")
 		}
 	})
+}
+
+func TestErrorCodeToHTTPStatus(t *testing.T) {
+	tests := []struct {
+		code     string
+		expected int
+	}{
+		// Legacy codes
+		{ErrCodeInvalidRequest, http.StatusBadRequest},
+		{ErrCodeUnitNotFound, http.StatusNotFound},
+		{ErrCodeResourceNotFound, http.StatusNotFound},
+		{ErrCodeValidationFailed, http.StatusBadRequest},
+		{ErrCodeExecutionFailed, http.StatusInternalServerError},
+		{ErrCodeTimeout, http.StatusRequestTimeout},
+		{ErrCodeUnauthorized, http.StatusUnauthorized},
+		{ErrCodeRateLimited, http.StatusTooManyRequests},
+		{ErrCodeInternalError, http.StatusInternalServerError},
+		// UnitError codes
+		{string(unit.ErrCodeSuccess), http.StatusOK},
+		{string(unit.ErrCodeNotFound), http.StatusNotFound},
+		{string(unit.ErrCodeModelNotFound), http.StatusNotFound},
+		{string(unit.ErrCodeAlreadyExists), http.StatusConflict},
+		{string(unit.ErrCodeTimeout), http.StatusRequestTimeout},
+		{string(unit.ErrCodeRateLimited), http.StatusTooManyRequests},
+		{string(unit.ErrCodeUnknown), http.StatusInternalServerError},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.code, func(t *testing.T) {
+			got := ErrorCodeToHTTPStatus(tt.code)
+			if got != tt.expected {
+				t.Errorf("ErrorCodeToHTTPStatus(%q) = %d, want %d", tt.code, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestGetHTTPStatus(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected int
+	}{
+		{"nil error", nil, http.StatusOK},
+		{"UnitError", unit.NewError(unit.ErrCodeNotFound, ""), http.StatusNotFound},
+		{"ErrorInfo", NewErrorInfo(ErrCodeInvalidRequest, ""), http.StatusBadRequest},
+		{"standard error", errors.New("error"), http.StatusInternalServerError},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := GetHTTPStatus(tt.err)
+			if got != tt.expected {
+				t.Errorf("GetHTTPStatus() = %d, want %d", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIsNotFound(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{"UnitError NotFound", unit.NewError(unit.ErrCodeNotFound, ""), true},
+		{"UnitError ModelNotFound", unit.NewDomainError("model", unit.ErrCodeModelNotFound, ""), true},
+		{"ErrorInfo ResourceNotFound", NewErrorInfo(ErrCodeResourceNotFound, ""), true},
+		{"ErrorInfo UnitNotFound", NewErrorInfo(ErrCodeUnitNotFound, ""), true},
+		{"UnitError Other", unit.NewError(unit.ErrCodeInvalidRequest, ""), false},
+		{"ErrorInfo Other", NewErrorInfo(ErrCodeInvalidRequest, ""), false},
+		{"nil error", nil, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsNotFound(tt.err)
+			if got != tt.expected {
+				t.Errorf("IsNotFound() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIsAlreadyExists(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{"UnitError AlreadyExists", unit.NewError(unit.ErrCodeAlreadyExists, ""), true},
+		{"UnitError ModelAlreadyExists", unit.NewDomainError("model", unit.ErrCodeModelAlreadyExists, ""), true},
+		{"UnitError Other", unit.NewError(unit.ErrCodeInvalidRequest, ""), false},
+		{"nil error", nil, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsAlreadyExists(tt.err)
+			if got != tt.expected {
+				t.Errorf("IsAlreadyExists() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIsTimeout(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{"UnitError Timeout", unit.NewError(unit.ErrCodeTimeout, ""), true},
+		{"ErrorInfo Timeout", NewErrorInfo(ErrCodeTimeout, ""), true},
+		{"UnitError InferenceTimeout", unit.NewDomainError("inference", unit.ErrCodeInferenceTimeout, ""), true},
+		{"UnitError Other", unit.NewError(unit.ErrCodeInvalidRequest, ""), false},
+		{"nil error", nil, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsTimeout(tt.err)
+			if got != tt.expected {
+				t.Errorf("IsTimeout() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIsRateLimited(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{"UnitError RateLimited", unit.NewError(unit.ErrCodeRateLimited, ""), true},
+		{"ErrorInfo RateLimited", NewErrorInfo(ErrCodeRateLimited, ""), true},
+		{"UnitError InferenceRateLimited", unit.NewDomainError("inference", unit.ErrCodeInferenceRateLimited, ""), true},
+		{"UnitError Other", unit.NewError(unit.ErrCodeInvalidRequest, ""), false},
+		{"nil error", nil, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsRateLimited(tt.err)
+			if got != tt.expected {
+				t.Errorf("IsRateLimited() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestNewUnitError(t *testing.T) {
+	err := NewUnitError(unit.ErrCodeModelNotFound, "model not found")
+	if err.Code != string(unit.ErrCodeModelNotFound) {
+		t.Errorf("Code = %q, want %q", err.Code, unit.ErrCodeModelNotFound)
+	}
+	if err.Message != "model not found" {
+		t.Errorf("Message = %q, want %q", err.Message, "model not found")
+	}
+}
+
+func TestWrapError(t *testing.T) {
+	t.Run("with error", func(t *testing.T) {
+		original := errors.New("original")
+		wrapped := WrapError(original, "wrapped")
+
+		if wrapped == nil {
+			t.Error("WrapError should not return nil for non-nil error")
+		}
+		if wrapped.Code != ErrCodeInternalError {
+			t.Errorf("Code = %q, want %q", wrapped.Code, ErrCodeInternalError)
+		}
+	})
+
+	t.Run("with nil error", func(t *testing.T) {
+		wrapped := WrapError(nil, "wrapped")
+		if wrapped != nil {
+			t.Error("WrapError should return nil for nil error")
+		}
+	})
+}
+
+func TestCommonErrorConstructors(t *testing.T) {
+	tests := []struct {
+		name         string
+		err          *ErrorInfo
+		expectedCode string
+	}{
+		{"NewInvalidRequestError", NewInvalidRequestError("test"), ErrCodeInvalidRequest},
+		{"NewNotFoundError", NewNotFoundError("model"), ErrCodeResourceNotFound},
+		{"NewValidationError", NewValidationError("test", nil), ErrCodeValidationFailed},
+		{"NewTimeoutError", NewTimeoutError("test"), ErrCodeTimeout},
+		{"NewUnauthorizedError", NewUnauthorizedError("test"), ErrCodeUnauthorized},
+		{"NewRateLimitedError", NewRateLimitedError("test"), ErrCodeRateLimited},
+		{"NewInternalError", NewInternalError("test"), ErrCodeInternalError},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.err.Code != tt.expectedCode {
+				t.Errorf("Code = %q, want %q", tt.err.Code, tt.expectedCode)
+			}
+		})
+	}
 }
 
 func TestErrorCodeConstants(t *testing.T) {

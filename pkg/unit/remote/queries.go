@@ -9,11 +9,16 @@ import (
 )
 
 type StatusQuery struct {
-	store RemoteStore
+	store  RemoteStore
+	events unit.EventPublisher
 }
 
 func NewStatusQuery(store RemoteStore) *StatusQuery {
 	return &StatusQuery{store: store}
+}
+
+func NewStatusQueryWithEvents(store RemoteStore, events unit.EventPublisher) *StatusQuery {
+	return &StatusQuery{store: store, events: events}
 }
 
 func (q *StatusQuery) Name() string {
@@ -63,18 +68,25 @@ func (q *StatusQuery) Examples() []unit.Example {
 }
 
 func (q *StatusQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	if q.store == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	tunnel, err := q.store.GetTunnel(ctx)
 	if err != nil {
-		return map[string]any{
+		output := map[string]any{
 			"enabled":        false,
 			"provider":       "",
 			"public_url":     "",
 			"uptime_seconds": 0,
-		}, nil
+		}
+		ec.PublishCompleted(output)
+		return output, nil
 	}
 
 	uptime := int64(0)
@@ -82,20 +94,27 @@ func (q *StatusQuery) Execute(ctx context.Context, input any) (any, error) {
 		uptime = int64(time.Since(tunnel.StartedAt).Seconds())
 	}
 
-	return map[string]any{
+	output := map[string]any{
 		"enabled":        tunnel.Status == TunnelStatusConnected,
 		"provider":       string(tunnel.Provider),
 		"public_url":     tunnel.PublicURL,
 		"uptime_seconds": uptime,
-	}, nil
+	}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type AuditQuery struct {
-	store RemoteStore
+	store  RemoteStore
+	events unit.EventPublisher
 }
 
 func NewAuditQuery(store RemoteStore) *AuditQuery {
 	return &AuditQuery{store: store}
+}
+
+func NewAuditQueryWithEvents(store RemoteStore, events unit.EventPublisher) *AuditQuery {
+	return &AuditQuery{store: store, events: events}
 }
 
 func (q *AuditQuery) Name() string {
@@ -175,8 +194,13 @@ func (q *AuditQuery) Examples() []unit.Example {
 }
 
 func (q *AuditQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	if q.store == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, _ := input.(map[string]any)
@@ -198,6 +222,7 @@ func (q *AuditQuery) Execute(ctx context.Context, input any) (any, error) {
 
 	records, err := q.store.ListAuditRecords(ctx, filter)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("list audit records: %w", err)
 	}
 
@@ -212,5 +237,7 @@ func (q *AuditQuery) Execute(ctx context.Context, input any) (any, error) {
 		}
 	}
 
-	return map[string]any{"records": result}, nil
+	output := map[string]any{"records": result}
+	ec.PublishCompleted(output)
+	return output, nil
 }

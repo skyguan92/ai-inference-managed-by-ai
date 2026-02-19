@@ -2,7 +2,6 @@ package model
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -11,14 +10,7 @@ import (
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
 )
 
-var (
-	ErrModelNotFound      = errors.New("model not found")
-	ErrInvalidModelID     = errors.New("invalid model id")
-	ErrInvalidInput       = errors.New("invalid input")
-	ErrModelAlreadyExists = errors.New("model already exists")
-	ErrPullInProgress     = errors.New("pull already in progress")
-	ErrProviderNotSet     = errors.New("model provider not set")
-)
+// Domain errors are defined in errors.go
 
 type ModelStore interface {
 	Create(ctx context.Context, model *Model) error
@@ -44,12 +36,22 @@ type ModelProvider interface {
 	EstimateResources(ctx context.Context, modelID string) (*ModelRequirements, error)
 }
 
+// EventPublisher interface for publishing events
+type EventPublisher interface {
+	Publish(event any) error
+}
+
 type CreateCommand struct {
-	store ModelStore
+	store  ModelStore
+	events EventPublisher
 }
 
 func NewCreateCommand(store ModelStore) *CreateCommand {
 	return &CreateCommand{store: store}
+}
+
+func NewCreateCommandWithEvents(store ModelStore, events EventPublisher) *CreateCommand {
+	return &CreateCommand{store: store, events: events}
 }
 
 func (c *CreateCommand) Name() string {
@@ -176,15 +178,28 @@ func (c *CreateCommand) Execute(ctx context.Context, input any) (any, error) {
 		return nil, fmt.Errorf("create model: %w", err)
 	}
 
+	// Publish event if event publisher is set
+	if c.events != nil {
+		if err := c.events.Publish(NewCreatedEvent(model)); err != nil {
+			// Log error but don't fail the command
+			fmt.Printf("warning: failed to publish model.created event: %v\n", err)
+		}
+	}
+
 	return map[string]any{"model_id": model.ID}, nil
 }
 
 type DeleteCommand struct {
-	store ModelStore
+	store  ModelStore
+	events EventPublisher
 }
 
 func NewDeleteCommand(store ModelStore) *DeleteCommand {
 	return &DeleteCommand{store: store}
+}
+
+func NewDeleteCommandWithEvents(store ModelStore, events EventPublisher) *DeleteCommand {
+	return &DeleteCommand{store: store, events: events}
 }
 
 func (c *DeleteCommand) Name() string {
@@ -264,12 +279,20 @@ func (c *DeleteCommand) Execute(ctx context.Context, input any) (any, error) {
 		return nil, ErrInvalidModelID
 	}
 
-	if _, err := c.store.Get(ctx, modelID); err != nil {
+	model, err := c.store.Get(ctx, modelID)
+	if err != nil {
 		return nil, fmt.Errorf("get model %s: %w", modelID, err)
 	}
 
 	if err := c.store.Delete(ctx, modelID); err != nil {
 		return nil, fmt.Errorf("delete model %s: %w", modelID, err)
+	}
+
+	// Publish event if event publisher is set
+	if c.events != nil {
+		if err := c.events.Publish(NewDeletedEvent(modelID, model.Name)); err != nil {
+			fmt.Printf("warning: failed to publish model.deleted event: %v\n", err)
+		}
 	}
 
 	return map[string]any{"success": true}, nil
@@ -280,6 +303,7 @@ type PullCommand struct {
 	provider ModelProvider
 	progress map[string]bool
 	mu       sync.Mutex
+	events   unit.EventPublisher
 }
 
 func NewPullCommand(store ModelStore, provider ModelProvider) *PullCommand {
@@ -287,6 +311,15 @@ func NewPullCommand(store ModelStore, provider ModelProvider) *PullCommand {
 		store:    store,
 		provider: provider,
 		progress: make(map[string]bool),
+	}
+}
+
+func NewPullCommandWithEvents(store ModelStore, provider ModelProvider, events unit.EventPublisher) *PullCommand {
+	return &PullCommand{
+		store:    store,
+		provider: provider,
+		progress: make(map[string]bool),
+		events:   events,
 	}
 }
 
@@ -372,13 +405,20 @@ func (c *PullCommand) Examples() []unit.Example {
 }
 
 func (c *PullCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.store == nil || c.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	source, _ := inputMap["source"].(string)
@@ -386,14 +426,18 @@ func (c *PullCommand) Execute(ctx context.Context, input any) (any, error) {
 	tag, _ := inputMap["tag"].(string)
 
 	if source == "" || repo == "" {
-		return nil, fmt.Errorf("source and repo are required: %w", ErrInvalidInput)
+		err := fmt.Errorf("source and repo are required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	pullKey := fmt.Sprintf("%s/%s/%s", source, repo, tag)
 	c.mu.Lock()
 	if c.progress[pullKey] {
 		c.mu.Unlock()
-		return nil, ErrPullInProgress
+		err := ErrPullInProgress
+		ec.PublishFailed(err)
+		return nil, err
 	}
 	c.progress[pullKey] = true
 	c.mu.Unlock()
@@ -406,26 +450,35 @@ func (c *PullCommand) Execute(ctx context.Context, input any) (any, error) {
 
 	model, err := c.provider.Pull(ctx, source, repo, tag, nil)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("pull model from %s: %w", source, err)
 	}
 
 	if err := c.store.Create(ctx, model); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("save model: %w", err)
 	}
 
-	return map[string]any{
+	output := map[string]any{
 		"model_id": model.ID,
 		"status":   string(model.Status),
-	}, nil
+	}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type ImportCommand struct {
 	store    ModelStore
 	provider ModelProvider
+	events   unit.EventPublisher
 }
 
 func NewImportCommand(store ModelStore, provider ModelProvider) *ImportCommand {
 	return &ImportCommand{store: store, provider: provider}
+}
+
+func NewImportCommandWithEvents(store ModelStore, provider ModelProvider, events unit.EventPublisher) *ImportCommand {
+	return &ImportCommand{store: store, provider: provider, events: events}
 }
 
 func (c *ImportCommand) Name() string {
@@ -505,18 +558,27 @@ func (c *ImportCommand) Examples() []unit.Example {
 }
 
 func (c *ImportCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.store == nil || c.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	path, _ := inputMap["path"].(string)
 	if path == "" {
-		return nil, fmt.Errorf("path is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("path is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	autoDetect := true
@@ -526,6 +588,7 @@ func (c *ImportCommand) Execute(ctx context.Context, input any) (any, error) {
 
 	model, err := c.provider.ImportLocal(ctx, path, autoDetect)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("import model from %s: %w", path, err)
 	}
 
@@ -537,19 +600,27 @@ func (c *ImportCommand) Execute(ctx context.Context, input any) (any, error) {
 	}
 
 	if err := c.store.Create(ctx, model); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("save imported model: %w", err)
 	}
 
-	return map[string]any{"model_id": model.ID}, nil
+	output := map[string]any{"model_id": model.ID}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type VerifyCommand struct {
 	store    ModelStore
 	provider ModelProvider
+	events   unit.EventPublisher
 }
 
 func NewVerifyCommand(store ModelStore, provider ModelProvider) *VerifyCommand {
 	return &VerifyCommand{store: store, provider: provider}
+}
+
+func NewVerifyCommandWithEvents(store ModelStore, provider ModelProvider, events unit.EventPublisher) *VerifyCommand {
+	return &VerifyCommand{store: store, provider: provider, events: events}
 }
 
 func (c *VerifyCommand) Name() string {
@@ -622,21 +693,31 @@ func (c *VerifyCommand) Examples() []unit.Example {
 }
 
 func (c *VerifyCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.store == nil || c.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	modelID, _ := inputMap["model_id"].(string)
 	if modelID == "" {
-		return nil, ErrInvalidModelID
+		err := ErrInvalidModelID
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	if _, err := c.store.Get(ctx, modelID); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get model %s: %w", modelID, err)
 	}
 
@@ -644,13 +725,16 @@ func (c *VerifyCommand) Execute(ctx context.Context, input any) (any, error) {
 
 	result, err := c.provider.Verify(ctx, modelID, checksum)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("verify model %s: %w", modelID, err)
 	}
 
-	return map[string]any{
+	output := map[string]any{
 		"valid":  result.Valid,
 		"issues": result.Issues,
-	}, nil
+	}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 func generateModelID() string {

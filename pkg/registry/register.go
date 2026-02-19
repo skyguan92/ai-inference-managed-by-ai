@@ -42,6 +42,7 @@ type Providers struct {
 type Options struct {
 	Stores    Stores
 	Providers Providers
+	EventBus  unit.EventPublisher
 }
 
 type Option func(*Options)
@@ -55,6 +56,12 @@ func WithStores(stores Stores) Option {
 func WithProviders(providers Providers) Option {
 	return func(o *Options) {
 		o.Providers = providers
+	}
+}
+
+func WithEventBus(eventBus unit.EventPublisher) Option {
+	return func(o *Options) {
+		o.EventBus = eventBus
 	}
 }
 
@@ -240,6 +247,11 @@ func registerModelDomain(registry *unit.Registry, options *Options) error {
 		return err
 	}
 
+	// Register ResourceFactory for dynamic resource creation
+	if err := registry.RegisterResourceFactory(model.NewModelResourceFactory(store)); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -260,6 +272,11 @@ func registerDeviceDomain(registry *unit.Registry, options *Options) error {
 		return err
 	}
 	if err := registry.RegisterQuery(device.NewHealthQuery(provider)); err != nil {
+		return err
+	}
+
+	// Register ResourceFactory for dynamic resource creation
+	if err := registry.RegisterResourceFactory(device.NewDeviceResourceFactory(provider)); err != nil {
 		return err
 	}
 
@@ -297,44 +314,55 @@ func registerEngineDomain(registry *unit.Registry, options *Options) error {
 		return err
 	}
 
+	// Register ResourceFactory for dynamic resource creation
+	if err := registry.RegisterResourceFactory(engine.NewEngineResourceFactory(store)); err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func registerInferenceDomain(registry *unit.Registry, options *Options) error {
 	provider := options.Providers.InferenceProvider
+	events := options.EventBus
 
-	if err := registry.RegisterCommand(inference.NewChatCommand(provider)); err != nil {
+	if err := registry.RegisterCommand(inference.NewChatCommandWithEvents(provider, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterCommand(inference.NewCompleteCommand(provider)); err != nil {
+	if err := registry.RegisterCommand(inference.NewCompleteCommandWithEvents(provider, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterCommand(inference.NewEmbedCommand(provider)); err != nil {
+	if err := registry.RegisterCommand(inference.NewEmbedCommandWithEvents(provider, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterCommand(inference.NewTranscribeCommand(provider)); err != nil {
+	if err := registry.RegisterCommand(inference.NewTranscribeCommandWithEvents(provider, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterCommand(inference.NewSynthesizeCommand(provider)); err != nil {
+	if err := registry.RegisterCommand(inference.NewSynthesizeCommandWithEvents(provider, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterCommand(inference.NewGenerateImageCommand(provider)); err != nil {
+	if err := registry.RegisterCommand(inference.NewGenerateImageCommandWithEvents(provider, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterCommand(inference.NewGenerateVideoCommand(provider)); err != nil {
+	if err := registry.RegisterCommand(inference.NewGenerateVideoCommandWithEvents(provider, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterCommand(inference.NewRerankCommand(provider)); err != nil {
+	if err := registry.RegisterCommand(inference.NewRerankCommandWithEvents(provider, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterCommand(inference.NewDetectCommand(provider)); err != nil {
+	if err := registry.RegisterCommand(inference.NewDetectCommandWithEvents(provider, events)); err != nil {
 		return err
 	}
 
-	if err := registry.RegisterQuery(inference.NewModelsQuery(provider)); err != nil {
+	if err := registry.RegisterQuery(inference.NewModelsQueryWithEvents(provider, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterQuery(inference.NewVoicesQuery(provider)); err != nil {
+	if err := registry.RegisterQuery(inference.NewVoicesQueryWithEvents(provider, events)); err != nil {
+		return err
+	}
+
+	// Register ResourceFactory for dynamic resource creation
+	if err := registry.RegisterResourceFactory(inference.NewInferenceResourceFactory(provider)); err != nil {
 		return err
 	}
 
@@ -344,35 +372,41 @@ func registerInferenceDomain(registry *unit.Registry, options *Options) error {
 func registerResourceDomain(registry *unit.Registry, options *Options) error {
 	store := options.Stores.ResourceStore
 	provider := options.Providers.ResourceProvider
+	events := options.EventBus
 
 	if store == nil {
 		store = resource.NewMemoryStore()
 	}
 
-	if err := registry.RegisterCommand(resource.NewAllocateCommand(store, provider)); err != nil {
+	if err := registry.RegisterCommand(resource.NewAllocateCommandWithEvents(store, provider, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterCommand(resource.NewReleaseCommand(store)); err != nil {
+	if err := registry.RegisterCommand(resource.NewReleaseCommandWithEvents(store, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterCommand(resource.NewUpdateSlotCommand(store)); err != nil {
+	if err := registry.RegisterCommand(resource.NewUpdateSlotCommandWithEvents(store, events)); err != nil {
 		return err
 	}
 
-	if err := registry.RegisterQuery(resource.NewStatusQuery(provider, store)); err != nil {
+	if err := registry.RegisterQuery(resource.NewStatusQueryWithEvents(provider, store, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterQuery(resource.NewBudgetQuery(provider)); err != nil {
+	if err := registry.RegisterQuery(resource.NewBudgetQueryWithEvents(provider, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterQuery(resource.NewAllocationsQuery(store)); err != nil {
+	if err := registry.RegisterQuery(resource.NewAllocationsQueryWithEvents(store, events)); err != nil {
 		return err
 	}
 
 	if provider != nil {
-		if err := registry.RegisterQuery(resource.NewCanAllocateQuery(provider)); err != nil {
+		if err := registry.RegisterQuery(resource.NewCanAllocateQueryWithEvents(provider, events)); err != nil {
 			return err
 		}
+	}
+
+	// Register ResourceFactory for dynamic resource creation
+	if err := registry.RegisterResourceFactory(resource.NewResourceFactory(provider, store)); err != nil {
+		return err
 	}
 
 	return nil
@@ -381,37 +415,46 @@ func registerResourceDomain(registry *unit.Registry, options *Options) error {
 func registerServiceDomain(registry *unit.Registry, options *Options) error {
 	store := options.Stores.ServiceStore
 	provider := options.Providers.ServiceProvider
+	events := options.EventBus
 
 	if store == nil {
 		store = service.NewMemoryStore()
 	}
 
-	if err := registry.RegisterCommand(service.NewCreateCommand(store, provider)); err != nil {
+	if err := registry.RegisterCommand(service.NewCreateCommandWithEvents(store, provider, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterCommand(service.NewDeleteCommand(store, provider)); err != nil {
+	if err := registry.RegisterCommand(service.NewDeleteCommandWithEvents(store, provider, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterCommand(service.NewScaleCommand(store, provider)); err != nil {
+	if err := registry.RegisterCommand(service.NewScaleCommandWithEvents(store, provider, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterCommand(service.NewStartCommand(store, provider)); err != nil {
+	if err := registry.RegisterCommand(service.NewStartCommandWithEvents(store, provider, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterCommand(service.NewStopCommand(store, provider)); err != nil {
+	if err := registry.RegisterCommand(service.NewStopCommandWithEvents(store, provider, events)); err != nil {
 		return err
 	}
 
-	if err := registry.RegisterQuery(service.NewGetQuery(store, provider)); err != nil {
+	if err := registry.RegisterQuery(service.NewGetQueryWithEvents(store, provider, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterQuery(service.NewListQuery(store)); err != nil {
+	if err := registry.RegisterQuery(service.NewListQueryWithEvents(store, events)); err != nil {
+		return err
+	}
+	if err := registry.RegisterQuery(service.NewStatusQueryWithEvents(store, events)); err != nil {
 		return err
 	}
 	if provider != nil {
-		if err := registry.RegisterQuery(service.NewRecommendQuery(provider)); err != nil {
+		if err := registry.RegisterQuery(service.NewRecommendQueryWithEvents(provider, events)); err != nil {
 			return err
 		}
+	}
+
+	// Register ResourceFactory for dynamic resource creation
+	if err := registry.RegisterResourceFactory(service.NewServiceResourceFactory(store, provider)); err != nil {
+		return err
 	}
 
 	return nil
@@ -420,37 +463,43 @@ func registerServiceDomain(registry *unit.Registry, options *Options) error {
 func registerAppDomain(registry *unit.Registry, options *Options) error {
 	store := options.Stores.AppStore
 	provider := options.Providers.AppProvider
+	events := options.EventBus
 
 	if store == nil {
 		store = app.NewMemoryStore()
 	}
 
-	if err := registry.RegisterCommand(app.NewInstallCommand(store, provider)); err != nil {
+	if err := registry.RegisterCommand(app.NewInstallCommandWithEvents(store, provider, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterCommand(app.NewUninstallCommand(store, provider)); err != nil {
+	if err := registry.RegisterCommand(app.NewUninstallCommandWithEvents(store, provider, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterCommand(app.NewStartCommand(store, provider)); err != nil {
+	if err := registry.RegisterCommand(app.NewStartCommandWithEvents(store, provider, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterCommand(app.NewStopCommand(store, provider)); err != nil {
+	if err := registry.RegisterCommand(app.NewStopCommandWithEvents(store, provider, events)); err != nil {
 		return err
 	}
 
-	if err := registry.RegisterQuery(app.NewGetQuery(store, provider)); err != nil {
+	if err := registry.RegisterQuery(app.NewGetQueryWithEvents(store, provider, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterQuery(app.NewListQuery(store)); err != nil {
+	if err := registry.RegisterQuery(app.NewListQueryWithEvents(store, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterQuery(app.NewLogsQuery(store, provider)); err != nil {
+	if err := registry.RegisterQuery(app.NewLogsQueryWithEvents(store, provider, events)); err != nil {
 		return err
 	}
 	if provider != nil {
-		if err := registry.RegisterQuery(app.NewTemplatesQuery(provider)); err != nil {
+		if err := registry.RegisterQuery(app.NewTemplatesQueryWithEvents(provider, events)); err != nil {
 			return err
 		}
+	}
+
+	// Register ResourceFactory for dynamic resource creation
+	if err := registry.RegisterResourceFactory(app.NewAppResourceFactory(store, provider)); err != nil {
+		return err
 	}
 
 	return nil
@@ -458,6 +507,7 @@ func registerAppDomain(registry *unit.Registry, options *Options) error {
 
 func registerPipelineDomain(registry *unit.Registry, options *Options) error {
 	store := options.Stores.PipelineStore
+	events := options.EventBus
 
 	if store == nil {
 		store = pipeline.NewMemoryStore()
@@ -466,29 +516,34 @@ func registerPipelineDomain(registry *unit.Registry, options *Options) error {
 	stepExecutor := createStepExecutor(registry)
 	executor := pipeline.NewExecutor(store, stepExecutor)
 
-	if err := registry.RegisterCommand(pipeline.NewCreateCommand(store, executor)); err != nil {
+	if err := registry.RegisterCommand(pipeline.NewCreateCommandWithEvents(store, executor, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterCommand(pipeline.NewDeleteCommand(store)); err != nil {
+	if err := registry.RegisterCommand(pipeline.NewDeleteCommandWithEvents(store, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterCommand(pipeline.NewRunCommand(store, executor)); err != nil {
+	if err := registry.RegisterCommand(pipeline.NewRunCommandWithEvents(store, executor, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterCommand(pipeline.NewCancelCommand(store, executor)); err != nil {
+	if err := registry.RegisterCommand(pipeline.NewCancelCommandWithEvents(store, executor, events)); err != nil {
 		return err
 	}
 
-	if err := registry.RegisterQuery(pipeline.NewGetQuery(store)); err != nil {
+	if err := registry.RegisterQuery(pipeline.NewGetQueryWithEvents(store, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterQuery(pipeline.NewListQuery(store)); err != nil {
+	if err := registry.RegisterQuery(pipeline.NewListQueryWithEvents(store, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterQuery(pipeline.NewStatusQuery(store)); err != nil {
+	if err := registry.RegisterQuery(pipeline.NewStatusQueryWithEvents(store, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterQuery(pipeline.NewValidateQuery()); err != nil {
+	if err := registry.RegisterQuery(pipeline.NewValidateQueryWithEvents(events)); err != nil {
+		return err
+	}
+
+	// Register ResourceFactory for dynamic resource creation
+	if err := registry.RegisterResourceFactory(pipeline.NewPipelineResourceFactory(store)); err != nil {
 		return err
 	}
 
@@ -527,34 +582,40 @@ func createStepExecutor(registry *unit.Registry) pipeline.StepExecutor {
 
 func registerAlertDomain(registry *unit.Registry, options *Options) error {
 	store := options.Stores.AlertStore
+	events := options.EventBus
 
 	if store == nil {
 		store = alert.NewMemoryStore()
 	}
 
-	if err := registry.RegisterCommand(alert.NewCreateRuleCommand(store)); err != nil {
+	if err := registry.RegisterCommand(alert.NewCreateRuleCommandWithEvents(store, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterCommand(alert.NewUpdateRuleCommand(store)); err != nil {
+	if err := registry.RegisterCommand(alert.NewUpdateRuleCommandWithEvents(store, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterCommand(alert.NewDeleteRuleCommand(store)); err != nil {
+	if err := registry.RegisterCommand(alert.NewDeleteRuleCommandWithEvents(store, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterCommand(alert.NewAcknowledgeCommand(store)); err != nil {
+	if err := registry.RegisterCommand(alert.NewAcknowledgeCommandWithEvents(store, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterCommand(alert.NewResolveCommand(store)); err != nil {
+	if err := registry.RegisterCommand(alert.NewResolveCommandWithEvents(store, events)); err != nil {
 		return err
 	}
 
-	if err := registry.RegisterQuery(alert.NewListRulesQuery(store)); err != nil {
+	if err := registry.RegisterQuery(alert.NewListRulesQueryWithEvents(store, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterQuery(alert.NewHistoryQuery(store)); err != nil {
+	if err := registry.RegisterQuery(alert.NewHistoryQueryWithEvents(store, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterQuery(alert.NewActiveQuery(store)); err != nil {
+	if err := registry.RegisterQuery(alert.NewActiveQueryWithEvents(store, events)); err != nil {
+		return err
+	}
+
+	// Register ResourceFactory for dynamic resource creation
+	if err := registry.RegisterResourceFactory(alert.NewAlertResourceFactory(store)); err != nil {
 		return err
 	}
 
@@ -564,25 +625,31 @@ func registerAlertDomain(registry *unit.Registry, options *Options) error {
 func registerRemoteDomain(registry *unit.Registry, options *Options) error {
 	store := options.Stores.RemoteStore
 	provider := options.Providers.RemoteProvider
+	events := options.EventBus
 
 	if store == nil {
 		store = remote.NewMemoryStore()
 	}
 
-	if err := registry.RegisterCommand(remote.NewEnableCommand(store, provider)); err != nil {
+	if err := registry.RegisterCommand(remote.NewEnableCommandWithEvents(store, provider, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterCommand(remote.NewDisableCommand(store, provider)); err != nil {
+	if err := registry.RegisterCommand(remote.NewDisableCommandWithEvents(store, provider, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterCommand(remote.NewExecCommand(store, provider)); err != nil {
+	if err := registry.RegisterCommand(remote.NewExecCommandWithEvents(store, provider, events)); err != nil {
 		return err
 	}
 
-	if err := registry.RegisterQuery(remote.NewStatusQuery(store)); err != nil {
+	if err := registry.RegisterQuery(remote.NewStatusQueryWithEvents(store, events)); err != nil {
 		return err
 	}
-	if err := registry.RegisterQuery(remote.NewAuditQuery(store)); err != nil {
+	if err := registry.RegisterQuery(remote.NewAuditQueryWithEvents(store, events)); err != nil {
+		return err
+	}
+
+	// Register ResourceFactory for dynamic resource creation
+	if err := registry.RegisterResourceFactory(remote.NewRemoteResourceFactory(store)); err != nil {
 		return err
 	}
 

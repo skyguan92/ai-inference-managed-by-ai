@@ -22,6 +22,31 @@ func NewModelResource(modelID string, store ModelStore) *ModelResource {
 	}
 }
 
+// ModelResourceFactory creates ModelResource instances dynamically based on URI patterns.
+type ModelResourceFactory struct {
+	store ModelStore
+}
+
+func NewModelResourceFactory(store ModelStore) *ModelResourceFactory {
+	return &ModelResourceFactory{store: store}
+}
+
+func (f *ModelResourceFactory) CanCreate(uri string) bool {
+	return strings.HasPrefix(uri, "asms://model/")
+}
+
+func (f *ModelResourceFactory) Create(uri string) (unit.Resource, error) {
+	modelID := strings.TrimPrefix(uri, "asms://model/")
+	if modelID == "" {
+		return nil, fmt.Errorf("invalid model URI: %s", uri)
+	}
+	return NewModelResource(modelID, f.store), nil
+}
+
+func (f *ModelResourceFactory) Pattern() string {
+	return "asms://model/*"
+}
+
 func (r *ModelResource) URI() string {
 	return fmt.Sprintf("asms://model/%s", r.modelID)
 }

@@ -10,10 +10,15 @@ import (
 type GetQuery struct {
 	store    AppStore
 	provider AppProvider
+	events   unit.EventPublisher
 }
 
 func NewGetQuery(store AppStore, provider AppProvider) *GetQuery {
 	return &GetQuery{store: store, provider: provider}
+}
+
+func NewGetQueryWithEvents(store AppStore, provider AppProvider, events unit.EventPublisher) *GetQuery {
+	return &GetQuery{store: store, provider: provider, events: events}
 }
 
 func (q *GetQuery) Name() string {
@@ -80,22 +85,32 @@ func (q *GetQuery) Examples() []unit.Example {
 }
 
 func (q *GetQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	if q.store == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	appID, _ := inputMap["app_id"].(string)
 	if appID == "" {
-		return nil, ErrInvalidAppID
+		err := ErrInvalidAppID
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	app, err := q.store.Get(ctx, appID)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get app %s: %w", appID, err)
 	}
 
@@ -119,15 +134,21 @@ func (q *GetQuery) Execute(ctx context.Context, input any) (any, error) {
 		}
 	}
 
+	ec.PublishCompleted(result)
 	return result, nil
 }
 
 type ListQuery struct {
-	store AppStore
+	store  AppStore
+	events unit.EventPublisher
 }
 
 func NewListQuery(store AppStore) *ListQuery {
 	return &ListQuery{store: store}
+}
+
+func NewListQueryWithEvents(store AppStore, events unit.EventPublisher) *ListQuery {
+	return &ListQuery{store: store, events: events}
 }
 
 func (q *ListQuery) Name() string {
@@ -221,8 +242,13 @@ func (q *ListQuery) Examples() []unit.Example {
 }
 
 func (q *ListQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	if q.store == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, _ := input.(map[string]any)
@@ -247,6 +273,7 @@ func (q *ListQuery) Execute(ctx context.Context, input any) (any, error) {
 
 	apps, _, err := q.store.List(ctx, filter)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("list apps: %w", err)
 	}
 
@@ -260,16 +287,23 @@ func (q *ListQuery) Execute(ctx context.Context, input any) (any, error) {
 		}
 	}
 
-	return map[string]any{"apps": items}, nil
+	output := map[string]any{"apps": items}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type LogsQuery struct {
 	store    AppStore
 	provider AppProvider
+	events   unit.EventPublisher
 }
 
 func NewLogsQuery(store AppStore, provider AppProvider) *LogsQuery {
 	return &LogsQuery{store: store, provider: provider}
+}
+
+func NewLogsQueryWithEvents(store AppStore, provider AppProvider, events unit.EventPublisher) *LogsQuery {
+	return &LogsQuery{store: store, provider: provider, events: events}
 }
 
 func (q *LogsQuery) Name() string {
@@ -352,22 +386,32 @@ func (q *LogsQuery) Examples() []unit.Example {
 }
 
 func (q *LogsQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	if q.store == nil || q.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	appID, _ := inputMap["app_id"].(string)
 	if appID == "" {
-		return nil, ErrInvalidAppID
+		err := ErrInvalidAppID
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	_, err := q.store.Get(ctx, appID)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get app %s: %w", appID, err)
 	}
 
@@ -383,6 +427,7 @@ func (q *LogsQuery) Execute(ctx context.Context, input any) (any, error) {
 
 	logs, err := q.provider.GetLogs(ctx, appID, tail, since)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get logs for app %s: %w", appID, err)
 	}
 
@@ -395,15 +440,22 @@ func (q *LogsQuery) Execute(ctx context.Context, input any) (any, error) {
 		}
 	}
 
-	return map[string]any{"logs": items}, nil
+	output := map[string]any{"logs": items}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type TemplatesQuery struct {
 	provider AppProvider
+	events   unit.EventPublisher
 }
 
 func NewTemplatesQuery(provider AppProvider) *TemplatesQuery {
 	return &TemplatesQuery{provider: provider}
+}
+
+func NewTemplatesQueryWithEvents(provider AppProvider, events unit.EventPublisher) *TemplatesQuery {
+	return &TemplatesQuery{provider: provider, events: events}
 }
 
 func (q *TemplatesQuery) Name() string {
@@ -474,8 +526,13 @@ func (q *TemplatesQuery) Examples() []unit.Example {
 }
 
 func (q *TemplatesQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	if q.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, _ := input.(map[string]any)
@@ -487,6 +544,7 @@ func (q *TemplatesQuery) Execute(ctx context.Context, input any) (any, error) {
 
 	templates, err := q.provider.GetTemplates(ctx, category)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get templates: %w", err)
 	}
 
@@ -501,7 +559,9 @@ func (q *TemplatesQuery) Execute(ctx context.Context, input any) (any, error) {
 		}
 	}
 
-	return map[string]any{"templates": items}, nil
+	output := map[string]any{"templates": items}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 func toInt64(v any) (int64, bool) {

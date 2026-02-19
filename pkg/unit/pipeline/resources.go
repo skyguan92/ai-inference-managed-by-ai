@@ -22,6 +22,34 @@ func NewPipelineResource(id string, store PipelineStore) *PipelineResource {
 	}
 }
 
+// PipelineResourceFactory creates pipeline Resource instances dynamically based on URI patterns.
+type PipelineResourceFactory struct {
+	store PipelineStore
+}
+
+func NewPipelineResourceFactory(store PipelineStore) *PipelineResourceFactory {
+	return &PipelineResourceFactory{store: store}
+}
+
+func (f *PipelineResourceFactory) CanCreate(uri string) bool {
+	return strings.HasPrefix(uri, "asms://pipeline/") || uri == "asms://pipelines"
+}
+
+func (f *PipelineResourceFactory) Create(uri string) (unit.Resource, error) {
+	if uri == "asms://pipelines" {
+		return NewPipelinesResource(f.store), nil
+	}
+	pipelineID := strings.TrimPrefix(uri, "asms://pipeline/")
+	if pipelineID == "" {
+		return nil, fmt.Errorf("invalid pipeline URI: %s", uri)
+	}
+	return NewPipelineResource(pipelineID, f.store), nil
+}
+
+func (f *PipelineResourceFactory) Pattern() string {
+	return "asms://pipeline/*"
+}
+
 func (r *PipelineResource) URI() string {
 	return fmt.Sprintf("asms://pipeline/%s", r.id)
 }

@@ -10,11 +10,16 @@ import (
 )
 
 type CreateRuleCommand struct {
-	store Store
+	store  Store
+	events unit.EventPublisher
 }
 
 func NewCreateRuleCommand(store Store) *CreateRuleCommand {
 	return &CreateRuleCommand{store: store}
+}
+
+func NewCreateRuleCommandWithEvents(store Store, events unit.EventPublisher) *CreateRuleCommand {
+	return &CreateRuleCommand{store: store, events: events}
 }
 
 func (c *CreateRuleCommand) Name() string {
@@ -105,23 +110,33 @@ func (c *CreateRuleCommand) Examples() []unit.Example {
 }
 
 func (c *CreateRuleCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: expected map[string]any")
+		err := fmt.Errorf("invalid input type: expected map[string]any")
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	name, _ := inputMap["name"].(string)
 	if name == "" {
-		return nil, fmt.Errorf("name is required")
+		err := fmt.Errorf("name is required")
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	condition, _ := inputMap["condition"].(string)
 	if condition == "" {
-		return nil, fmt.Errorf("condition is required")
+		err := fmt.Errorf("condition is required")
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	severity := AlertSeverity(getString(inputMap, "severity"))
 	if !isValidSeverity(severity) {
+		ec.PublishFailed(ErrInvalidSeverity)
 		return nil, ErrInvalidSeverity
 	}
 
@@ -149,18 +164,26 @@ func (c *CreateRuleCommand) Execute(ctx context.Context, input any) (any, error)
 	}
 
 	if err := c.store.CreateRule(ctx, rule); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("create rule: %w", err)
 	}
 
-	return map[string]any{"rule_id": rule.ID}, nil
+	output := map[string]any{"rule_id": rule.ID}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type UpdateRuleCommand struct {
-	store Store
+	store  Store
+	events unit.EventPublisher
 }
 
 func NewUpdateRuleCommand(store Store) *UpdateRuleCommand {
 	return &UpdateRuleCommand{store: store}
+}
+
+func NewUpdateRuleCommandWithEvents(store Store, events unit.EventPublisher) *UpdateRuleCommand {
+	return &UpdateRuleCommand{store: store, events: events}
 }
 
 func (c *UpdateRuleCommand) Name() string {
@@ -239,18 +262,25 @@ func (c *UpdateRuleCommand) Examples() []unit.Example {
 }
 
 func (c *UpdateRuleCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: expected map[string]any")
+		err := fmt.Errorf("invalid input type: expected map[string]any")
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	ruleID, _ := inputMap["rule_id"].(string)
 	if ruleID == "" {
+		ec.PublishFailed(ErrInvalidRuleID)
 		return nil, ErrInvalidRuleID
 	}
 
 	rule, err := c.store.GetRule(ctx, ruleID)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get rule: %w", err)
 	}
 
@@ -265,18 +295,26 @@ func (c *UpdateRuleCommand) Execute(ctx context.Context, input any) (any, error)
 	}
 
 	if err := c.store.UpdateRule(ctx, rule); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("update rule: %w", err)
 	}
 
-	return map[string]any{"success": true}, nil
+	output := map[string]any{"success": true}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type DeleteRuleCommand struct {
-	store Store
+	store  Store
+	events unit.EventPublisher
 }
 
 func NewDeleteRuleCommand(store Store) *DeleteRuleCommand {
 	return &DeleteRuleCommand{store: store}
+}
+
+func NewDeleteRuleCommandWithEvents(store Store, events unit.EventPublisher) *DeleteRuleCommand {
+	return &DeleteRuleCommand{store: store, events: events}
 }
 
 func (c *DeleteRuleCommand) Name() string {
@@ -330,29 +368,43 @@ func (c *DeleteRuleCommand) Examples() []unit.Example {
 }
 
 func (c *DeleteRuleCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: expected map[string]any")
+		err := fmt.Errorf("invalid input type: expected map[string]any")
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	ruleID, _ := inputMap["rule_id"].(string)
 	if ruleID == "" {
+		ec.PublishFailed(ErrInvalidRuleID)
 		return nil, ErrInvalidRuleID
 	}
 
 	if err := c.store.DeleteRule(ctx, ruleID); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("delete rule: %w", err)
 	}
 
-	return map[string]any{"success": true}, nil
+	output := map[string]any{"success": true}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type AcknowledgeCommand struct {
-	store Store
+	store  Store
+	events unit.EventPublisher
 }
 
 func NewAcknowledgeCommand(store Store) *AcknowledgeCommand {
 	return &AcknowledgeCommand{store: store}
+}
+
+func NewAcknowledgeCommandWithEvents(store Store, events unit.EventPublisher) *AcknowledgeCommand {
+	return &AcknowledgeCommand{store: store, events: events}
 }
 
 func (c *AcknowledgeCommand) Name() string {
@@ -406,18 +458,25 @@ func (c *AcknowledgeCommand) Examples() []unit.Example {
 }
 
 func (c *AcknowledgeCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: expected map[string]any")
+		err := fmt.Errorf("invalid input type: expected map[string]any")
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	alertID, _ := inputMap["alert_id"].(string)
 	if alertID == "" {
+		ec.PublishFailed(ErrInvalidAlertID)
 		return nil, ErrInvalidAlertID
 	}
 
 	alert, err := c.store.GetAlert(ctx, alertID)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get alert: %w", err)
 	}
 
@@ -426,18 +485,26 @@ func (c *AcknowledgeCommand) Execute(ctx context.Context, input any) (any, error
 	alert.AcknowledgedAt = &now
 
 	if err := c.store.UpdateAlert(ctx, alert); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("acknowledge alert: %w", err)
 	}
 
-	return map[string]any{"success": true}, nil
+	output := map[string]any{"success": true}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type ResolveCommand struct {
-	store Store
+	store  Store
+	events unit.EventPublisher
 }
 
 func NewResolveCommand(store Store) *ResolveCommand {
 	return &ResolveCommand{store: store}
+}
+
+func NewResolveCommandWithEvents(store Store, events unit.EventPublisher) *ResolveCommand {
+	return &ResolveCommand{store: store, events: events}
 }
 
 func (c *ResolveCommand) Name() string {
@@ -491,18 +558,25 @@ func (c *ResolveCommand) Examples() []unit.Example {
 }
 
 func (c *ResolveCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: expected map[string]any")
+		err := fmt.Errorf("invalid input type: expected map[string]any")
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	alertID, _ := inputMap["alert_id"].(string)
 	if alertID == "" {
+		ec.PublishFailed(ErrInvalidAlertID)
 		return nil, ErrInvalidAlertID
 	}
 
 	alert, err := c.store.GetAlert(ctx, alertID)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get alert: %w", err)
 	}
 
@@ -511,10 +585,13 @@ func (c *ResolveCommand) Execute(ctx context.Context, input any) (any, error) {
 	alert.ResolvedAt = &now
 
 	if err := c.store.UpdateAlert(ctx, alert); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("resolve alert: %w", err)
 	}
 
-	return map[string]any{"success": true}, nil
+	output := map[string]any{"success": true}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 func ptrFloat(v float64) *float64 {

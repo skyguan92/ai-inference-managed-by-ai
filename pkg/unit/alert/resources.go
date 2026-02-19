@@ -19,6 +19,34 @@ func NewRulesResource(store Store) *RulesResource {
 	return &RulesResource{store: store}
 }
 
+// AlertResourceFactory creates alert Resource instances dynamically based on URI patterns.
+type AlertResourceFactory struct {
+	store Store
+}
+
+func NewAlertResourceFactory(store Store) *AlertResourceFactory {
+	return &AlertResourceFactory{store: store}
+}
+
+func (f *AlertResourceFactory) CanCreate(uri string) bool {
+	return uri == "asms://alerts/rules" || uri == "asms://alerts/active"
+}
+
+func (f *AlertResourceFactory) Create(uri string) (unit.Resource, error) {
+	switch uri {
+	case "asms://alerts/rules":
+		return NewRulesResource(f.store), nil
+	case "asms://alerts/active":
+		return NewActiveResource(f.store), nil
+	default:
+		return nil, fmt.Errorf("unknown alert resource URI: %s", uri)
+	}
+}
+
+func (f *AlertResourceFactory) Pattern() string {
+	return "asms://alerts/*"
+}
+
 func (r *RulesResource) URI() string {
 	return "asms://alerts/rules"
 }

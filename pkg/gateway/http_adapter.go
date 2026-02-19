@@ -1,13 +1,17 @@
 package gateway
 
 import (
+	"bufio"
+	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 )
 
 const (
 	ContentTypeJSON = "application/json"
+	ContentTypeSSE  = "text/event-stream"
 	HeaderRequestID = "X-Request-ID"
 	HeaderTraceID   = "X-Trace-ID"
 )
@@ -54,6 +58,12 @@ func (a *HTTPAdapter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	traceID := r.Header.Get(HeaderTraceID)
 	if traceID != "" {
 		req.Options.TraceID = traceID
+	}
+
+	// Check if streaming is requested
+	if isStreamingRequest(&req) {
+		a.handleStreamRequest(ctx, w, r, &req)
+		return
 	}
 
 	resp := a.gateway.Handle(ctx, &req)
@@ -138,4 +148,133 @@ func randomHex(n int) string {
 
 func (a *HTTPAdapter) Gateway() *Gateway {
 	return a.gateway
+}
+
+// isStreamingRequest checks if the request requires streaming response
+func isStreamingRequest(req *Request) bool {
+	if req == nil {
+		return false
+	}
+	// Check explicit stream flag in input
+	if req.Input != nil {
+		if stream, ok := req.Input["stream"].(bool); ok {
+			return stream
+		}
+	}
+	return false
+}
+
+// handleStreamRequest handles streaming requests using Server-Sent Events (SSE)
+func (a *HTTPAdapter) handleStreamRequest(ctx context.Context, w http.ResponseWriter, r *http.Request, req *Request) {
+	// Set SSE headers
+	w.Header().Set("Content-Type", ContentTypeSSE)
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering
+
+	// Flush headers
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush()
+	}
+
+	// Get streaming response channel
+	stream, err := a.gateway.HandleStream(ctx, req)
+	if err != nil {
+		writeSSEError(w, err)
+		return
+	}
+
+	// Create buffered writer for SSE
+	writer := bufio.NewWriter(w)
+
+	// Stream chunks to client
+	for resp := range stream {
+		if resp.Error != nil {
+			writeSSEEvent(writer, "error", resp.Error)
+			writer.Flush()
+			if f, ok := w.(http.Flusher); ok {
+				f.Flush()
+			}
+			return
+		}
+
+		if resp.Done {
+			// Send [DONE] marker in OpenAI-compatible format
+			writeSSEData(writer, "[DONE]")
+			writer.Flush()
+			if f, ok := w.(http.Flusher); ok {
+				f.Flush()
+			}
+			return
+		}
+
+		// Format data according to SSE spec with OpenAI-compatible JSON
+		data := formatSSEData(resp)
+		writeSSEData(writer, data)
+		writer.Flush()
+
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+	}
+}
+
+// writeSSEData writes a data event in SSE format
+func writeSSEData(w *bufio.Writer, data string) {
+	fmt.Fprintf(w, "data: %s\n\n", data)
+}
+
+// writeSSEEvent writes a named event in SSE format
+func writeSSEEvent(w *bufio.Writer, event string, data any) {
+	jsonData, _ := json.Marshal(data)
+	fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, string(jsonData))
+}
+
+// writeSSEError writes an error event and closes the stream
+func writeSSEError(w http.ResponseWriter, err error) {
+	w.Header().Set("Content-Type", ContentTypeSSE)
+	w.WriteHeader(http.StatusOK)
+
+	writer := bufio.NewWriter(w)
+	var errInfo *ErrorInfo
+	if e, ok := err.(*ErrorInfo); ok {
+		errInfo = e
+	} else {
+		errInfo = ToErrorInfo(err)
+	}
+	writeSSEEvent(writer, "error", errInfo)
+	writer.Flush()
+}
+
+// formatSSEData formats the stream response as SSE data in OpenAI-compatible format
+func formatSSEData(resp StreamResponse) string {
+	// OpenAI-compatible SSE format
+	chunk := map[string]any{
+		"object": "chat.completion.chunk",
+		"choices": []map[string]any{
+			{
+				"index": 0,
+				"delta": map[string]any{
+					"content": resp.Data,
+				},
+			},
+		},
+	}
+
+	if resp.Metadata != nil {
+		if metadata, ok := resp.Metadata.(map[string]any); ok {
+			if finishReason, ok := metadata["finish_reason"].(string); ok && finishReason != "" {
+				chunk["choices"].([]map[string]any)[0]["finish_reason"] = finishReason
+			}
+			if model, ok := metadata["model"].(string); ok {
+				chunk["model"] = model
+			}
+			if id, ok := metadata["id"].(string); ok {
+				chunk["id"] = id
+			}
+		}
+	}
+
+	jsonBytes, _ := json.Marshal(chunk)
+	return string(jsonBytes)
 }

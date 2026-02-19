@@ -8,11 +8,16 @@ import (
 )
 
 type ListRulesQuery struct {
-	store Store
+	store  Store
+	events unit.EventPublisher
 }
 
 func NewListRulesQuery(store Store) *ListRulesQuery {
 	return &ListRulesQuery{store: store}
+}
+
+func NewListRulesQueryWithEvents(store Store, events unit.EventPublisher) *ListRulesQuery {
+	return &ListRulesQuery{store: store, events: events}
 }
 
 func (q *ListRulesQuery) Name() string {
@@ -79,6 +84,9 @@ func (q *ListRulesQuery) Examples() []unit.Example {
 }
 
 func (q *ListRulesQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	inputMap, _ := input.(map[string]any)
 	enabledOnly, _ := inputMap["enabled_only"].(bool)
 
@@ -86,6 +94,7 @@ func (q *ListRulesQuery) Execute(ctx context.Context, input any) (any, error) {
 
 	rules, err := q.store.ListRules(ctx, filter)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("list rules: %w", err)
 	}
 
@@ -102,15 +111,22 @@ func (q *ListRulesQuery) Execute(ctx context.Context, input any) (any, error) {
 		}
 	}
 
-	return map[string]any{"rules": result}, nil
+	output := map[string]any{"rules": result}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type HistoryQuery struct {
-	store Store
+	store  Store
+	events unit.EventPublisher
 }
 
 func NewHistoryQuery(store Store) *HistoryQuery {
 	return &HistoryQuery{store: store}
+}
+
+func NewHistoryQueryWithEvents(store Store, events unit.EventPublisher) *HistoryQuery {
+	return &HistoryQuery{store: store, events: events}
 }
 
 func (q *HistoryQuery) Name() string {
@@ -202,6 +218,9 @@ func (q *HistoryQuery) Examples() []unit.Example {
 }
 
 func (q *HistoryQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	inputMap, _ := input.(map[string]any)
 
 	filter := AlertFilter{
@@ -217,6 +236,7 @@ func (q *HistoryQuery) Execute(ctx context.Context, input any) (any, error) {
 
 	alerts, _, err := q.store.ListAlerts(ctx, filter)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("list alerts: %w", err)
 	}
 
@@ -233,15 +253,22 @@ func (q *HistoryQuery) Execute(ctx context.Context, input any) (any, error) {
 		}
 	}
 
-	return map[string]any{"alerts": result}, nil
+	output := map[string]any{"alerts": result}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type ActiveQuery struct {
-	store Store
+	store  Store
+	events unit.EventPublisher
 }
 
 func NewActiveQuery(store Store) *ActiveQuery {
 	return &ActiveQuery{store: store}
+}
+
+func NewActiveQueryWithEvents(store Store, events unit.EventPublisher) *ActiveQuery {
+	return &ActiveQuery{store: store, events: events}
 }
 
 func (q *ActiveQuery) Name() string {
@@ -300,8 +327,12 @@ func (q *ActiveQuery) Examples() []unit.Example {
 }
 
 func (q *ActiveQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	alerts, err := q.store.ListActiveAlerts(ctx)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("list active alerts: %w", err)
 	}
 
@@ -318,5 +349,7 @@ func (q *ActiveQuery) Execute(ctx context.Context, input any) (any, error) {
 		}
 	}
 
-	return map[string]any{"alerts": result}, nil
+	output := map[string]any{"alerts": result}
+	ec.PublishCompleted(output)
+	return output, nil
 }

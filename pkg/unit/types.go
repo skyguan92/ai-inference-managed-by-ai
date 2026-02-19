@@ -79,3 +79,32 @@ type Resource interface {
 	Get(ctx context.Context) (any, error)
 	Watch(ctx context.Context) (<-chan ResourceUpdate, error)
 }
+
+// ResourceFactory creates Resource instances dynamically based on URI patterns.
+// It is used to handle dynamic URI patterns like asms://model/{id}.
+type ResourceFactory interface {
+	// CanCreate returns true if this factory can create a resource for the given URI
+	CanCreate(uri string) bool
+	// Create creates a new Resource instance for the given URI
+	Create(uri string) (Resource, error)
+	// Pattern returns the URI pattern this factory handles (e.g., "asms://model/*")
+	Pattern() string
+}
+
+// StreamChunk represents a single chunk in a streaming response.
+type StreamChunk struct {
+	Type     string `json:"type"`               // "content", "error", "done"
+	Data     any    `json:"data"`               // actual chunk data (e.g., string content)
+	Metadata any    `json:"metadata,omitempty"` // optional metadata (usage, finish_reason, etc.)
+}
+
+// StreamingCommand extends Command with streaming capabilities.
+// Commands that support streaming should implement this interface.
+type StreamingCommand interface {
+	Command
+	// SupportsStreaming returns true if this command supports streaming output
+	SupportsStreaming() bool
+	// ExecuteStream executes the command and streams results through the channel
+	// The channel will be closed when the stream is complete
+	ExecuteStream(ctx context.Context, input any, stream chan<- StreamChunk) error
+}

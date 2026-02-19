@@ -310,7 +310,84 @@ func (p *Provider) Search(ctx context.Context, query string, source string, mode
 	return results, nil
 }
 
+// calculateDirSize recursively calculates the total size of a directory
+func calculateDirSize(path string) (int64, error) {
+	var totalSize int64
+
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return 0, err
+	}
+
+	for _, entry := range entries {
+		entryPath := filepath.Join(path, entry.Name())
+		if entry.IsDir() {
+			size, err := calculateDirSize(entryPath)
+			if err != nil {
+				return 0, err
+			}
+			totalSize += size
+		} else {
+			info, err := entry.Info()
+			if err != nil {
+				continue // Skip files we can't read
+			}
+			totalSize += info.Size()
+		}
+	}
+
+	return totalSize, nil
+}
+
+// detectModelType detects model type based on directory structure and files
+func detectModelType(path string, isDir bool) model.ModelType {
+	if !isDir {
+		// For single files, default to LLM
+		return model.ModelTypeLLM
+	}
+
+	// Check for ASR-specific files
+	asrIndicators := []string{"encoder.ckpt", "decoder.ckpt", "am.mvn", "config.yaml"}
+	for _, indicator := range asrIndicators {
+		if _, err := os.Stat(filepath.Join(path, indicator)); err == nil {
+			return model.ModelTypeASR
+		}
+	}
+
+	// Check for TTS-specific patterns
+	if files, err := os.ReadDir(path); err == nil {
+		for _, file := range files {
+			name := strings.ToLower(file.Name())
+			if strings.Contains(name, "tts") || strings.Contains(name, "vocoder") {
+				return model.ModelTypeTTS
+			}
+		}
+	}
+
+	// Check config.json for architecture hints
+	configPath := filepath.Join(path, "config.json")
+	if data, err := os.ReadFile(configPath); err == nil {
+		content := strings.ToLower(string(data))
+		if strings.Contains(content, "whisper") || strings.Contains(content, "wav2vec") {
+			return model.ModelTypeASR
+		}
+		if strings.Contains(content, "tts") || strings.Contains(content, "texttospeech") {
+			return model.ModelTypeTTS
+		}
+	}
+
+	// Default to LLM
+	return model.ModelTypeLLM
+}
+
 func (p *Provider) ImportLocal(ctx context.Context, path string, autoDetect bool) (*model.Model, error) {
+	// Check context cancellation
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return nil, fmt.Errorf("path does not exist: %s", path)
 	}
@@ -322,9 +399,10 @@ func (p *Provider) ImportLocal(ctx context.Context, path string, autoDetect bool
 
 	var modelName string
 	var detectedFormat model.ModelFormat
-	var detectedType model.ModelType = model.ModelTypeLLM
+	var detectedType model.ModelType
 
 	if fileInfo.IsDir() {
+		// Scan directory for model files
 		entries, err := os.ReadDir(path)
 		if err != nil {
 			return nil, fmt.Errorf("read directory: %w", err)
@@ -337,30 +415,76 @@ func (p *Provider) ImportLocal(ctx context.Context, path string, autoDetect bool
 			name := entry.Name()
 			switch {
 			case strings.HasSuffix(name, ".safetensors"):
-				modelName = strings.TrimSuffix(name, ".safetensors")
-				detectedFormat = model.FormatSafetensors
-				break
+				if modelName == "" {
+					modelName = strings.TrimSuffix(name, ".safetensors")
+					detectedFormat = model.FormatSafetensors
+				}
 			case strings.HasSuffix(name, ".gguf"):
-				modelName = strings.TrimSuffix(name, ".gguf")
-				detectedFormat = model.FormatGGUF
-				break
+				if modelName == "" {
+					modelName = strings.TrimSuffix(name, ".gguf")
+					detectedFormat = model.FormatGGUF
+				}
 			case strings.HasSuffix(name, ".onnx"):
-				modelName = strings.TrimSuffix(name, ".onnx")
-				detectedFormat = model.FormatONNX
-				break
+				if modelName == "" {
+					modelName = strings.TrimSuffix(name, ".onnx")
+					detectedFormat = model.FormatONNX
+				}
+			case strings.HasSuffix(name, ".bin"):
+				if modelName == "" {
+					modelName = strings.TrimSuffix(name, ".bin")
+					detectedFormat = model.FormatPyTorch
+				}
 			}
 		}
 
 		if modelName == "" {
 			modelName = filepath.Base(path)
 		}
+
+		// Auto-detect model type
+		if autoDetect {
+			detectedType = detectModelType(path, true)
+		}
 	} else {
 		modelName = strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
 		detectedFormat = model.ModelFormat(GetModelFormat(filepath.Base(path)))
+		detectedType = model.ModelTypeLLM
 	}
 
+	// Set defaults if not detected
 	if detectedFormat == "" {
 		detectedFormat = model.FormatSafetensors
+	}
+	if detectedType == "" {
+		detectedType = model.ModelTypeLLM
+	}
+
+	// Calculate size (with timeout protection)
+	var size int64
+	done := make(chan struct{})
+	go func() {
+		if fileInfo.IsDir() {
+			size, _ = calculateDirSize(path)
+		} else {
+			size = fileInfo.Size()
+		}
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// Size calculation completed
+	case <-ctx.Done():
+		// Context cancelled during size calculation
+		return nil, ctx.Err()
+	case <-time.After(10 * time.Second):
+		// Timeout - use approximate size
+		fmt.Printf("Warning: size calculation timeout for %s, using approximate size\n", path)
+		if fileInfo.IsDir() {
+			size = 0 // Unknown for directories
+		} else {
+			size = fileInfo.Size()
+		}
 	}
 
 	now := time.Now().Unix()
@@ -372,10 +496,17 @@ func (p *Provider) ImportLocal(ctx context.Context, path string, autoDetect bool
 		Status:    model.StatusReady,
 		Source:    "local",
 		Path:      path,
-		Size:      fileInfo.Size(),
+		Size:      size,
 		CreatedAt: now,
 		UpdatedAt: now,
+		Tags:      []string{},
 	}
+
+	// Add import metadata as tags
+	if autoDetect {
+		m.Tags = append(m.Tags, "auto-detected")
+	}
+	m.Tags = append(m.Tags, fmt.Sprintf("imported:%s", time.Now().Format("2006-01-02")))
 
 	return m, nil
 }

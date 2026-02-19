@@ -1,0 +1,62 @@
+syntax = "proto3";
+package aima;
+option go_package = "github.com/jguan/ai-inference-managed-by-ai/pkg/gateway/proto;pb";
+
+service AIMAService {
+    rpc Execute(Request) returns (Response);
+    rpc ExecuteStream(Request) returns (stream Chunk);
+    rpc WatchResource(ResourceRequest) returns (stream ResourceUpdate);
+}
+
+message RequestOptions {
+    int32 timeout_ms = 1;
+    bool async = 2;
+    string trace_id = 3;
+}
+
+message Request {
+    string type = 1;           // command, query, resource, workflow
+    string unit = 2;           // e.g., "model.pull", "inference.chat"
+    bytes input = 3;           // JSON encoded input
+    RequestOptions options = 4;
+}
+
+message ErrorInfo {
+    string code = 1;
+    string message = 2;
+    bytes details = 3;         // JSON encoded details
+}
+
+message ResponseMeta {
+    string request_id = 1;
+    int64 duration_ms = 2;
+    string trace_id = 3;
+    int32 page = 4;
+    int32 per_page = 5;
+    int32 total = 6;
+}
+
+message Response {
+    bool success = 1;
+    bytes data = 2;            // JSON encoded data
+    ErrorInfo error = 3;
+    ResponseMeta meta = 4;
+}
+
+message Chunk {
+    bytes data = 1;            // JSON encoded chunk data
+    bytes metadata = 2;        // JSON encoded metadata
+    bool done = 3;
+    ErrorInfo error = 4;
+}
+
+message ResourceRequest {
+    string uri = 1;
+}
+
+message ResourceUpdate {
+    string uri = 1;
+    string operation = 2;      // add, update, delete
+    bytes data = 3;            // JSON encoded data
+    int64 timestamp = 4;
+}

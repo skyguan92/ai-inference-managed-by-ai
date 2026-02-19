@@ -2,21 +2,13 @@ package remote
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-var (
-	ErrTunnelNotFound       = errors.New("tunnel not found")
-	ErrTunnelAlreadyExists  = errors.New("tunnel already exists")
-	ErrInvalidInput         = errors.New("invalid input")
-	ErrProviderNotSet       = errors.New("remote provider not set")
-	ErrTunnelNotConnected   = errors.New("tunnel not connected")
-	ErrTunnelAlreadyEnabled = errors.New("tunnel already enabled")
-)
+// Domain errors are defined in errors.go
 
 type RemoteStore interface {
 	GetTunnel(ctx context.Context) (*TunnelInfo, error)

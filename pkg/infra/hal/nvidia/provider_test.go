@@ -449,7 +449,7 @@ func (m *mockSMI) ResetDevice(ctx context.Context, deviceID string) error {
 
 func TestProvider_Detect_Success(t *testing.T) {
 	mock := &mockSMI{
-		available: true,
+		available:   true,
 		queryResult: createSMIOutput("P0", "45 C", "1024 MiB", "24564 MiB"),
 	}
 	mock.queryResult.AttachedGPUs = 2
@@ -461,7 +461,7 @@ func TestProvider_Detect_Success(t *testing.T) {
 	mock.queryResult.GPUs[1].FBMemoryUsage.Total = "16384 MiB"
 	mock.queryResult.GPUs[1].FBMemoryUsage.Used = "512 MiB"
 	mock.queryResult.GPUs[1].FBMemoryUsage.Free = "15872 MiB"
-	
+
 	p := NewProvider(withSMI(mock))
 
 	devices, err := p.Detect(context.Background())
@@ -501,7 +501,7 @@ func TestProvider_GetDevice_WithoutCache(t *testing.T) {
 	}
 	mock.queryResult.GPUs[0].ProductName = "NVIDIA GeForce RTX 3090"
 	mock.queryResult.GPUs[0].ProductBrand = "Ampere"
-	
+
 	p := NewProvider(withSMI(mock))
 	p.cacheTTL = 30 * time.Second
 	p.cacheTime = time.Now()
@@ -553,7 +553,7 @@ func TestProvider_GetMetrics_Success(t *testing.T) {
 	}
 	mock.queryResult.GPUs[0].Utilization.GPUUtil = "75 %"
 	mock.queryResult.GPUs[0].PowerReadings.PowerDraw = "250.00 W"
-	
+
 	p := NewProvider(withSMI(mock))
 
 	metrics, err := p.GetMetrics(context.Background(), "nvidia-0")

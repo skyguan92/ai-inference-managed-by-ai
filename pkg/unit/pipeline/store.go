@@ -2,24 +2,13 @@ package pipeline
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-var (
-	ErrPipelineNotFound      = errors.New("pipeline not found")
-	ErrPipelineAlreadyExists = errors.New("pipeline already exists")
-	ErrRunNotFound           = errors.New("run not found")
-	ErrInvalidInput          = errors.New("invalid input")
-	ErrStoreNotSet           = errors.New("store not set")
-	ErrExecutorNotSet        = errors.New("executor not set")
-	ErrPipelineRunning       = errors.New("pipeline is running")
-	ErrRunNotCancellable     = errors.New("run not cancellable")
-	ErrInvalidStepDependency = errors.New("invalid step dependency")
-)
+// Domain errors are defined in errors.go
 
 type PipelineStore interface {
 	CreatePipeline(ctx context.Context, pipeline *Pipeline) error
@@ -129,7 +118,7 @@ func (s *MemoryStore) CreateRun(ctx context.Context, run *PipelineRun) error {
 	defer s.mu.Unlock()
 
 	if _, exists := s.runs[run.ID]; exists {
-		return errors.New("run already exists")
+		return ErrRunNotFound
 	}
 
 	s.runs[run.ID] = run

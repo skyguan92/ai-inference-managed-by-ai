@@ -110,6 +110,10 @@ type MockProvider struct {
 	estimateErr error
 }
 
+func NewMockProvider() *MockProvider {
+	return &MockProvider{}
+}
+
 func (m *MockProvider) Pull(ctx context.Context, source, repo, tag string, progressCh chan<- PullProgress) (*Model, error) {
 	if m.pullErr != nil {
 		return nil, m.pullErr

@@ -17,6 +17,34 @@ func NewStatusResource(store RemoteStore) *StatusResource {
 	return &StatusResource{store: store}
 }
 
+// RemoteResourceFactory creates remote Resource instances dynamically based on URI patterns.
+type RemoteResourceFactory struct {
+	store RemoteStore
+}
+
+func NewRemoteResourceFactory(store RemoteStore) *RemoteResourceFactory {
+	return &RemoteResourceFactory{store: store}
+}
+
+func (f *RemoteResourceFactory) CanCreate(uri string) bool {
+	return uri == "asms://remote/status" || uri == "asms://remote/audit"
+}
+
+func (f *RemoteResourceFactory) Create(uri string) (unit.Resource, error) {
+	switch uri {
+	case "asms://remote/status":
+		return NewStatusResource(f.store), nil
+	case "asms://remote/audit":
+		return NewAuditResource(f.store), nil
+	default:
+		return nil, fmt.Errorf("unknown remote resource URI: %s", uri)
+	}
+}
+
+func (f *RemoteResourceFactory) Pattern() string {
+	return "asms://remote/*"
+}
+
 func (r *StatusResource) URI() string {
 	return "asms://remote/status"
 }

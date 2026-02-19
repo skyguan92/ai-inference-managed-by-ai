@@ -11,10 +11,15 @@ import (
 type CreateCommand struct {
 	store    ServiceStore
 	provider ServiceProvider
+	events   unit.EventPublisher
 }
 
 func NewCreateCommand(store ServiceStore, provider ServiceProvider) *CreateCommand {
 	return &CreateCommand{store: store, provider: provider}
+}
+
+func NewCreateCommandWithEvents(store ServiceStore, provider ServiceProvider, events unit.EventPublisher) *CreateCommand {
+	return &CreateCommand{store: store, provider: provider, events: events}
 }
 
 func (c *CreateCommand) Name() string {
@@ -101,18 +106,27 @@ func (c *CreateCommand) Examples() []unit.Example {
 }
 
 func (c *CreateCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.store == nil || c.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	modelID, _ := inputMap["model_id"].(string)
 	if modelID == "" {
-		return nil, fmt.Errorf("model_id is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("model_id is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	resourceClass := ResourceClassMedium
@@ -132,6 +146,7 @@ func (c *CreateCommand) Execute(ctx context.Context, input any) (any, error) {
 
 	result, err := c.provider.Create(ctx, modelID, resourceClass, replicas, persistent)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("create service: %w", err)
 	}
 
@@ -149,19 +164,27 @@ func (c *CreateCommand) Execute(ctx context.Context, input any) (any, error) {
 	}
 
 	if err := c.store.Create(ctx, service); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("save service: %w", err)
 	}
 
-	return map[string]any{"service_id": service.ID}, nil
+	output := map[string]any{"service_id": service.ID}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type DeleteCommand struct {
 	store    ServiceStore
 	provider ServiceProvider
+	events   unit.EventPublisher
 }
 
 func NewDeleteCommand(store ServiceStore, provider ServiceProvider) *DeleteCommand {
 	return &DeleteCommand{store: store, provider: provider}
+}
+
+func NewDeleteCommandWithEvents(store ServiceStore, provider ServiceProvider, events unit.EventPublisher) *DeleteCommand {
+	return &DeleteCommand{store: store, provider: provider, events: events}
 }
 
 func (c *DeleteCommand) Name() string {
@@ -216,34 +239,51 @@ func (c *DeleteCommand) Examples() []unit.Example {
 }
 
 func (c *DeleteCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.store == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	serviceID, _ := inputMap["service_id"].(string)
 	if serviceID == "" {
-		return nil, fmt.Errorf("service_id is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("service_id is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	if err := c.store.Delete(ctx, serviceID); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("delete service %s: %w", serviceID, err)
 	}
 
-	return map[string]any{"success": true}, nil
+	output := map[string]any{"success": true}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type ScaleCommand struct {
 	store    ServiceStore
 	provider ServiceProvider
+	events   unit.EventPublisher
 }
 
 func NewScaleCommand(store ServiceStore, provider ServiceProvider) *ScaleCommand {
 	return &ScaleCommand{store: store, provider: provider}
+}
+
+func NewScaleCommandWithEvents(store ServiceStore, provider ServiceProvider, events unit.EventPublisher) *ScaleCommand {
+	return &ScaleCommand{store: store, provider: provider, events: events}
 }
 
 func (c *ScaleCommand) Name() string {
@@ -307,31 +347,44 @@ func (c *ScaleCommand) Examples() []unit.Example {
 }
 
 func (c *ScaleCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.store == nil || c.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	serviceID, _ := inputMap["service_id"].(string)
 	if serviceID == "" {
-		return nil, fmt.Errorf("service_id is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("service_id is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	replicas, ok := toInt(inputMap["replicas"])
 	if !ok || replicas < 0 {
-		return nil, fmt.Errorf("replicas must be a non-negative integer: %w", ErrInvalidInput)
+		err := fmt.Errorf("replicas must be a non-negative integer: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	service, err := c.store.Get(ctx, serviceID)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get service %s: %w", serviceID, err)
 	}
 
 	if err := c.provider.Scale(ctx, serviceID, replicas); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("scale service %s: %w", serviceID, err)
 	}
 
@@ -339,19 +392,27 @@ func (c *ScaleCommand) Execute(ctx context.Context, input any) (any, error) {
 	service.UpdatedAt = time.Now().Unix()
 
 	if err := c.store.Update(ctx, service); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("update service %s: %w", serviceID, err)
 	}
 
-	return map[string]any{"success": true}, nil
+	output := map[string]any{"success": true}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type StartCommand struct {
 	store    ServiceStore
 	provider ServiceProvider
+	events   unit.EventPublisher
 }
 
 func NewStartCommand(store ServiceStore, provider ServiceProvider) *StartCommand {
 	return &StartCommand{store: store, provider: provider}
+}
+
+func NewStartCommandWithEvents(store ServiceStore, provider ServiceProvider, events unit.EventPublisher) *StartCommand {
+	return &StartCommand{store: store, provider: provider, events: events}
 }
 
 func (c *StartCommand) Name() string {
@@ -406,50 +467,86 @@ func (c *StartCommand) Examples() []unit.Example {
 }
 
 func (c *StartCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.store == nil || c.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	serviceID, _ := inputMap["service_id"].(string)
 	if serviceID == "" {
-		return nil, fmt.Errorf("service_id is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("service_id is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	service, err := c.store.Get(ctx, serviceID)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get service %s: %w", serviceID, err)
 	}
 
 	if service.Status == ServiceStatusRunning {
+		ec.PublishFailed(ErrServiceAlreadyRunning)
 		return nil, ErrServiceAlreadyRunning
 	}
 
-	if err := c.provider.Start(ctx, serviceID); err != nil {
-		return nil, fmt.Errorf("start service %s: %w", serviceID, err)
+	// Extract async flag from input (for backward compatibility)
+	async := false
+	if asyncVal, ok := inputMap["async"].(bool); ok {
+		async = asyncVal
+	}
+
+	// Create a provider wrapper that passes async flag
+	var startErr error
+	if asyncProvider, ok := c.provider.(interface {
+		StartAsync(ctx context.Context, serviceID string, async bool) error
+	}); ok {
+		startErr = asyncProvider.StartAsync(ctx, serviceID, async)
+	} else {
+		startErr = c.provider.Start(ctx, serviceID)
+	}
+
+	if startErr != nil {
+		ec.PublishFailed(startErr)
+		return nil, fmt.Errorf("start service %s: %w", serviceID, startErr)
 	}
 
 	service.Status = ServiceStatusRunning
 	service.UpdatedAt = time.Now().Unix()
 
 	if err := c.store.Update(ctx, service); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("update service %s: %w", serviceID, err)
 	}
 
-	return map[string]any{"success": true}, nil
+	output := map[string]any{"success": true}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type StopCommand struct {
 	store    ServiceStore
 	provider ServiceProvider
+	events   unit.EventPublisher
 }
 
 func NewStopCommand(store ServiceStore, provider ServiceProvider) *StopCommand {
 	return &StopCommand{store: store, provider: provider}
+}
+
+func NewStopCommandWithEvents(store ServiceStore, provider ServiceProvider, events unit.EventPublisher) *StopCommand {
+	return &StopCommand{store: store, provider: provider, events: events}
 }
 
 func (c *StopCommand) Name() string {
@@ -516,26 +613,37 @@ func (c *StopCommand) Examples() []unit.Example {
 }
 
 func (c *StopCommand) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(c.events, c.Domain(), c.Name())
+	ec.PublishStarted(input)
+
 	if c.store == nil || c.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	serviceID, _ := inputMap["service_id"].(string)
 	if serviceID == "" {
-		return nil, fmt.Errorf("service_id is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("service_id is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	service, err := c.store.Get(ctx, serviceID)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get service %s: %w", serviceID, err)
 	}
 
 	if service.Status != ServiceStatusRunning {
+		ec.PublishFailed(ErrServiceNotRunning)
 		return nil, ErrServiceNotRunning
 	}
 
@@ -545,6 +653,7 @@ func (c *StopCommand) Execute(ctx context.Context, input any) (any, error) {
 	}
 
 	if err := c.provider.Stop(ctx, serviceID, force); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("stop service %s: %w", serviceID, err)
 	}
 
@@ -552,8 +661,11 @@ func (c *StopCommand) Execute(ctx context.Context, input any) (any, error) {
 	service.UpdatedAt = time.Now().Unix()
 
 	if err := c.store.Update(ctx, service); err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("update service %s: %w", serviceID, err)
 	}
 
-	return map[string]any{"success": true}, nil
+	output := map[string]any{"success": true}
+	ec.PublishCompleted(output)
+	return output, nil
 }

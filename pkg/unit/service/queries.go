@@ -10,10 +10,15 @@ import (
 type GetQuery struct {
 	store    ServiceStore
 	provider ServiceProvider
+	events   unit.EventPublisher
 }
 
 func NewGetQuery(store ServiceStore, provider ServiceProvider) *GetQuery {
 	return &GetQuery{store: store, provider: provider}
+}
+
+func NewGetQueryWithEvents(store ServiceStore, provider ServiceProvider, events unit.EventPublisher) *GetQuery {
+	return &GetQuery{store: store, provider: provider, events: events}
 }
 
 func (q *GetQuery) Name() string {
@@ -84,22 +89,32 @@ func (q *GetQuery) Examples() []unit.Example {
 }
 
 func (q *GetQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	if q.store == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	serviceID, _ := inputMap["service_id"].(string)
 	if serviceID == "" {
-		return nil, fmt.Errorf("service_id is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("service_id is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	service, err := q.store.Get(ctx, serviceID)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get service %s: %w", serviceID, err)
 	}
 
@@ -127,15 +142,21 @@ func (q *GetQuery) Execute(ctx context.Context, input any) (any, error) {
 		}
 	}
 
+	ec.PublishCompleted(result)
 	return result, nil
 }
 
 type ListQuery struct {
-	store ServiceStore
+	store  ServiceStore
+	events unit.EventPublisher
 }
 
 func NewListQuery(store ServiceStore) *ListQuery {
 	return &ListQuery{store: store}
+}
+
+func NewListQueryWithEvents(store ServiceStore, events unit.EventPublisher) *ListQuery {
+	return &ListQuery{store: store, events: events}
 }
 
 func (q *ListQuery) Name() string {
@@ -234,8 +255,13 @@ func (q *ListQuery) Examples() []unit.Example {
 }
 
 func (q *ListQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	if q.store == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, _ := input.(map[string]any)
@@ -260,6 +286,7 @@ func (q *ListQuery) Execute(ctx context.Context, input any) (any, error) {
 
 	services, total, err := q.store.List(ctx, filter)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("list services: %w", err)
 	}
 
@@ -274,18 +301,25 @@ func (q *ListQuery) Execute(ctx context.Context, input any) (any, error) {
 		}
 	}
 
-	return map[string]any{
+	output := map[string]any{
 		"services": items,
 		"total":    total,
-	}, nil
+	}
+	ec.PublishCompleted(output)
+	return output, nil
 }
 
 type RecommendQuery struct {
 	provider ServiceProvider
+	events   unit.EventPublisher
 }
 
 func NewRecommendQuery(provider ServiceProvider) *RecommendQuery {
 	return &RecommendQuery{provider: provider}
+}
+
+func NewRecommendQueryWithEvents(provider ServiceProvider, events unit.EventPublisher) *RecommendQuery {
+	return &RecommendQuery{provider: provider, events: events}
 }
 
 func (q *RecommendQuery) Name() string {
@@ -330,6 +364,9 @@ func (q *RecommendQuery) OutputSchema() unit.Schema {
 			"resource_class":      {Name: "resource_class", Schema: unit.Schema{Type: "string"}},
 			"replicas":            {Name: "replicas", Schema: unit.Schema{Type: "number"}},
 			"expected_throughput": {Name: "expected_throughput", Schema: unit.Schema{Type: "number"}},
+			"engine_type":         {Name: "engine_type", Schema: unit.Schema{Type: "string", Description: "Recommended engine type: vllm, whisper, tts, ollama"}},
+			"device_type":         {Name: "device_type", Schema: unit.Schema{Type: "string", Description: "Recommended device: gpu, cpu"}},
+			"reason":              {Name: "reason", Schema: unit.Schema{Type: "string", Description: "Reason for recommendation"}},
 		},
 	}
 }
@@ -338,42 +375,172 @@ func (q *RecommendQuery) Examples() []unit.Example {
 	return []unit.Example{
 		{
 			Input:       map[string]any{"model_id": "llama3-70b"},
-			Output:      map[string]any{"resource_class": "large", "replicas": 2, "expected_throughput": 100.0},
+			Output:      map[string]any{"resource_class": "large", "replicas": 2, "expected_throughput": 100.0, "engine_type": "vllm", "device_type": "gpu", "reason": "Large LLM model recommended for GPU acceleration with vLLM"},
 			Description: "Get recommendation for llama3-70b",
 		},
 		{
 			Input:       map[string]any{"model_id": "mistral-7b", "hint": "high-throughput"},
-			Output:      map[string]any{"resource_class": "medium", "replicas": 4, "expected_throughput": 200.0},
+			Output:      map[string]any{"resource_class": "medium", "replicas": 4, "expected_throughput": 200.0, "engine_type": "vllm", "device_type": "gpu", "reason": "High-throughput configuration with multiple replicas"},
 			Description: "Get high-throughput recommendation",
+		},
+		{
+			Input:       map[string]any{"model_id": "sensevoice-small"},
+			Output:      map[string]any{"resource_class": "small", "replicas": 1, "expected_throughput": 10.0, "engine_type": "whisper", "device_type": "cpu", "reason": "ASR model runs efficiently on CPU"},
+			Description: "Get recommendation for ASR model",
 		},
 	}
 }
 
 func (q *RecommendQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
 	if q.provider == nil {
-		return nil, ErrProviderNotSet
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	inputMap, ok := input.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	modelID, _ := inputMap["model_id"].(string)
 	if modelID == "" {
-		return nil, fmt.Errorf("model_id is required: %w", ErrInvalidInput)
+		err := fmt.Errorf("model_id is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
 	}
 
 	hint, _ := inputMap["hint"].(string)
 
 	rec, err := q.provider.GetRecommendation(ctx, modelID, hint)
 	if err != nil {
+		ec.PublishFailed(err)
 		return nil, fmt.Errorf("get recommendation: %w", err)
 	}
 
-	return map[string]any{
+	output := map[string]any{
 		"resource_class":      string(rec.ResourceClass),
 		"replicas":            rec.Replicas,
 		"expected_throughput": rec.ExpectedThroughput,
-	}, nil
+		"engine_type":         rec.EngineType,
+		"device_type":         rec.DeviceType,
+		"reason":              rec.Reason,
+	}
+	ec.PublishCompleted(output)
+	return output, nil
+}
+
+type StatusQuery struct {
+	store  ServiceStore
+	events unit.EventPublisher
+}
+
+func NewStatusQuery(store ServiceStore) *StatusQuery {
+	return &StatusQuery{store: store}
+}
+
+func NewStatusQueryWithEvents(store ServiceStore, events unit.EventPublisher) *StatusQuery {
+	return &StatusQuery{store: store, events: events}
+}
+
+func (q *StatusQuery) Name() string {
+	return "service.status"
+}
+
+func (q *StatusQuery) Domain() string {
+	return "service"
+}
+
+func (q *StatusQuery) Description() string {
+	return "Get detailed status and loading progress of a service"
+}
+
+func (q *StatusQuery) InputSchema() unit.Schema {
+	return unit.Schema{
+		Type: "object",
+		Properties: map[string]unit.Field{
+			"service_id": {
+				Name: "service_id",
+				Schema: unit.Schema{
+					Type:        "string",
+					Description: "Service ID",
+				},
+			},
+		},
+		Required: []string{"service_id"},
+	}
+}
+
+func (q *StatusQuery) OutputSchema() unit.Schema {
+	return unit.Schema{
+		Type: "object",
+		Properties: map[string]unit.Field{
+			"id":               {Name: "id", Schema: unit.Schema{Type: "string"}},
+			"name":             {Name: "name", Schema: unit.Schema{Type: "string"}},
+			"model_id":         {Name: "model_id", Schema: unit.Schema{Type: "string"}},
+			"status":           {Name: "status", Schema: unit.Schema{Type: "string"}},
+			"health":           {Name: "health", Schema: unit.Schema{Type: "string"}},
+			"container_id":     {Name: "container_id", Schema: unit.Schema{Type: "string"}},
+			"container_status": {Name: "container_status", Schema: unit.Schema{Type: "string"}},
+			"endpoints":        {Name: "endpoints", Schema: unit.Schema{Type: "array", Items: &unit.Schema{Type: "string"}}},
+			"loading_progress": {Name: "loading_progress", Schema: unit.Schema{Type: "string"}},
+		},
+	}
+}
+
+func (q *StatusQuery) Examples() []unit.Example {
+	return []unit.Example{
+		{
+			Input:       map[string]any{"service_id": "svc-abc123"},
+			Output:      map[string]any{"id": "svc-abc123", "status": "running", "health": "loading", "container_status": "running"},
+			Description: "Get service status",
+		},
+	}
+}
+
+func (q *StatusQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
+	if q.store == nil {
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
+	}
+
+	inputMap, ok := input.(map[string]any)
+	if !ok {
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
+	}
+
+	serviceID, _ := inputMap["service_id"].(string)
+	if serviceID == "" {
+		err := fmt.Errorf("service_id is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
+	}
+
+	service, err := q.store.Get(ctx, serviceID)
+	if err != nil {
+		ec.PublishFailed(err)
+		return nil, fmt.Errorf("get service %s: %w", serviceID, err)
+	}
+
+	result := map[string]any{
+		"id":        service.ID,
+		"name":      service.Name,
+		"model_id":  service.ModelID,
+		"status":    string(service.Status),
+		"endpoints": service.Endpoints,
+	}
+
+	ec.PublishCompleted(result)
+	return result, nil
 }

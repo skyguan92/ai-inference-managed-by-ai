@@ -17,6 +17,30 @@ func NewModelsResource(provider InferenceProvider) *ModelsResource {
 	return &ModelsResource{provider: provider}
 }
 
+// InferenceResourceFactory creates inference Resource instances dynamically based on URI patterns.
+type InferenceResourceFactory struct {
+	provider InferenceProvider
+}
+
+func NewInferenceResourceFactory(provider InferenceProvider) *InferenceResourceFactory {
+	return &InferenceResourceFactory{provider: provider}
+}
+
+func (f *InferenceResourceFactory) CanCreate(uri string) bool {
+	return uri == "asms://inference/models"
+}
+
+func (f *InferenceResourceFactory) Create(uri string) (unit.Resource, error) {
+	if uri == "asms://inference/models" {
+		return NewModelsResource(f.provider), nil
+	}
+	return nil, fmt.Errorf("unknown inference resource URI: %s", uri)
+}
+
+func (f *InferenceResourceFactory) Pattern() string {
+	return "asms://inference/models"
+}
+
 func (r *ModelsResource) URI() string {
 	return "asms://inference/models"
 }

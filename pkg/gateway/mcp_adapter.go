@@ -136,6 +136,8 @@ func (a *MCPAdapter) HandleRequest(ctx context.Context, req *MCPRequest) *MCPRes
 		return a.handleResourcesRead(ctx, req)
 	case "prompts/list":
 		return a.handlePromptsList(ctx, req)
+	case "prompts/get":
+		return a.handlePromptsGet(ctx, req)
 	case "shutdown":
 		return a.handleShutdown(ctx, req)
 	default:

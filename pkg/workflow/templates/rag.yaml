@@ -1,0 +1,38 @@
+name: rag
+description: RAG 问答流程 - Retrieval-Augmented Generation for document Q&A
+
+config:
+  embedding_model: "text-embedding-3-small"
+  llm_model: "llama3.2"
+  top_k: 5
+
+steps:
+  - id: embed
+    type: inference.embed
+    input:
+      model: "${config.embedding_model}"
+      input: "${input.query}"
+  
+  - id: search
+    type: resource.search_vectors
+    input:
+      vector: "${steps.embed.embedding}"
+      top_k: "${config.top_k}"
+    depends_on:
+      - embed
+  
+  - id: chat
+    type: inference.chat
+    input:
+      model: "${config.llm_model}"
+      messages:
+        - role: system
+          content: "基于以下上下文回答: ${steps.search.documents}"
+        - role: user
+          content: "${input.query}"
+    depends_on:
+      - search
+
+output:
+  answer: "${steps.chat.response.content}"
+  sources: "${steps.search.documents}"

@@ -1,19 +1,6 @@
 package resource
 
-import (
-	"errors"
-)
-
-var (
-	ErrSlotNotFound       = errors.New("slot not found")
-	ErrInvalidSlotID      = errors.New("invalid slot id")
-	ErrInsufficientMemory = errors.New("insufficient memory")
-	ErrInvalidMemoryValue = errors.New("invalid memory value")
-	ErrProviderNotSet     = errors.New("resource provider not set")
-	ErrSlotAlreadyExists  = errors.New("slot already exists")
-	ErrInvalidSlotType    = errors.New("invalid slot type")
-	ErrInvalidSlotStatus  = errors.New("invalid slot status")
-)
+// Domain errors are defined in errors.go
 
 type SlotType string
 

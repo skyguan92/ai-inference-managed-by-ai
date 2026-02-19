@@ -2,22 +2,13 @@ package service
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-var (
-	ErrServiceNotFound       = errors.New("service not found")
-	ErrServiceAlreadyExists  = errors.New("service already exists")
-	ErrInvalidInput          = errors.New("invalid input")
-	ErrProviderNotSet        = errors.New("service provider not set")
-	ErrServiceNotRunning     = errors.New("service not running")
-	ErrServiceAlreadyRunning = errors.New("service already running")
-	ErrInvalidServiceID      = errors.New("invalid service id")
-)
+// Domain errors are defined in errors.go
 
 type ServiceStore interface {
 	Create(ctx context.Context, service *ModelService) error

@@ -31,10 +31,10 @@ type MemoryMetrics struct {
 }
 
 type DiskMetrics struct {
-	Used      uint64
-	Total     uint64
-	Free      uint64
-	Percent   float64
+	Used    uint64
+	Total   uint64
+	Free    uint64
+	Percent float64
 }
 
 type NetworkMetrics struct {

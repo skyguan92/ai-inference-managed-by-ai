@@ -71,4 +71,7 @@ type Recommendation struct {
 	ResourceClass      ResourceClass `json:"resource_class"`
 	Replicas           int           `json:"replicas"`
 	ExpectedThroughput float64       `json:"expected_throughput"`
+	EngineType         string        `json:"engine_type"`         // 推荐引擎类型: vllm, whisper, tts, ollama
+	DeviceType         string        `json:"device_type"`         // 推荐设备: gpu, cpu
+	Reason             string        `json:"reason"`              // 推荐理由
 }
