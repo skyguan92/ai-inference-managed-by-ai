@@ -76,10 +76,12 @@ func DefaultAuthConfig() AuthConfig {
 //	forced    → always validate; reject if missing or invalid
 //	recommended → validate only when cfg.Enabled == true
 //
-// The unit name is read from the "X-Unit" request header.  HTTP routes set this
-// header before delegating to auth so that the middleware can make fine-grained
-// decisions.  If the header is absent the unit is treated as unknown and falls
-// back to AuthLevelRecommended.
+// The unit name is read from the "X-Unit" request header.  For write operations
+// (POST/PUT/DELETE/PATCH), the auth level is floored at AuthLevelRecommended so
+// that a client cannot spoof X-Unit to downgrade a mutation to Optional.  The
+// X-Unit header may still upgrade the level (e.g., to Forced for remote.exec).
+// For GET requests, X-Unit is used as-is.  If the unit cannot be determined, the
+// request falls back to AuthLevelRecommended.
 func Auth(cfg AuthConfig) func(http.Handler) http.Handler {
 	validKeys := buildKeySet(cfg.APIKeys)
 
@@ -87,6 +89,13 @@ func Auth(cfg AuthConfig) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			unit := r.Header.Get("X-Unit")
 			level := resolveAuthLevel(unit, cfg.UnitAuthLevels)
+
+			// Security: write operations have a floor of AuthLevelRecommended.
+			// This prevents clients from spoofing X-Unit to downgrade mutations
+			// (e.g., /api/v2/execute running remote.exec) to Optional.
+			if isWriteMethod(r.Method) && level < AuthLevelRecommended {
+				level = AuthLevelRecommended
+			}
 
 			token := extractBearerToken(r)
 
@@ -162,6 +171,16 @@ func resolveAuthLevel(unit string, levels map[string]AuthLevel) AuthLevel {
 		return level
 	}
 	return AuthLevelRecommended
+}
+
+// isWriteMethod returns true for HTTP methods that represent mutations.
+func isWriteMethod(method string) bool {
+	switch method {
+	case http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodPatch:
+		return true
+	default:
+		return false
+	}
 }
 
 // extractBearerToken extracts the token from "Authorization: Bearer <token>".

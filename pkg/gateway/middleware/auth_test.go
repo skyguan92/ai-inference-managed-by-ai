@@ -399,6 +399,47 @@ func TestAuthNilLogger(t *testing.T) {
 	}
 }
 
+// ---------- Auth middleware — X-Unit spoofing prevention ----------
+
+func TestAuthXUnitSpoofingPrevention(t *testing.T) {
+	cfg := AuthConfig{
+		Enabled: true,
+		APIKeys: []string{"secret"},
+		UnitAuthLevels: map[string]AuthLevel{
+			"model.list": AuthLevelOptional,
+		},
+	}
+	handler := Auth(cfg)(okHandler)
+
+	t.Run("POST with Optional X-Unit is floored to Recommended", func(t *testing.T) {
+		// Client tries to bypass auth by setting X-Unit to an Optional unit.
+		req := httptest.NewRequest(http.MethodPost, "/api/v2/execute", nil)
+		req = withUnit(req, "model.list") // Optional level
+		rec := httptest.NewRecorder()
+
+		handler.ServeHTTP(rec, req)
+
+		// Should be rejected because POST floors to Recommended, requiring auth.
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("expected 401 (spoofing prevented), got %d", rec.Code)
+		}
+	})
+
+	t.Run("GET with Optional X-Unit is allowed", func(t *testing.T) {
+		// Legitimate read-only request with Optional unit.
+		req := httptest.NewRequest(http.MethodGet, "/api/v2/resources", nil)
+		req = withUnit(req, "model.list")
+		rec := httptest.NewRecorder()
+
+		handler.ServeHTTP(rec, req)
+
+		// Should pass through because GET respects Optional level.
+		if rec.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d", rec.Code)
+		}
+	})
+}
+
 // ---------- Auth middleware — multiple valid keys ----------
 
 func TestAuthMultipleKeys(t *testing.T) {

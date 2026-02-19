@@ -134,6 +134,9 @@ func handleExecute(gw *gateway.Gateway) http.HandlerFunc {
 			return
 		}
 
+		// Limit request body to 10 MB to prevent memory exhaustion.
+		r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
+
 		var req gateway.Request
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeJSONError(w, http.StatusBadRequest, "invalid_request", "failed to decode request body")
@@ -224,7 +227,7 @@ func handlePrometheusMetrics(rm *metrics.RequestMetrics, sc metrics.Collector) h
 		writeMetric(&sb, "# TYPE aima_http_error_rate gauge\n")
 		fmt.Fprintf(&sb, "aima_http_error_rate %.6f\n", snap.ErrorRate)
 
-		// --- System metrics (best-effort; only available on Linux) ---
+		// --- System metrics (best-effort; available on Linux and Windows) ---
 		sysMetrics, err := sc.Collect(r.Context())
 		if err == nil {
 			writeMetric(&sb, "# HELP aima_system_cpu_usage_percent Current CPU usage percentage (0–100).\n")
