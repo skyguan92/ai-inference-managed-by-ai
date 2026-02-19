@@ -432,7 +432,7 @@ func (p *Provider) scrapeMetrics(metricsURL string) (*service.ServiceMetrics, er
 		return metrics, nil
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 	if err != nil {
 		return metrics, nil
 	}
@@ -499,6 +499,24 @@ func (p *Provider) scrapeMetrics(metricsURL string) (*service.ServiceMetrics, er
 
 // parsePromLine parses a single Prometheus text exposition line and returns
 // the metric name, its value, and whether parsing succeeded.
+//
+// Two-pass split logic:
+//  1. First pass — split on the LAST space in the line. Everything to the left
+//     is "name{labels}" (the identifier), and everything to the right is
+//     "value [timestamp]" (the sample). Using the last space correctly handles
+//     label values that themselves contain spaces.
+//  2. Second pass — split the right-hand side on the FIRST space to strip the
+//     optional millisecond timestamp that vLLM sometimes appends. Only the
+//     first token (the value) is kept.
+//
+// Special float values:
+//
+//	Prometheus uses "+Inf", "-Inf", and "NaN" as valid encoded values (e.g.
+//	for histogram +Inf buckets). In Go, strconv.ParseFloat handles "+Inf" and
+//	"-Inf" natively (returning math.Inf(±1)) and "NaN" returns math.NaN(), so
+//	no special-case parsing is needed. The explicit switch below maps all three
+//	to 0 because the callers of this function treat +Inf/NaN bucket counts as
+//	not meaningful for the aggregated metrics we expose.
 func parsePromLine(line string) (name string, value float64, ok bool) {
 	// Format: metric_name[{labels}] value [timestamp]
 	// Find the last space to separate the value from the name+labels part.
@@ -523,6 +541,10 @@ func parsePromLine(line string) (name string, value float64, ok bool) {
 	}
 
 	// Handle special Prometheus float values.
+	// Note: strconv.ParseFloat would successfully parse "+Inf" → math.Inf(1)
+	// and "NaN" → math.NaN(), but we normalise them to 0 here because the
+	// aggregated metrics we populate (latency, error rate, request counts) have
+	// no meaningful use for infinite or not-a-number bucket sentinels.
 	switch valueStr {
 	case "+Inf", "-Inf", "NaN":
 		return name, 0, true

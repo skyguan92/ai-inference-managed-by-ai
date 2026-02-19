@@ -1,3 +1,5 @@
+//go:build windows
+
 package metrics
 
 import (
@@ -10,23 +12,9 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// memoryStatusEx matches the MEMORYSTATUSEX Windows structure.
-type memoryStatusEx struct {
-	dwLength                uint32
-	dwMemoryLoad            uint32
-	ullTotalPhys            uint64
-	ullAvailPhys            uint64
-	ullTotalPageFile        uint64
-	ullAvailPageFile        uint64
-	ullTotalVirtual         uint64
-	ullAvailVirtual         uint64
-	ullAvailExtendedVirtual uint64
-}
-
 var (
-	modkernel32          = windows.NewLazySystemDLL("kernel32.dll")
-	procGetSystemTimes   = modkernel32.NewProc("GetSystemTimes")
-	procGlobalMemoryStatusEx = modkernel32.NewProc("GlobalMemoryStatusEx")
+	modkernel32        = windows.NewLazySystemDLL("kernel32.dll")
+	procGetSystemTimes = modkernel32.NewProc("GetSystemTimes")
 )
 
 type systemCollector struct{}
@@ -104,12 +92,27 @@ func (c *systemCollector) collectCPU() (float64, error) {
 	return percent, nil
 }
 
+// memoryStatusEx mirrors the Windows MEMORYSTATUSEX structure.
+type memoryStatusEx struct {
+	dwLength                uint32
+	dwMemoryLoad            uint32
+	ullTotalPhys            uint64
+	ullAvailPhys            uint64
+	ullTotalPageFile        uint64
+	ullAvailPageFile        uint64
+	ullTotalVirtual         uint64
+	ullAvailVirtual         uint64
+	ullAvailExtendedVirtual uint64
+}
+
+var procGlobalMemoryStatusEx = modkernel32.NewProc("GlobalMemoryStatusEx")
+
 func (c *systemCollector) collectMemory() (MemoryMetrics, error) {
 	var memStatus memoryStatusEx
 	memStatus.dwLength = uint32(unsafe.Sizeof(memStatus))
-	r1, _, err := procGlobalMemoryStatusEx.Call(uintptr(unsafe.Pointer(&memStatus)))
+	r1, _, callErr := procGlobalMemoryStatusEx.Call(uintptr(unsafe.Pointer(&memStatus)))
 	if r1 == 0 {
-		return MemoryMetrics{}, err
+		return MemoryMetrics{}, callErr
 	}
 
 	total := memStatus.ullTotalPhys

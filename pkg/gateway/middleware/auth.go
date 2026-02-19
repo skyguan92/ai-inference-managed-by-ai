@@ -64,6 +64,11 @@ func DefaultAuthConfig() AuthConfig {
 			"service.delete": AuthLevelForced,
 		},
 	}
+	// Units not listed here fall back to AuthLevelRecommended:
+	//   - Write commands: model.pull, model.update, engine.start/stop, pipeline.run,
+	//     inference.*, app.install/start/stop, service.create/update, alert.*
+	// AuthLevelRecommended requires auth when cfg.Enabled == true (opt-in per deployment).
+	// Add units explicitly here only to override the default (Optional or Forced).
 }
 
 // Auth returns a middleware that enforces API-key authentication according to cfg.

@@ -42,6 +42,10 @@ type Config struct {
 // Init initializes the default logger with the given configuration.
 // It is safe to call multiple times; only the first call takes effect.
 // Use Reset() followed by Init() to reconfigure.
+//
+// Lock order: logger.mu is always acquired before slog's internal mutex
+// (which slog.SetDefault acquires internally). Never acquire slog's mutex
+// before calling Init to avoid deadlock.
 func Init(cfg Config) {
 	mu.Lock()
 	defer mu.Unlock()

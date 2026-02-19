@@ -64,11 +64,14 @@ func runStart(ctx context.Context, root *RootCommand, addr string, port int, tls
 	}
 
 	reqMetrics := metrics.NewRequestMetrics()
-	sysCollector := metrics.NewCollector()
+	rawCollector := metrics.NewCollector()
+	sysCollector := metrics.NewCachedCollector(rawCollector, 15*time.Second)
+	sysCollector.Start(ctx)
+	defer sysCollector.Stop()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v2/execute", instrumentHandler(handleExecute(gw), reqMetrics))
-	mux.HandleFunc("/api/v2/health", handleHealth(gw))
+	mux.HandleFunc("/api/v2/health", instrumentHandler(handleHealth(gw), reqMetrics))
 	mux.HandleFunc("/api/v2/metrics", handlePrometheusMetrics(reqMetrics, sysCollector))
 
 	server := &http.Server{
@@ -196,6 +199,8 @@ func (rw *responseWriter) WriteHeader(code int) {
 	rw.statusCode = code
 	rw.ResponseWriter.WriteHeader(code)
 }
+
+func (rw *responseWriter) Unwrap() http.ResponseWriter { return rw.ResponseWriter }
 
 // handlePrometheusMetrics returns an HTTP handler that serves metrics in
 // Prometheus text exposition format (version 0.0.4).
