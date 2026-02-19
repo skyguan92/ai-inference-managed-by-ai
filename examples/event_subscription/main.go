@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Package main 演示如何订阅和处理事件
 //
 // 运行方式:

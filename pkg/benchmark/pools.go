@@ -152,7 +152,7 @@ func (p *EventPool) Put(e *unit.ExecutionEvent) {
 	}
 	// Clear fields
 	e.EventType = ""
-	e.Domain = ""
+	e.EventDomain = ""
 	e.UnitName = ""
 	e.Input = nil
 	e.Output = nil

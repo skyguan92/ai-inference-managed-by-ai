@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Package main 演示 AIMA 的基础使用方法
 //
 // 运行方式:

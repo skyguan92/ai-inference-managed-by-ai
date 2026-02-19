@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Package main 演示如何创建和注册自定义 Command
 //
 // 运行方式:

@@ -150,10 +150,10 @@ func BenchmarkEventBus_Publish(b *testing.B) {
 	publisher := &mockEventPublisher{}
 	event := &unit.ExecutionEvent{
 		EventType:     string(unit.ExecutionStarted),
-		Domain:        "model",
+		EventDomain:   "model",
 		UnitName:      "model.list",
-		Timestamp:     time.Now(),
-		CorrelationID: "test-correlation-id",
+		EventTimestamp: time.Now(),
+		EventCorrelationID: "test-correlation-id",
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -166,10 +166,10 @@ func BenchmarkEventBus_Publish_Parallel(b *testing.B) {
 	publisher := &mockEventPublisher{}
 	event := &unit.ExecutionEvent{
 		EventType:     string(unit.ExecutionStarted),
-		Domain:        "model",
+		EventDomain:   "model",
 		UnitName:      "model.list",
-		Timestamp:     time.Now(),
-		CorrelationID: "test-correlation-id",
+		EventTimestamp: time.Now(),
+		EventCorrelationID: "test-correlation-id",
 	}
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {

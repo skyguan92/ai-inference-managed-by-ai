@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Package main 演示如何使用流式推理
 //
 // 运行方式:

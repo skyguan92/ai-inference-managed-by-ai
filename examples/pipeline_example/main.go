@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Package main 演示如何使用 Workflow 编排原子单元
 //
 // 运行方式:

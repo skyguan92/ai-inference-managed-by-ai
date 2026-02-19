@@ -138,7 +138,7 @@ func BenchmarkEventPool(b *testing.B) {
 		for pb.Next() {
 			event := pool.Get()
 			event.EventType = "test"
-			event.Domain = "model"
+			event.EventDomain = "model"
 			pool.Put(event)
 		}
 	})
@@ -151,7 +151,7 @@ func BenchmarkEventPool_NoPool(b *testing.B) {
 		for pb.Next() {
 			event := &unit.ExecutionEvent{
 				EventType: "test",
-				Domain:    "model",
+				EventDomain: "model",
 			}
 			_ = event
 		}

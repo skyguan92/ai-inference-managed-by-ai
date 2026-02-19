@@ -8,7 +8,8 @@ import (
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"modernc.org/sqlite"
+	"database/sql"
+	_ "modernc.org/sqlite"
 )
 
 type testEvent struct {
@@ -28,8 +29,9 @@ func (e *testEvent) CorrelationID() string { return e.correlationID }
 var _ unit.Event = (*testEvent)(nil)
 
 func setupTestDB(t *testing.T) *SQLiteEventStore {
-	db, err := sqlite.Open(":memory:")
+	db, err := sql.Open("sqlite", ":memory:")
 	require.NoError(t, err)
+	db.SetMaxOpenConns(1)
 
 	_, err = db.Exec(`
 		CREATE TABLE events (
