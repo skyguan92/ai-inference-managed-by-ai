@@ -14,6 +14,9 @@ type ContainerOptions struct {
 	Volumes    map[string]string
 	Labels     map[string]string
 	WorkingDir string
+	GPU        bool
+	Memory     string // e.g., "4g", "512m"
+	CPU        string // e.g., "2.0"
 }
 
 // MockClient 用于测试的 Mock Docker 客户端

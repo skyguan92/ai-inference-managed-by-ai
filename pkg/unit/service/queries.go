@@ -364,6 +364,9 @@ func (q *RecommendQuery) OutputSchema() unit.Schema {
 			"resource_class":      {Name: "resource_class", Schema: unit.Schema{Type: "string"}},
 			"replicas":            {Name: "replicas", Schema: unit.Schema{Type: "number"}},
 			"expected_throughput": {Name: "expected_throughput", Schema: unit.Schema{Type: "number"}},
+			"engine_type":         {Name: "engine_type", Schema: unit.Schema{Type: "string", Description: "Recommended engine type: vllm, whisper, tts, ollama"}},
+			"device_type":         {Name: "device_type", Schema: unit.Schema{Type: "string", Description: "Recommended device: gpu, cpu"}},
+			"reason":              {Name: "reason", Schema: unit.Schema{Type: "string", Description: "Reason for recommendation"}},
 		},
 	}
 }
@@ -371,14 +374,19 @@ func (q *RecommendQuery) OutputSchema() unit.Schema {
 func (q *RecommendQuery) Examples() []unit.Example {
 	return []unit.Example{
 		{
-			Input:       map[string]any{"model_id": "llama3-70b"},
-			Output:      map[string]any{"resource_class": "large", "replicas": 2, "expected_throughput": 100.0},
+			Input:  map[string]any{"model_id": "llama3-70b"},
+			Output: map[string]any{"resource_class": "large", "replicas": 2, "expected_throughput": 100.0, "engine_type": "vllm", "device_type": "gpu", "reason": "Large LLM model recommended for GPU acceleration with vLLM"},
 			Description: "Get recommendation for llama3-70b",
 		},
 		{
 			Input:       map[string]any{"model_id": "mistral-7b", "hint": "high-throughput"},
-			Output:      map[string]any{"resource_class": "medium", "replicas": 4, "expected_throughput": 200.0},
+			Output:      map[string]any{"resource_class": "medium", "replicas": 4, "expected_throughput": 200.0, "engine_type": "vllm", "device_type": "gpu", "reason": "High-throughput configuration with multiple replicas"},
 			Description: "Get high-throughput recommendation",
+		},
+		{
+			Input:       map[string]any{"model_id": "sensevoice-small"},
+			Output:      map[string]any{"resource_class": "small", "replicas": 1, "expected_throughput": 10.0, "engine_type": "whisper", "device_type": "cpu", "reason": "ASR model runs efficiently on CPU"},
+			Description: "Get recommendation for ASR model",
 		},
 	}
 }
@@ -419,6 +427,9 @@ func (q *RecommendQuery) Execute(ctx context.Context, input any) (any, error) {
 		"resource_class":      string(rec.ResourceClass),
 		"replicas":            rec.Replicas,
 		"expected_throughput": rec.ExpectedThroughput,
+		"engine_type":         rec.EngineType,
+		"device_type":         rec.DeviceType,
+		"reason":              rec.Reason,
 	}
 	ec.PublishCompleted(output)
 	return output, nil

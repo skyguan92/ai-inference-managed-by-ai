@@ -5,13 +5,19 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/config"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/gateway"
-	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/eventbus"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/provider"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/provider/huggingface"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/store"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/registry"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/engine"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/model"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/service"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -76,8 +82,70 @@ func (r *RootCommand) persistentPreRunE(cmd *cobra.Command, args []string) error
 
 	r.registry = unit.NewRegistry()
 
-	// Register all atomic units
-	if err := registry.RegisterAll(r.registry); err != nil {
+	// Create data directory if not exists
+	dataDir := r.cfg.General.DataDir
+	if dataDir == "" {
+		dataDir = "~/.aima"
+	}
+	// Expand home directory
+	if dataDir[:2] == "~/" {
+		home, _ := os.UserHomeDir()
+		dataDir = filepath.Join(home, dataDir[2:])
+	}
+
+	// Create SQLite store for models and services
+	dbPath := filepath.Join(dataDir, "aima.db")
+	var modelStore model.ModelStore
+	var serviceStore service.ServiceStore
+
+	sqliteStore, err := store.NewSQLiteStore(dbPath)
+	if err != nil {
+		// Fallback to file store if SQLite fails
+		fmt.Fprintf(os.Stderr, "Warning: failed to create SQLite store, trying file store: %v\n", err)
+		fileStore, err := store.NewFileStore(dataDir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to create file store, using memory store: %v\n", err)
+			modelStore = model.NewMemoryStore()
+			serviceStore = service.NewMemoryStore()
+		} else {
+			modelStore = fileStore
+			serviceStore = service.NewMemoryStore()
+		}
+	} else {
+		fmt.Println("Using SQLite database for persistent storage")
+		modelStore = sqliteStore
+		// Create service store using the same database
+		svcStore, err := store.NewServiceSQLiteStore(sqliteStore.DB())
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to create service SQLite store, using memory store: %v\n", err)
+			serviceStore = service.NewMemoryStore()
+		} else {
+			serviceStore = svcStore
+		}
+	}
+
+	// Create providers
+	modelProvider := huggingface.NewProvider(
+		huggingface.WithDownloadDir(r.cfg.Model.StorageDir),
+	)
+
+	// Create hybrid engine provider (supports Docker + Native modes)
+	fmt.Println("Initializing hybrid engine provider (Docker + Native)...")
+	serviceProvider := provider.NewHybridServiceProvider(modelStore)
+	engineProvider := serviceProvider.GetEngineProvider()
+
+	// Create engine store (memory-based for now)
+	engineStore := engine.NewMemoryStore()
+
+	// Register all atomic units with providers
+	if err := registry.RegisterAll(r.registry,
+		registry.WithModelProvider(modelProvider),
+		registry.WithModelStore(modelStore),
+		registry.WithServiceProvider(serviceProvider),
+		registry.WithServiceStore(serviceStore),
+		registry.WithEngineProvider(engineProvider),
+		registry.WithEngineStore(engineStore),
+	); err != nil {
 		return fmt.Errorf("register units: %w", err)
 	}
 
@@ -178,7 +246,7 @@ func initConfig() (*config.Config, *unit.Registry, *gateway.Gateway, error) {
 	return cfg, registry, gw, nil
 }
 
-func setupEventBus() *eventbus.InMemoryEventBus {
-	bus := eventbus.NewInMemoryEventBus()
-	return bus
-}
+// func setupEventBus() *eventbus.InMemoryEventBus {
+// 	bus := eventbus.NewInMemoryEventBus()
+// 	return bus
+// }

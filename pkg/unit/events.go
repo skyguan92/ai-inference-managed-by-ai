@@ -20,31 +20,31 @@ const (
 
 // ExecutionEvent represents an event during command/query execution
 type ExecutionEvent struct {
-	EventType     string    `json:"event_type"`
-	Domain        string    `json:"domain"`
-	UnitName      string    `json:"unit_name"`
-	Input         any       `json:"input,omitempty"`
-	Output        any       `json:"output,omitempty"`
-	Error         string    `json:"error,omitempty"`
-	Timestamp     time.Time `json:"timestamp"`
-	CorrelationID string    `json:"correlation_id"`
-	DurationMs    int64     `json:"duration_ms,omitempty"`
+	EventType         string    `json:"event_type"`
+	EventDomain       string    `json:"domain"`
+	UnitName          string    `json:"unit_name"`
+	Input             any       `json:"input,omitempty"`
+	Output            any       `json:"output,omitempty"`
+	Error             string    `json:"error,omitempty"`
+	EventTimestamp    time.Time `json:"timestamp"`
+	EventCorrelationID string    `json:"correlation_id"`
+	DurationMs        int64     `json:"duration_ms,omitempty"`
 }
 
 // Type returns the event type
 func (e *ExecutionEvent) Type() string { return e.EventType }
 
 // Domain returns the domain
-func (e *ExecutionEvent) Domain() string { return e.Domain }
+func (e *ExecutionEvent) Domain() string { return e.EventDomain }
 
 // Payload returns the event payload
 func (e *ExecutionEvent) Payload() any { return e }
 
 // Timestamp returns the timestamp
-func (e *ExecutionEvent) Timestamp() time.Time { return e.Timestamp }
+func (e *ExecutionEvent) Timestamp() time.Time { return e.EventTimestamp }
 
 // CorrelationID returns the correlation ID
-func (e *ExecutionEvent) CorrelationID() string { return e.CorrelationID }
+func (e *ExecutionEvent) CorrelationID() string { return e.EventCorrelationID }
 
 // EventPublisher interface for publishing events
 type EventPublisher interface {
@@ -78,12 +78,12 @@ func (ec *ExecutionContext) PublishStarted(input any) {
 	}
 
 	event := &ExecutionEvent{
-		EventType:     string(ExecutionStarted),
-		Domain:        ec.Domain,
-		UnitName:      ec.UnitName,
-		Input:         input,
-		Timestamp:     time.Now(),
-		CorrelationID: ec.CorrelationID,
+		EventType:          string(ExecutionStarted),
+		EventDomain:        ec.Domain,
+		UnitName:           ec.UnitName,
+		Input:              input,
+		EventTimestamp:     time.Now(),
+		EventCorrelationID: ec.CorrelationID,
 	}
 
 	_ = ec.Publisher.Publish(event)
@@ -98,13 +98,13 @@ func (ec *ExecutionContext) PublishCompleted(output any) {
 	duration := time.Since(ec.StartTime).Milliseconds()
 
 	event := &ExecutionEvent{
-		EventType:     string(ExecutionCompleted),
-		Domain:        ec.Domain,
-		UnitName:      ec.UnitName,
-		Output:        output,
-		Timestamp:     time.Now(),
-		CorrelationID: ec.CorrelationID,
-		DurationMs:    duration,
+		EventType:          string(ExecutionCompleted),
+		EventDomain:        ec.Domain,
+		UnitName:           ec.UnitName,
+		Output:             output,
+		EventTimestamp:     time.Now(),
+		EventCorrelationID: ec.CorrelationID,
+		DurationMs:         duration,
 	}
 
 	_ = ec.Publisher.Publish(event)
@@ -123,13 +123,13 @@ func (ec *ExecutionContext) PublishFailed(err error) {
 	}
 
 	event := &ExecutionEvent{
-		EventType:     string(ExecutionFailed),
-		Domain:        ec.Domain,
-		UnitName:      ec.UnitName,
-		Error:         errMsg,
-		Timestamp:     time.Now(),
-		CorrelationID: ec.CorrelationID,
-		DurationMs:    duration,
+		EventType:          string(ExecutionFailed),
+		EventDomain:        ec.Domain,
+		UnitName:           ec.UnitName,
+		Error:              errMsg,
+		EventTimestamp:     time.Now(),
+		EventCorrelationID: ec.CorrelationID,
+		DurationMs:         duration,
 	}
 
 	_ = ec.Publisher.Publish(event)
