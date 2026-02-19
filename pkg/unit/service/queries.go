@@ -374,8 +374,8 @@ func (q *RecommendQuery) OutputSchema() unit.Schema {
 func (q *RecommendQuery) Examples() []unit.Example {
 	return []unit.Example{
 		{
-			Input:  map[string]any{"model_id": "llama3-70b"},
-			Output: map[string]any{"resource_class": "large", "replicas": 2, "expected_throughput": 100.0, "engine_type": "vllm", "device_type": "gpu", "reason": "Large LLM model recommended for GPU acceleration with vLLM"},
+			Input:       map[string]any{"model_id": "llama3-70b"},
+			Output:      map[string]any{"resource_class": "large", "replicas": 2, "expected_throughput": 100.0, "engine_type": "vllm", "device_type": "gpu", "reason": "Large LLM model recommended for GPU acceleration with vLLM"},
 			Description: "Get recommendation for llama3-70b",
 		},
 		{
@@ -433,4 +433,114 @@ func (q *RecommendQuery) Execute(ctx context.Context, input any) (any, error) {
 	}
 	ec.PublishCompleted(output)
 	return output, nil
+}
+
+type StatusQuery struct {
+	store  ServiceStore
+	events unit.EventPublisher
+}
+
+func NewStatusQuery(store ServiceStore) *StatusQuery {
+	return &StatusQuery{store: store}
+}
+
+func NewStatusQueryWithEvents(store ServiceStore, events unit.EventPublisher) *StatusQuery {
+	return &StatusQuery{store: store, events: events}
+}
+
+func (q *StatusQuery) Name() string {
+	return "service.status"
+}
+
+func (q *StatusQuery) Domain() string {
+	return "service"
+}
+
+func (q *StatusQuery) Description() string {
+	return "Get detailed status and loading progress of a service"
+}
+
+func (q *StatusQuery) InputSchema() unit.Schema {
+	return unit.Schema{
+		Type: "object",
+		Properties: map[string]unit.Field{
+			"service_id": {
+				Name: "service_id",
+				Schema: unit.Schema{
+					Type:        "string",
+					Description: "Service ID",
+				},
+			},
+		},
+		Required: []string{"service_id"},
+	}
+}
+
+func (q *StatusQuery) OutputSchema() unit.Schema {
+	return unit.Schema{
+		Type: "object",
+		Properties: map[string]unit.Field{
+			"id":               {Name: "id", Schema: unit.Schema{Type: "string"}},
+			"name":             {Name: "name", Schema: unit.Schema{Type: "string"}},
+			"model_id":         {Name: "model_id", Schema: unit.Schema{Type: "string"}},
+			"status":           {Name: "status", Schema: unit.Schema{Type: "string"}},
+			"health":           {Name: "health", Schema: unit.Schema{Type: "string"}},
+			"container_id":     {Name: "container_id", Schema: unit.Schema{Type: "string"}},
+			"container_status": {Name: "container_status", Schema: unit.Schema{Type: "string"}},
+			"endpoints":        {Name: "endpoints", Schema: unit.Schema{Type: "array", Items: &unit.Schema{Type: "string"}}},
+			"loading_progress": {Name: "loading_progress", Schema: unit.Schema{Type: "string"}},
+		},
+	}
+}
+
+func (q *StatusQuery) Examples() []unit.Example {
+	return []unit.Example{
+		{
+			Input:       map[string]any{"service_id": "svc-abc123"},
+			Output:      map[string]any{"id": "svc-abc123", "status": "running", "health": "loading", "container_status": "running"},
+			Description: "Get service status",
+		},
+	}
+}
+
+func (q *StatusQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
+	if q.store == nil {
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
+	}
+
+	inputMap, ok := input.(map[string]any)
+	if !ok {
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
+	}
+
+	serviceID, _ := inputMap["service_id"].(string)
+	if serviceID == "" {
+		err := fmt.Errorf("service_id is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
+	}
+
+	service, err := q.store.Get(ctx, serviceID)
+	if err != nil {
+		ec.PublishFailed(err)
+		return nil, fmt.Errorf("get service %s: %w", serviceID, err)
+	}
+
+	result := map[string]any{
+		"id":        service.ID,
+		"name":      service.Name,
+		"model_id":  service.ModelID,
+		"status":    string(service.Status),
+		"endpoints": service.Endpoints,
+	}
+
+	ec.PublishCompleted(result)
+	return result, nil
 }

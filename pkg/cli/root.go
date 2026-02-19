@@ -163,6 +163,7 @@ func (r *RootCommand) addSubCommands() {
 	r.cmd.AddCommand(NewInferenceCommand(r))
 	r.cmd.AddCommand(NewDeviceCommand(r))
 	r.cmd.AddCommand(NewEngineCommand(r))
+	r.cmd.AddCommand(NewServiceCommand(r))
 	r.cmd.AddCommand(NewWorkflowCommand(r))
 }
 

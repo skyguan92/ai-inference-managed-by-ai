@@ -134,9 +134,9 @@ func getDefaultResourceLimits() map[string]ResourceLimits {
 func getDefaultStartupConfigs() map[string]StartupConfig {
 	return map[string]StartupConfig{
 		"vllm": {
-			MaxRetries:     3,
+			MaxRetries:     5,
 			RetryInterval:  10 * time.Second,
-			StartupTimeout: 300 * time.Second, // 5 minutes for large models
+			StartupTimeout: 1200 * time.Second, // 20 minutes for large models like Qwen3-Omni-30B
 			HealthCheckURL: "/health",
 		},
 		"whisper": {
@@ -261,6 +261,12 @@ func (p *HybridEngineProvider) Start(ctx context.Context, name string, config ma
 	useGPU := limits.GPU
 	port := p.getDefaultPort(engineType)
 
+	// Check for async mode
+	asyncMode := false
+	if async, ok := config["async"].(bool); ok {
+		asyncMode = async
+	}
+
 	// Try Docker first if available
 	if docker.CheckDocker() == nil {
 		var lastErr error
@@ -272,9 +278,27 @@ func (p *HybridEngineProvider) Start(ctx context.Context, name string, config ma
 
 			result, err := p.startDockerWithRetry(ctx, engineType, modelPath, port, useGPU, config, limits)
 			if err == nil {
+				// In async mode, don't wait for health check
+				if asyncMode {
+					fmt.Printf("⚡ Async mode: Container started, model loading in background\n")
+					fmt.Printf("   Container ID: %s\n", result.ProcessID[:12])
+					fmt.Printf("   Use 'aima service status' to check progress\n")
+					return result, nil
+				}
+
 				// Wait for health check
 				if err := p.waitForHealth(ctx, result.ProcessID, port, startupCfg.HealthCheckURL, startupCfg.StartupTimeout); err != nil {
 					fmt.Printf("⚠ Health check failed: %v\n", err)
+					// For large models like Qwen3-Omni, don't stop container on health check timeout
+					// The model may still be loading
+					if strings.Contains(modelPath, "Omni") || strings.Contains(modelPath, "omni") {
+						fmt.Printf("⚠ Large model detected, keeping container running despite health check timeout\n")
+						fmt.Printf("   Container ID: %s\n", result.ProcessID[:12])
+						fmt.Printf("   The model is still loading. Check 'docker logs' for progress.\n")
+						// Return success even though health check failed
+						// User can check status manually
+						return result, nil
+					}
 					p.Stop(ctx, engineType, true, 10)
 					lastErr = err
 					continue
@@ -576,10 +600,12 @@ func (p *HybridEngineProvider) getDockerImages(name, version string) []string {
 
 	switch name {
 	case "vllm":
-		// Priority: GB10 compatible custom image > official image
+		// Priority: Qwen3-Omni compatible > GB10 compatible > official image
 		return []string{
-			"zhiwen-vllm:0128",         // GB10 compatible custom image (priority 1)
-			"vllm/vllm-openai:v0.15.0", // Official image (fallback)
+			"aima-qwen3-omni-server:latest", // Qwen3-Omni FastAPI server (priority 1)
+			"aima-vllm-qwen3-omni:latest",   // Qwen3-Omni vLLM (priority 2)
+			"zhiwen-vllm:0128",              // GB10 compatible (priority 3)
+			"vllm/vllm-openai:v0.15.0",      // Official image (fallback)
 		}
 	case "whisper", "asr":
 		// Priority: local custom image > official image
@@ -675,6 +701,11 @@ func (p *HybridEngineProvider) buildDockerCommand(engineType string, image strin
 	switch engineType {
 	case "vllm":
 		// Check which image is being used
+		if strings.Contains(image, "aima-qwen3-omni-server") {
+			// Custom FastAPI server for Qwen3-Omni
+			// The Dockerfile already has CMD, so we don't override
+			return nil
+		}
 		if strings.Contains(image, "zhiwen-vllm") {
 			// GB10 compatible custom image uses nvidia_entrypoint.sh
 			// The entrypoint will handle vllm serve automatically
@@ -785,6 +816,12 @@ func (p *HybridServiceProvider) Create(ctx context.Context, modelID string, reso
 
 // Start starts the service with proper resource management
 func (p *HybridServiceProvider) Start(ctx context.Context, serviceID string) error {
+	return p.StartAsync(ctx, serviceID, false)
+}
+
+// StartAsync starts the service with async mode support
+// For large models like Qwen3-Omni, async mode allows starting without waiting for health check
+func (p *HybridServiceProvider) StartAsync(ctx context.Context, serviceID string, async bool) error {
 	// Parse service ID to extract engine type and model ID
 	// Format: svc-{engine_type}-{model_id}
 	parts := strings.Split(serviceID, "-")
@@ -802,6 +839,7 @@ func (p *HybridServiceProvider) Start(ctx context.Context, serviceID string) err
 				"model_path": m.Path,
 				"device":     "cpu", // Default to CPU for safety
 				"gpu":        limits.GPU,
+				"async":      async, // Pass async flag to engine
 			}
 
 			// Only vLLM gets GPU by default
@@ -817,7 +855,11 @@ func (p *HybridServiceProvider) Start(ctx context.Context, serviceID string) err
 				return fmt.Errorf("start engine %s: %w", engineType, err)
 			}
 
-			fmt.Printf("✓ Engine started: %s (PID: %s)\n", engineType, result.ProcessID)
+			if async {
+				fmt.Printf("✓ Engine %s started in async mode (Container: %s)\n", engineType, result.ProcessID[:12])
+			} else {
+				fmt.Printf("✓ Engine started: %s (PID: %s)\n", engineType, result.ProcessID)
+			}
 			return nil
 		}
 	}

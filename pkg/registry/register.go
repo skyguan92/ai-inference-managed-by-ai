@@ -443,6 +443,9 @@ func registerServiceDomain(registry *unit.Registry, options *Options) error {
 	if err := registry.RegisterQuery(service.NewListQueryWithEvents(store, events)); err != nil {
 		return err
 	}
+	if err := registry.RegisterQuery(service.NewStatusQueryWithEvents(store, events)); err != nil {
+		return err
+	}
 	if provider != nil {
 		if err := registry.RegisterQuery(service.NewRecommendQueryWithEvents(provider, events)); err != nil {
 			return err

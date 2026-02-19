@@ -501,9 +501,25 @@ func (c *StartCommand) Execute(ctx context.Context, input any) (any, error) {
 		return nil, ErrServiceAlreadyRunning
 	}
 
-	if err := c.provider.Start(ctx, serviceID); err != nil {
-		ec.PublishFailed(err)
-		return nil, fmt.Errorf("start service %s: %w", serviceID, err)
+	// Extract async flag from input (for backward compatibility)
+	async := false
+	if asyncVal, ok := inputMap["async"].(bool); ok {
+		async = asyncVal
+	}
+
+	// Create a provider wrapper that passes async flag
+	var startErr error
+	if asyncProvider, ok := c.provider.(interface {
+		StartAsync(ctx context.Context, serviceID string, async bool) error
+	}); ok {
+		startErr = asyncProvider.StartAsync(ctx, serviceID, async)
+	} else {
+		startErr = c.provider.Start(ctx, serviceID)
+	}
+
+	if startErr != nil {
+		ec.PublishFailed(startErr)
+		return nil, fmt.Errorf("start service %s: %w", serviceID, startErr)
 	}
 
 	service.Status = ServiceStatusRunning
