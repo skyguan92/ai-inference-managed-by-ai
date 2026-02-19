@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
-\t"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/ptrs"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/ptrs"
 )
 
 type ListRulesQuery struct {

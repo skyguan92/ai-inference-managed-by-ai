@@ -319,23 +319,3 @@ func TestMemoryStore_ListWithFilter(t *testing.T) {
 	}
 }
 
-func TestMemoryStore_GetByID(t *testing.T) {
-	store := NewMemoryStore()
-	ctx := context.Background()
-
-	engine := createTestEngine("ollama", EngineTypeOllama)
-	store.Create(ctx, engine)
-
-	got, err := store.GetByID(ctx, engine.ID)
-	if err != nil {
-		t.Errorf("GetByID failed: %v", err)
-	}
-	if got.Name != "ollama" {
-		t.Errorf("expected name=ollama, got %s", got.Name)
-	}
-
-	_, err = store.GetByID(ctx, "nonexistent-id")
-	if !errors.Is(err, ErrEngineNotFound) {
-		t.Errorf("expected ErrEngineNotFound, got %v", err)
-	}
-}

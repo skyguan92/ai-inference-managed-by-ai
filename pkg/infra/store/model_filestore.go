@@ -56,11 +56,9 @@ func (s *FileStore) load() error {
 	return json.Unmarshal(data, &s.models)
 }
 
+// save persists models to disk. Caller must hold s.mu (read or write lock).
 func (s *FileStore) save() error {
-	s.mu.RLock()
 	data, err := json.MarshalIndent(s.models, "", "  ")
-	s.mu.RUnlock()
-
 	if err != nil {
 		return fmt.Errorf("marshal models: %w", err)
 	}

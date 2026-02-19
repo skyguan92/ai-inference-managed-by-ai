@@ -252,6 +252,11 @@ func registerModelDomain(registry *unit.Registry, options *Options) error {
 		return err
 	}
 
+	// Register static resources
+	if err := registry.RegisterResource(model.NewCompatibilityResource()); err != nil {
+		return err
+	}
+
 	return nil
 }
 

@@ -3,6 +3,7 @@ package unit
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -14,7 +15,13 @@ type mockResourceFactory struct {
 	createErr error
 }
 
-func (m *mockResourceFactory) CanCreate(uri string) bool { return m.canCreate }
+func (m *mockResourceFactory) CanCreate(uri string) bool {
+	if !m.canCreate {
+		return false
+	}
+	prefix := strings.TrimSuffix(m.pattern, "*")
+	return strings.HasPrefix(uri, prefix)
+}
 func (m *mockResourceFactory) Create(uri string) (Resource, error) {
 	if m.createErr != nil {
 		return nil, m.createErr
@@ -103,13 +110,7 @@ func TestGetResourceWithFactory_FactoryError(t *testing.T) {
 
 func TestGetResourceWithFactory_FactoryReturnsNil(t *testing.T) {
 	r := NewRegistry()
-	factory := &mockResourceFactory{
-		pattern:   "asms://model/*",
-		canCreate: true,
-		createRes: nil,
-		createErr: nil,
-	}
-	// Override Create to return nil resource
+	// Register a factory that returns nil resource
 	_ = r.RegisterResourceFactory(&nilReturnFactory{})
 
 	got := r.GetResourceWithFactory("asms://model/dynamic")

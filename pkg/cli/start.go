@@ -9,10 +9,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/gateway"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/metrics"
 	"github.com/spf13/cobra"
 )
 
@@ -61,9 +63,13 @@ func runStart(ctx context.Context, root *RootCommand, addr string, port int, tls
 		listenAddr = addr
 	}
 
+	reqMetrics := metrics.NewRequestMetrics()
+	sysCollector := metrics.NewCollector()
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v2/execute", handleExecute(gw))
+	mux.HandleFunc("/api/v2/execute", instrumentHandler(handleExecute(gw), reqMetrics))
 	mux.HandleFunc("/api/v2/health", handleHealth(gw))
+	mux.HandleFunc("/api/v2/metrics", handlePrometheusMetrics(reqMetrics, sysCollector))
 
 	server := &http.Server{
 		Addr:         listenAddr,
@@ -164,4 +170,108 @@ func writeJSONError(w http.ResponseWriter, statusCode int, code, message string)
 			"message": message,
 		},
 	})
+}
+
+// instrumentHandler wraps an HTTP handler to record request metrics.
+func instrumentHandler(next http.HandlerFunc, rm *metrics.RequestMetrics) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		rw := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+		next(rw, r)
+		isError := rw.statusCode >= 500
+		rm.Record(time.Since(start), isError)
+	}
+}
+
+// responseWriter captures the HTTP status code written by a handler.
+type responseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.statusCode = code
+	rw.ResponseWriter.WriteHeader(code)
+}
+
+// handlePrometheusMetrics returns an HTTP handler that serves metrics in
+// Prometheus text exposition format (version 0.0.4).
+func handlePrometheusMetrics(rm *metrics.RequestMetrics, sc metrics.Collector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var sb strings.Builder
+
+		// --- HTTP request metrics ---
+		snap := rm.Snapshot()
+
+		writeMetric(&sb, "# HELP aima_http_requests_total Total number of HTTP requests processed.\n")
+		writeMetric(&sb, "# TYPE aima_http_requests_total counter\n")
+		fmt.Fprintf(&sb, "aima_http_requests_total %d\n", snap.TotalRequests)
+
+		writeMetric(&sb, "# HELP aima_http_errors_total Total number of HTTP requests that resulted in a 5xx error.\n")
+		writeMetric(&sb, "# TYPE aima_http_errors_total counter\n")
+		fmt.Fprintf(&sb, "aima_http_errors_total %d\n", snap.TotalErrors)
+
+		writeMetric(&sb, "# HELP aima_http_request_duration_avg_ms Average HTTP request latency in milliseconds.\n")
+		writeMetric(&sb, "# TYPE aima_http_request_duration_avg_ms gauge\n")
+		fmt.Fprintf(&sb, "aima_http_request_duration_avg_ms %.3f\n", snap.AvgLatencyMs)
+
+		writeMetric(&sb, "# HELP aima_http_error_rate Ratio of errored requests to total requests (0–1).\n")
+		writeMetric(&sb, "# TYPE aima_http_error_rate gauge\n")
+		fmt.Fprintf(&sb, "aima_http_error_rate %.6f\n", snap.ErrorRate)
+
+		// --- System metrics (best-effort; only available on Linux) ---
+		sysMetrics, err := sc.Collect(r.Context())
+		if err == nil {
+			writeMetric(&sb, "# HELP aima_system_cpu_usage_percent Current CPU usage percentage (0–100).\n")
+			writeMetric(&sb, "# TYPE aima_system_cpu_usage_percent gauge\n")
+			fmt.Fprintf(&sb, "aima_system_cpu_usage_percent %.3f\n", sysMetrics.CPU)
+
+			writeMetric(&sb, "# HELP aima_system_memory_used_bytes Memory used in bytes.\n")
+			writeMetric(&sb, "# TYPE aima_system_memory_used_bytes gauge\n")
+			fmt.Fprintf(&sb, "aima_system_memory_used_bytes %d\n", sysMetrics.Memory.Used)
+
+			writeMetric(&sb, "# HELP aima_system_memory_total_bytes Total memory in bytes.\n")
+			writeMetric(&sb, "# TYPE aima_system_memory_total_bytes gauge\n")
+			fmt.Fprintf(&sb, "aima_system_memory_total_bytes %d\n", sysMetrics.Memory.Total)
+
+			writeMetric(&sb, "# HELP aima_system_memory_usage_percent Memory usage percentage (0–100).\n")
+			writeMetric(&sb, "# TYPE aima_system_memory_usage_percent gauge\n")
+			fmt.Fprintf(&sb, "aima_system_memory_usage_percent %.3f\n", sysMetrics.Memory.Percent)
+
+			writeMetric(&sb, "# HELP aima_system_disk_used_bytes Disk space used in bytes.\n")
+			writeMetric(&sb, "# TYPE aima_system_disk_used_bytes gauge\n")
+			fmt.Fprintf(&sb, "aima_system_disk_used_bytes %d\n", sysMetrics.Disk.Used)
+
+			writeMetric(&sb, "# HELP aima_system_disk_total_bytes Total disk space in bytes.\n")
+			writeMetric(&sb, "# TYPE aima_system_disk_total_bytes gauge\n")
+			fmt.Fprintf(&sb, "aima_system_disk_total_bytes %d\n", sysMetrics.Disk.Total)
+
+			writeMetric(&sb, "# HELP aima_system_disk_usage_percent Disk usage percentage (0–100).\n")
+			writeMetric(&sb, "# TYPE aima_system_disk_usage_percent gauge\n")
+			fmt.Fprintf(&sb, "aima_system_disk_usage_percent %.3f\n", sysMetrics.Disk.Percent)
+
+			writeMetric(&sb, "# HELP aima_system_network_bytes_sent_total Total bytes sent over the network.\n")
+			writeMetric(&sb, "# TYPE aima_system_network_bytes_sent_total counter\n")
+			fmt.Fprintf(&sb, "aima_system_network_bytes_sent_total %d\n", sysMetrics.Network.BytesSent)
+
+			writeMetric(&sb, "# HELP aima_system_network_bytes_recv_total Total bytes received over the network.\n")
+			writeMetric(&sb, "# TYPE aima_system_network_bytes_recv_total counter\n")
+			fmt.Fprintf(&sb, "aima_system_network_bytes_recv_total %d\n", sysMetrics.Network.BytesRecv)
+		} else {
+			slog.Debug("system metrics unavailable", "error", err)
+		}
+
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(sb.String()))
+	}
+}
+
+func writeMetric(sb *strings.Builder, s string) {
+	sb.WriteString(s)
 }

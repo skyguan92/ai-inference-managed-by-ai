@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
-\t"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/ptrs"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/ptrs"
 )
 
 // Domain errors are defined in errors.go

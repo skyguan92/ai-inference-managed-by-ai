@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/config"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/gateway"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/metrics"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
 )
 
@@ -195,4 +197,115 @@ func TestRunStart_WithAddrOverride(t *testing.T) {
 
 	err := runStart(ctx, root, "127.0.0.1:0", 0, "", "")
 	require.NoError(t, err)
+}
+
+func TestHandlePrometheusMetrics_Get(t *testing.T) {
+	rm := metrics.NewRequestMetrics()
+	sc := metrics.NewCollector()
+
+	handler := handlePrometheusMetrics(rm, sc)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v2/metrics", nil)
+	rec := httptest.NewRecorder()
+
+	handler(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	ct := rec.Header().Get("Content-Type")
+	assert.Contains(t, ct, "text/plain")
+
+	body := rec.Body.String()
+	assert.Contains(t, body, "aima_http_requests_total")
+	assert.Contains(t, body, "aima_http_errors_total")
+	assert.Contains(t, body, "aima_http_request_duration_avg_ms")
+	assert.Contains(t, body, "aima_http_error_rate")
+}
+
+func TestHandlePrometheusMetrics_InvalidMethod(t *testing.T) {
+	rm := metrics.NewRequestMetrics()
+	sc := metrics.NewCollector()
+
+	handler := handlePrometheusMetrics(rm, sc)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v2/metrics", nil)
+	rec := httptest.NewRecorder()
+
+	handler(rec, req)
+
+	assert.Equal(t, http.StatusMethodNotAllowed, rec.Code)
+}
+
+func TestHandlePrometheusMetrics_PrometheusFormat(t *testing.T) {
+	rm := metrics.NewRequestMetrics()
+	// Record some test data
+	rm.Record(10*time.Millisecond, false)
+	rm.Record(20*time.Millisecond, false)
+	rm.Record(5*time.Millisecond, true)
+
+	sc := metrics.NewCollector()
+	handler := handlePrometheusMetrics(rm, sc)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v2/metrics", nil)
+	rec := httptest.NewRecorder()
+
+	handler(rec, req)
+
+	body := rec.Body.String()
+
+	// Verify Prometheus text format conventions
+	assert.True(t, strings.Contains(body, "# HELP"), "expected HELP lines")
+	assert.True(t, strings.Contains(body, "# TYPE"), "expected TYPE lines")
+	assert.Contains(t, body, "aima_http_requests_total 3")
+	assert.Contains(t, body, "aima_http_errors_total 1")
+}
+
+func TestInstrumentHandler(t *testing.T) {
+	rm := metrics.NewRequestMetrics()
+
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := instrumentHandler(inner, rm)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+
+	snap := rm.Snapshot()
+	assert.Equal(t, int64(1), snap.TotalRequests)
+	assert.Equal(t, int64(0), snap.TotalErrors)
+}
+
+func TestInstrumentHandler_ServerError(t *testing.T) {
+	rm := metrics.NewRequestMetrics()
+
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+
+	handler := instrumentHandler(inner, rm)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+
+	snap := rm.Snapshot()
+	assert.Equal(t, int64(1), snap.TotalRequests)
+	assert.Equal(t, int64(1), snap.TotalErrors)
+}
+
+func TestResponseWriter_DefaultStatus(t *testing.T) {
+	rec := httptest.NewRecorder()
+	rw := &responseWriter{ResponseWriter: rec, statusCode: http.StatusOK}
+	// Write without calling WriteHeader explicitly
+	rw.Write([]byte("hello"))
+	assert.Equal(t, http.StatusOK, rw.statusCode)
+}
+
+func TestResponseWriter_WriteHeader(t *testing.T) {
+	rec := httptest.NewRecorder()
+	rw := &responseWriter{ResponseWriter: rec, statusCode: http.StatusOK}
+	rw.WriteHeader(http.StatusCreated)
+	assert.Equal(t, http.StatusCreated, rw.statusCode)
 }

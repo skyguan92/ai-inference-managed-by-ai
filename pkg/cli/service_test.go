@@ -164,7 +164,7 @@ func TestRunServiceCreate_CPUDevice(t *testing.T) {
 		execute: func(ctx context.Context, input any) (any, error) {
 			inputMap := input.(map[string]any)
 			// CPU device should result in medium resource class
-			assert.Equal(t, "medium", inputMap["resource_class"])
+			assert.EqualValues(t, "medium", inputMap["resource_class"])
 			return map[string]any{"service_id": "svc-001"}, nil
 		},
 	})

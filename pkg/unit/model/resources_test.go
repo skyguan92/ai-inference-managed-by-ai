@@ -301,3 +301,149 @@ func TestMemoryStore_ListWithFilter(t *testing.T) {
 		t.Errorf("expected total=4, got %d", total)
 	}
 }
+
+func TestCompatibilityResource_URI(t *testing.T) {
+	r := NewCompatibilityResource()
+	if r.URI() != "asms://models/compatibility" {
+		t.Errorf("expected URI 'asms://models/compatibility', got '%s'", r.URI())
+	}
+}
+
+func TestCompatibilityResource_Domain(t *testing.T) {
+	r := NewCompatibilityResource()
+	if r.Domain() != "model" {
+		t.Errorf("expected domain 'model', got '%s'", r.Domain())
+	}
+}
+
+func TestCompatibilityResource_Schema(t *testing.T) {
+	r := NewCompatibilityResource()
+	schema := r.Schema()
+	if schema.Type != "object" {
+		t.Errorf("expected schema type 'object', got '%s'", schema.Type)
+	}
+	if _, ok := schema.Properties["engines"]; !ok {
+		t.Error("expected 'engines' property in schema")
+	}
+	if _, ok := schema.Properties["updated_at"]; !ok {
+		t.Error("expected 'updated_at' property in schema")
+	}
+}
+
+func TestCompatibilityResource_Get(t *testing.T) {
+	r := NewCompatibilityResource()
+	result, err := r.Get(context.Background())
+	if err != nil {
+		t.Fatalf("Get() returned error: %v", err)
+	}
+
+	m, ok := result.(map[string]any)
+	if !ok {
+		t.Fatal("expected result to be map[string]any")
+	}
+
+	engines, ok := m["engines"].([]map[string]any)
+	if !ok {
+		t.Fatal("expected 'engines' to be []map[string]any")
+	}
+
+	if len(engines) == 0 {
+		t.Error("expected at least one engine entry")
+	}
+
+	// Verify required fields are present in each entry
+	for _, e := range engines {
+		if _, ok := e["engine"]; !ok {
+			t.Errorf("engine entry missing 'engine' field: %v", e)
+		}
+		if _, ok := e["supported_types"]; !ok {
+			t.Errorf("engine entry missing 'supported_types' field: %v", e)
+		}
+		if _, ok := e["supported_formats"]; !ok {
+			t.Errorf("engine entry missing 'supported_formats' field: %v", e)
+		}
+		if _, ok := e["gpu_required"]; !ok {
+			t.Errorf("engine entry missing 'gpu_required' field: %v", e)
+		}
+		if _, ok := e["quantization_support"]; !ok {
+			t.Errorf("engine entry missing 'quantization_support' field: %v", e)
+		}
+	}
+
+	// Check known engines are present
+	engineNames := make(map[string]bool)
+	for _, e := range engines {
+		if name, ok := e["engine"].(string); ok {
+			engineNames[name] = true
+		}
+	}
+	for _, expected := range []string{"vllm", "whisper", "tts", "ollama"} {
+		if !engineNames[expected] {
+			t.Errorf("expected engine '%s' not found in compatibility matrix", expected)
+		}
+	}
+
+	if _, ok := m["updated_at"]; !ok {
+		t.Error("expected 'updated_at' field in result")
+	}
+}
+
+func TestCompatibilityResource_VllmGPURequired(t *testing.T) {
+	r := NewCompatibilityResource()
+	result, _ := r.Get(context.Background())
+	m := result.(map[string]any)
+	engines := m["engines"].([]map[string]any)
+
+	for _, e := range engines {
+		if e["engine"] == "vllm" {
+			if gpuRequired, ok := e["gpu_required"].(bool); !ok || !gpuRequired {
+				t.Error("expected vllm to require GPU")
+			}
+			return
+		}
+	}
+	t.Error("vllm engine not found")
+}
+
+func TestCompatibilityResource_Watch(t *testing.T) {
+	r := NewCompatibilityResource()
+	ctx, cancel := context.WithCancel(context.Background())
+
+	ch, err := r.Watch(ctx)
+	if err != nil {
+		t.Fatalf("Watch() returned error: %v", err)
+	}
+
+	cancel()
+
+	// Channel should be closed after context cancellation
+	_, open := <-ch
+	if open {
+		t.Error("expected channel to be closed after context cancellation")
+	}
+}
+
+func TestCompatibilityResource_ImplementsInterface(t *testing.T) {
+	var _ unit.Resource = NewCompatibilityResource()
+}
+
+// Ensure Watch is non-blocking and does not send spurious updates.
+func TestCompatibilityResource_WatchNoUpdates(t *testing.T) {
+	r := NewCompatibilityResource()
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	ch, err := r.Watch(ctx)
+	if err != nil {
+		t.Fatalf("Watch() returned error: %v", err)
+	}
+
+	select {
+	case update, ok := <-ch:
+		if ok {
+			t.Errorf("expected no updates from static resource, got: %v", update)
+		}
+	case <-ctx.Done():
+		// Expected: no updates within the timeout.
+	}
+}
