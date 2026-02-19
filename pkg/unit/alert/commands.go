@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
+\t"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/ptrs"
 )
 
 type CreateRuleCommand struct {
@@ -73,7 +74,7 @@ func (c *CreateRuleCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "number",
 					Description: "Cooldown period in seconds",
-					Min:         ptrFloat(0),
+					Min:         ptrs.Float64(0),
 				},
 			},
 		},
@@ -592,10 +593,6 @@ func (c *ResolveCommand) Execute(ctx context.Context, input any) (any, error) {
 	output := map[string]any{"success": true}
 	ec.PublishCompleted(output)
 	return output, nil
-}
-
-func ptrFloat(v float64) *float64 {
-	return &v
 }
 
 func getString(m map[string]any, key string) string {

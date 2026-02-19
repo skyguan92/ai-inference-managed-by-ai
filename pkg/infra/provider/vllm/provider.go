@@ -3,6 +3,9 @@ package vllm
 import (
 	"context"
 	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,9 +15,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/engine"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/model"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/service"
-	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/engine"
 )
 
 // Provider implements vLLM inference engine support
@@ -42,7 +45,7 @@ type ServiceInfo struct {
 func NewProvider(modelStore model.ModelStore) *Provider {
 	return &Provider{
 		processes:  make(map[string]*exec.Cmd),
-	services:   make(map[string]*ServiceInfo),
+		services:   make(map[string]*ServiceInfo),
 		modelStore: modelStore,
 	}
 }
@@ -59,7 +62,7 @@ func (p *Provider) Install(ctx context.Context, version string) (*engine.Install
 	}
 
 	// Install vLLM via pip
-	fmt.Println("Installing vLLM...")
+	slog.Info("installing vLLM")
 	cmd := exec.CommandContext(ctx, "pip", "install", "vllm")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -154,8 +157,8 @@ func (p *Provider) Start(ctx context.Context, serviceID string) error {
 	// Build vLLM serve command
 	args := p.buildServeArgs(svcInfo)
 	
-	fmt.Printf("Starting vLLM service: %s\n", serviceID)
-	fmt.Printf("Command: vllm serve %s %v\n", svcInfo.ModelPath, args)
+	slog.Info("starting vLLM service", "service_id", serviceID)
+	slog.Debug("vLLM serve command", "model_path", svcInfo.ModelPath, "args", args)
 
 	cmd := exec.CommandContext(ctx, "vllm", append([]string{"serve", svcInfo.ModelPath}, args...)...)
 	cmd.Stdout = os.Stdout
@@ -192,7 +195,7 @@ func (p *Provider) Start(ctx context.Context, serviceID string) error {
 	svcInfo.Endpoint = fmt.Sprintf("http://localhost:%d", svcInfo.Port)
 	p.mu.Unlock()
 
-	fmt.Printf("vLLM service started successfully: %s at %s\n", serviceID, svcInfo.Endpoint)
+	slog.Info("vLLM service started successfully", "service_id", serviceID, "endpoint", svcInfo.Endpoint)
 	return nil
 }
 
@@ -206,7 +209,7 @@ func (p *Provider) Stop(ctx context.Context, serviceID string, force bool) error
 		return fmt.Errorf("service not running: %s", serviceID)
 	}
 
-	fmt.Printf("Stopping vLLM service: %s\n", serviceID)
+	slog.Info("stopping vLLM service", "service_id", serviceID)
 
 	if force {
 		if err := cmd.Process.Kill(); err != nil {
@@ -250,21 +253,16 @@ func (p *Provider) Scale(ctx context.Context, serviceID string, replicas int) er
 // GetMetrics returns service metrics
 func (p *Provider) GetMetrics(ctx context.Context, serviceID string) (*service.ServiceMetrics, error) {
 	p.mu.RLock()
-	_, exists := p.services[serviceID]
+	svcInfo, exists := p.services[serviceID]
 	p.mu.RUnlock()
 
 	if !exists {
 		return nil, fmt.Errorf("service not found: %s", serviceID)
 	}
 
-	// TODO: Query vLLM metrics endpoint
-	return &service.ServiceMetrics{
-		RequestsPerSecond: 0,
-		LatencyP50:        0,
-		LatencyP99:        0,
-		TotalRequests:     0,
-		ErrorRate:         0,
-	}, nil
+	// Query vLLM Prometheus metrics endpoint.
+	metricsURL := fmt.Sprintf("http://localhost:%d/metrics", svcInfo.Port)
+	return p.scrapeMetrics(metricsURL)
 }
 
 // GetRecommendation provides resource recommendations
@@ -311,10 +309,13 @@ func (p *Provider) buildServeArgs(svcInfo *ServiceInfo) []string {
 	return args
 }
 
-// waitForReady waits for the service to be ready
+// waitForReady polls the vLLM /health endpoint until the service is ready or the
+// context is cancelled. It gives the process up to 120 seconds (60 × 2 s) to
+// start before declaring a timeout.
 func (p *Provider) waitForReady(ctx context.Context, svcInfo *ServiceInfo) error {
-	_ = fmt.Sprintf("http://localhost:%d/health", svcInfo.Port)
-	
+	healthURL := fmt.Sprintf("http://localhost:%d/health", svcInfo.Port)
+	httpClient := &http.Client{Timeout: 2 * time.Second}
+
 	for i := 0; i < 60; i++ {
 		select {
 		case <-ctx.Done():
@@ -322,7 +323,7 @@ func (p *Provider) waitForReady(ctx context.Context, svcInfo *ServiceInfo) error
 		case <-time.After(2 * time.Second):
 		}
 
-		// Check if process is still running
+		// Check if process is still running.
 		p.mu.RLock()
 		cmd, exists := p.processes[svcInfo.ServiceID]
 		p.mu.RUnlock()
@@ -330,15 +331,28 @@ func (p *Provider) waitForReady(ctx context.Context, svcInfo *ServiceInfo) error
 		if !exists {
 			return fmt.Errorf("process not found")
 		}
-
 		if cmd.ProcessState != nil && cmd.ProcessState.Exited() {
 			return fmt.Errorf("process exited with code %d", cmd.ProcessState.ExitCode())
 		}
 
-		// Try to connect to health endpoint
-		// TODO: Implement actual HTTP check
-		if i > 10 { // Give it some time to start
-			return nil // Assume ready for now
+		// Perform actual HTTP health check once the process has had time to bind.
+		if i < 5 {
+			// Skip the first 5 iterations (10 s) to let the process initialise.
+			continue
+		}
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthURL, nil)
+		if err != nil {
+			continue
+		}
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			// Service not yet accepting connections — keep polling.
+			continue
+		}
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusOK {
+			return nil
 		}
 	}
 
@@ -396,6 +410,130 @@ func (p *Provider) GetServiceInfo(serviceID string) (*ServiceInfo, error) {
 	}
 
 	return svcInfo, nil
+}
+
+// scrapeMetrics fetches and parses the Prometheus text exposition from the vLLM
+// /metrics endpoint. It extracts a small set of well-known vLLM metric names
+// and returns a ServiceMetrics value with whatever values were found.
+// If the endpoint is unreachable or the response cannot be parsed the function
+// returns a zero-valued metrics struct so callers still get a usable response.
+func (p *Provider) scrapeMetrics(metricsURL string) (*service.ServiceMetrics, error) {
+	metrics := &service.ServiceMetrics{}
+
+	httpClient := &http.Client{Timeout: 5 * time.Second}
+	resp, err := httpClient.Get(metricsURL)
+	if err != nil {
+		// Service may be starting or metrics not yet exposed; return zeros.
+		return metrics, nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return metrics, nil
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return metrics, nil
+	}
+
+	// Parse the Prometheus text format line by line.
+	// We look for these vLLM-specific metric names:
+	//   vllm:num_requests_running          → approximate current RPS proxy
+	//   vllm:e2e_request_latency_seconds   → latency histogram (use _sum/_count)
+	//   vllm:request_success_total         → total successful requests
+	//   vllm:request_failure_total         → total failed requests
+	var (
+		latencySum        float64
+		latencyCount      float64
+		successTotal      float64
+		failureTotal      float64
+		latencySumFound   bool
+		latencyCountFound bool
+	)
+
+	for _, line := range strings.Split(string(body), "\n") {
+		// Skip comments and empty lines.
+		if strings.HasPrefix(line, "#") || strings.TrimSpace(line) == "" {
+			continue
+		}
+
+		name, value, ok := parsePromLine(line)
+		if !ok {
+			continue
+		}
+
+		switch {
+		case strings.HasPrefix(name, "vllm:e2e_request_latency_seconds_sum"):
+			latencySum = value
+			latencySumFound = true
+		case strings.HasPrefix(name, "vllm:e2e_request_latency_seconds_count"):
+			latencyCount = value
+			latencyCountFound = true
+		case strings.HasPrefix(name, "vllm:request_success_total"):
+			successTotal = value
+		case strings.HasPrefix(name, "vllm:request_failure_total"):
+			failureTotal = value
+		}
+	}
+
+	totalRequests := successTotal + failureTotal
+	metrics.TotalRequests = int64(totalRequests)
+
+	if totalRequests > 0 {
+		metrics.ErrorRate = failureTotal / totalRequests
+	}
+
+	if latencySumFound && latencyCountFound && latencyCount > 0 {
+		// Use mean latency as a proxy for P50 (vLLM exposes histograms but
+		// computing exact percentiles from the text format requires bucket data;
+		// the mean is a reasonable approximation for the P50 field).
+		mean := (latencySum / latencyCount) * 1000 // convert s → ms
+		metrics.LatencyP50 = mean
+		// P99 is not easily derived from summary-level data; leave as zero
+		// unless the caller has access to the histogram buckets.
+	}
+
+	return metrics, nil
+}
+
+// parsePromLine parses a single Prometheus text exposition line and returns
+// the metric name, its value, and whether parsing succeeded.
+func parsePromLine(line string) (name string, value float64, ok bool) {
+	// Format: metric_name[{labels}] value [timestamp]
+	// Find the last space to separate the value from the name+labels part.
+	line = strings.TrimSpace(line)
+	lastSpace := strings.LastIndex(line, " ")
+	if lastSpace < 0 {
+		return "", 0, false
+	}
+
+	nameWithLabels := strings.TrimSpace(line[:lastSpace])
+	valueStr := strings.TrimSpace(line[lastSpace+1:])
+
+	// Strip timestamp if present (second space-separated token after value).
+	if spaceIdx := strings.Index(valueStr, " "); spaceIdx >= 0 {
+		valueStr = valueStr[:spaceIdx]
+	}
+
+	// Strip labels: everything from '{' onwards is not part of the metric name.
+	name = nameWithLabels
+	if brace := strings.Index(nameWithLabels, "{"); brace >= 0 {
+		name = nameWithLabels[:brace]
+	}
+
+	// Handle special Prometheus float values.
+	switch valueStr {
+	case "+Inf", "-Inf", "NaN":
+		return name, 0, true
+	}
+
+	v, err := strconv.ParseFloat(valueStr, 64)
+	if err != nil {
+		return "", 0, false
+	}
+
+	return name, v, true
 }
 
 // DiscoverModels discovers models in a directory

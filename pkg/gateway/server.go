@@ -18,6 +18,8 @@ type ServerConfig struct {
 	ShutdownTimeout time.Duration
 	EnableCORS      bool
 	CORSConfig      middleware.CORSConfig
+	EnableAuth      bool
+	AuthConfig      middleware.AuthConfig
 	Logger          *slog.Logger
 }
 
@@ -30,6 +32,8 @@ func DefaultServerConfig() ServerConfig {
 		ShutdownTimeout: 10 * time.Second,
 		EnableCORS:      false,
 		CORSConfig:      middleware.DefaultCORSConfig(),
+		EnableAuth:      false,
+		AuthConfig:      middleware.DefaultAuthConfig(),
 		Logger:          nil,
 	}
 }
@@ -118,6 +122,12 @@ func (s *Server) buildHandler() http.Handler {
 	if s.config.EnableCORS {
 		handler = middleware.CORS(s.config.CORSConfig)(handler)
 	}
+
+	// Auth middleware: wire the logger and the global Enabled flag from server config.
+	authCfg := s.config.AuthConfig
+	authCfg.Enabled = s.config.EnableAuth
+	authCfg.Logger = s.logger
+	handler = middleware.Auth(authCfg)(handler)
 
 	return handler
 }

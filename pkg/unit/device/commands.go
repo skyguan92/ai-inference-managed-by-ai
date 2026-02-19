@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
+\t"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/ptrs"
 )
 
 // Domain errors are defined in errors.go
@@ -171,7 +172,7 @@ func (c *SetPowerLimitCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "number",
 					Description: "Power limit in watts",
-					Min:         ptrFloat(0),
+					Min:         ptrs.Float64(0),
 				},
 			},
 		},
@@ -240,10 +241,6 @@ func (c *SetPowerLimitCommand) Execute(ctx context.Context, input any) (any, err
 	output := map[string]any{"success": true}
 	ec.PublishCompleted(output)
 	return output, nil
-}
-
-func ptrFloat(v float64) *float64 {
-	return &v
 }
 
 func toFloat64(v any) (float64, bool) {

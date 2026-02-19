@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/ptrs"
 )
 
 type StartCommand struct {
@@ -44,7 +45,7 @@ func (c *StartCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "string",
 					Description: "Engine name",
-					MinLength:   ptrInt(1),
+					MinLength:   ptrs.Int(1),
 				},
 			},
 			"config": {
@@ -192,7 +193,7 @@ func (c *StopCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "string",
 					Description: "Engine name",
-					MinLength:   ptrInt(1),
+					MinLength:   ptrs.Int(1),
 				},
 			},
 			"force": {
@@ -342,7 +343,7 @@ func (c *RestartCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "string",
 					Description: "Engine name",
-					MinLength:   ptrInt(1),
+					MinLength:   ptrs.Int(1),
 				},
 			},
 		},
@@ -606,8 +607,4 @@ func toInt(v any) (int, bool) {
 	default:
 		return 0, false
 	}
-}
-
-func ptrInt(v int) *int {
-	return &v
 }

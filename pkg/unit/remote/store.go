@@ -150,11 +150,3 @@ func toInt(v any) (int, bool) {
 		return 0, false
 	}
 }
-
-func ptrInt(v int) *int {
-	return &v
-}
-
-func ptrFloat(v float64) *float64 {
-	return &v
-}

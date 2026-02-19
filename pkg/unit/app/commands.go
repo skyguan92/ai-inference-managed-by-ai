@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/ptrs"
 )
 
 type InstallCommand struct {
@@ -43,7 +44,7 @@ func (c *InstallCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "string",
 					Description: "Template ID to install from",
-					MinLength:   ptrInt(1),
+					MinLength:   ptrs.Int(1),
 				},
 			},
 			"name": {
@@ -188,7 +189,7 @@ func (c *UninstallCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "string",
 					Description: "Application ID to uninstall",
-					MinLength:   ptrInt(1),
+					MinLength:   ptrs.Int(1),
 				},
 			},
 			"remove_data": {
@@ -318,7 +319,7 @@ func (c *StartCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "string",
 					Description: "Application ID to start",
-					MinLength:   ptrInt(1),
+					MinLength:   ptrs.Int(1),
 				},
 			},
 		},
@@ -437,7 +438,7 @@ func (c *StopCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "string",
 					Description: "Application ID to stop",
-					MinLength:   ptrInt(1),
+					MinLength:   ptrs.Int(1),
 				},
 			},
 			"timeout": {
@@ -553,8 +554,4 @@ func toInt(v any) (int, bool) {
 	default:
 		return 0, false
 	}
-}
-
-func ptrInt(v int) *int {
-	return &v
 }

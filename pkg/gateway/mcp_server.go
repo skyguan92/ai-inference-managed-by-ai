@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -61,7 +61,7 @@ func (s *MCPServer) Serve(ctx context.Context) error {
 		default:
 			if !scanner.Scan() {
 				if err := scanner.Err(); err != nil {
-					log.Printf("stdin scanner error: %v", err)
+					slog.Error("stdin scanner error", "error", err)
 					return err
 				}
 				return nil
@@ -108,7 +108,7 @@ func (s *MCPServer) writeResponse(resp *MCPResponse) {
 
 	data, err := json.Marshal(resp)
 	if err != nil {
-		log.Printf("failed to marshal response: %v", err)
+		slog.Error("failed to marshal response", "error", err)
 		return
 	}
 

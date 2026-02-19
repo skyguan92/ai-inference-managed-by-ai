@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -479,7 +480,7 @@ func (p *Provider) ImportLocal(ctx context.Context, path string, autoDetect bool
 		return nil, ctx.Err()
 	case <-time.After(10 * time.Second):
 		// Timeout - use approximate size
-		fmt.Printf("Warning: size calculation timeout for %s, using approximate size\n", path)
+		slog.Warn("size calculation timeout, using approximate size", "path", path)
 		if fileInfo.IsDir() {
 			size = 0 // Unknown for directories
 		} else {

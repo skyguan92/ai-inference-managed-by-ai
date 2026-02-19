@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
+\t"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/ptrs"
 )
 
 type ListRulesQuery struct {
@@ -173,8 +174,8 @@ func (q *HistoryQuery) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "number",
 					Description: "Maximum number of results",
-					Min:         ptrFloat(1),
-					Max:         ptrFloat(1000),
+					Min:         ptrs.Float64(1),
+					Max:         ptrs.Float64(1000),
 				},
 			},
 		},

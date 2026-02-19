@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/ptrs"
 )
 
 type CreateCommand struct {
@@ -43,7 +44,7 @@ func (c *CreateCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "string",
 					Description: "Model ID to deploy",
-					MinLength:   ptrInt(1),
+					MinLength:   ptrs.Int(1),
 				},
 			},
 			"resource_class": {
@@ -60,8 +61,8 @@ func (c *CreateCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "number",
 					Description: "Number of replicas",
-					Min:         ptrFloat(1),
-					Max:         ptrFloat(100),
+					Min:         ptrs.Float64(1),
+					Max:         ptrs.Float64(100),
 					Default:     1,
 				},
 			},
@@ -208,7 +209,7 @@ func (c *DeleteCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "string",
 					Description: "Service ID to delete",
-					MinLength:   ptrInt(1),
+					MinLength:   ptrs.Int(1),
 				},
 			},
 		},
@@ -307,7 +308,7 @@ func (c *ScaleCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "string",
 					Description: "Service ID to scale",
-					MinLength:   ptrInt(1),
+					MinLength:   ptrs.Int(1),
 				},
 			},
 			"replicas": {
@@ -315,8 +316,8 @@ func (c *ScaleCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "number",
 					Description: "Target number of replicas",
-					Min:         ptrFloat(0),
-					Max:         ptrFloat(100),
+					Min:         ptrs.Float64(0),
+					Max:         ptrs.Float64(100),
 				},
 			},
 		},
@@ -436,7 +437,7 @@ func (c *StartCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "string",
 					Description: "Service ID to start",
-					MinLength:   ptrInt(1),
+					MinLength:   ptrs.Int(1),
 				},
 			},
 		},
@@ -570,7 +571,7 @@ func (c *StopCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "string",
 					Description: "Service ID to stop",
-					MinLength:   ptrInt(1),
+					MinLength:   ptrs.Int(1),
 				},
 			},
 			"force": {

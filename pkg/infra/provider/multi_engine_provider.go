@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/provider/vllm"
@@ -84,56 +85,74 @@ func (p *MultiEngineProvider) Create(ctx context.Context, modelID string, resour
 	}
 }
 
-// Start starts the service using the appropriate engine
+// Start starts the service using the appropriate engine.
+// It tries each registered provider in order and returns the first success.
+// All provider errors are collected and joined so callers get a full picture
+// of what was attempted.
 func (p *MultiEngineProvider) Start(ctx context.Context, serviceID string) error {
-	// Try vLLM first
-	err := p.vllmProvider.Start(ctx, serviceID)
-	if err == nil {
+	var errs []string
+
+	// vLLM — primary provider for LLM/VLM workloads.
+	if err := p.vllmProvider.Start(ctx, serviceID); err == nil {
 		return nil
+	} else {
+		errs = append(errs, fmt.Sprintf("vllm: %v", err))
 	}
 
-	// TODO: Try other providers
+	// Additional providers can be inserted here as they are implemented.
+	// Example:
+	//   if err := p.asrProvider.Start(ctx, serviceID); err == nil { return nil }
+	//   errs = append(errs, fmt.Sprintf("asr: %v", err))
 
-	return fmt.Errorf("no provider could start service %s: %w", serviceID, err)
+	return fmt.Errorf("no provider could start service %s: [%s]", serviceID, strings.Join(errs, "; "))
 }
 
-// Stop stops the service using the appropriate engine
+// Stop stops the service using the appropriate engine.
+// It tries each registered provider in order and returns the first success.
 func (p *MultiEngineProvider) Stop(ctx context.Context, serviceID string, force bool) error {
-	// Try vLLM first
-	err := p.vllmProvider.Stop(ctx, serviceID, force)
-	if err == nil {
+	var errs []string
+
+	if err := p.vllmProvider.Stop(ctx, serviceID, force); err == nil {
 		return nil
+	} else {
+		errs = append(errs, fmt.Sprintf("vllm: %v", err))
 	}
 
-	// TODO: Try other providers
+	// Additional providers can be inserted here as they are implemented.
 
-	return fmt.Errorf("no provider could stop service %s: %w", serviceID, err)
+	return fmt.Errorf("no provider could stop service %s: [%s]", serviceID, strings.Join(errs, "; "))
 }
 
-// Scale scales the service
+// Scale scales the service using the appropriate engine.
+// It tries each registered provider in order and returns the first success.
 func (p *MultiEngineProvider) Scale(ctx context.Context, serviceID string, replicas int) error {
-	// Try vLLM first
-	err := p.vllmProvider.Scale(ctx, serviceID, replicas)
-	if err == nil {
+	var errs []string
+
+	if err := p.vllmProvider.Scale(ctx, serviceID, replicas); err == nil {
 		return nil
+	} else {
+		errs = append(errs, fmt.Sprintf("vllm: %v", err))
 	}
 
-	// TODO: Try other providers
+	// Additional providers can be inserted here as they are implemented.
 
-	return fmt.Errorf("no provider could scale service %s: %w", serviceID, err)
+	return fmt.Errorf("no provider could scale service %s: [%s]", serviceID, strings.Join(errs, "; "))
 }
 
-// GetMetrics returns service metrics
+// GetMetrics returns service metrics from the appropriate engine.
+// It tries each registered provider in order and returns the first success.
 func (p *MultiEngineProvider) GetMetrics(ctx context.Context, serviceID string) (*service.ServiceMetrics, error) {
-	// Try vLLM first
-	metrics, err := p.vllmProvider.GetMetrics(ctx, serviceID)
-	if err == nil {
+	var errs []string
+
+	if metrics, err := p.vllmProvider.GetMetrics(ctx, serviceID); err == nil {
 		return metrics, nil
+	} else {
+		errs = append(errs, fmt.Sprintf("vllm: %v", err))
 	}
 
-	// TODO: Try other providers
+	// Additional providers can be inserted here as they are implemented.
 
-	return nil, fmt.Errorf("no provider could get metrics for service %s: %w", serviceID, err)
+	return nil, fmt.Errorf("no provider could get metrics for service %s: [%s]", serviceID, strings.Join(errs, "; "))
 }
 
 // GetRecommendation provides resource recommendations including engine and device type

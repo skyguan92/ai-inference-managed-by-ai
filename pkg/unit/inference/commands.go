@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
+\t"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/ptrs"
 )
 
 type ChatCommand struct {
@@ -62,8 +63,8 @@ func (c *ChatCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "number",
 					Description: "Sampling temperature (0-2)",
-					Min:         ptrFloat(0),
-					Max:         ptrFloat(2),
+					Min:         ptrs.Float64(0),
+					Max:         ptrs.Float64(2),
 				},
 			},
 			"max_tokens": {
@@ -71,7 +72,7 @@ func (c *ChatCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "number",
 					Description: "Maximum tokens to generate",
-					Min:         ptrFloat(1),
+					Min:         ptrs.Float64(1),
 				},
 			},
 			"top_p": {
@@ -79,8 +80,8 @@ func (c *ChatCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "number",
 					Description: "Nucleus sampling parameter",
-					Min:         ptrFloat(0),
-					Max:         ptrFloat(1),
+					Min:         ptrs.Float64(0),
+					Max:         ptrs.Float64(1),
 				},
 			},
 			"top_k": {
@@ -88,7 +89,7 @@ func (c *ChatCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "number",
 					Description: "Top-k sampling parameter",
-					Min:         ptrFloat(1),
+					Min:         ptrs.Float64(1),
 				},
 			},
 			"frequency_penalty": {
@@ -96,8 +97,8 @@ func (c *ChatCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "number",
 					Description: "Frequency penalty (-2 to 2)",
-					Min:         ptrFloat(-2),
-					Max:         ptrFloat(2),
+					Min:         ptrs.Float64(-2),
+					Max:         ptrs.Float64(2),
 				},
 			},
 			"presence_penalty": {
@@ -105,8 +106,8 @@ func (c *ChatCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "number",
 					Description: "Presence penalty (-2 to 2)",
-					Min:         ptrFloat(-2),
-					Max:         ptrFloat(2),
+					Min:         ptrs.Float64(-2),
+					Max:         ptrs.Float64(2),
 				},
 			},
 			"stop": {
@@ -423,8 +424,8 @@ func (c *CompleteCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "number",
 					Description: "Sampling temperature",
-					Min:         ptrFloat(0),
-					Max:         ptrFloat(2),
+					Min:         ptrs.Float64(0),
+					Max:         ptrs.Float64(2),
 				},
 			},
 			"max_tokens": {
@@ -1701,10 +1702,6 @@ func (c *DetectCommand) Execute(ctx context.Context, input any) (any, error) {
 	output := map[string]any{"detections": detections}
 	ec.PublishCompleted(output)
 	return output, nil
-}
-
-func ptrFloat(v float64) *float64 {
-	return &v
 }
 
 func toFloat64(v any) (float64, bool) {

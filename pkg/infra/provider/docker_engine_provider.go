@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"time"
 
@@ -34,11 +35,10 @@ func NewDockerEngineProvider() (*DockerEngineProvider, error) {
 func (p *DockerEngineProvider) Install(ctx context.Context, name string, version string) (*engine.InstallResult, error) {
 	image := p.getImageForEngine(name, version)
 	
-	fmt.Printf("Pulling Docker image for %s: %s...\n", name, image)
+	slog.Info("pulling Docker image", "engine", name, "image", image)
 	if err := p.client.PullImage(ctx, image); err != nil {
 		// Image might not exist or network issue, try to continue
-		fmt.Printf("Warning: failed to pull image %s: %v\n", image, err)
-		fmt.Println("Will try to use existing image or build locally.")
+		slog.Warn("failed to pull image, will try existing image or build locally", "image", image, "error", err)
 	}
 
 	return &engine.InstallResult{
@@ -96,10 +96,7 @@ func (p *DockerEngineProvider) Start(ctx context.Context, name string, config ma
 	// Create unique container name
 	containerName := fmt.Sprintf("aima-%s-%d", name, time.Now().Unix())
 	
-	fmt.Printf("Starting %s engine in Docker container...\n", name)
-	fmt.Printf("Image: %s\n", image)
-	fmt.Printf("Port: %d\n", port)
-	fmt.Printf("GPU: %v\n", useGPU)
+	slog.Info("starting engine in Docker container", "engine", name, "image", image, "port", port, "gpu", useGPU)
 
 	containerID, err := p.client.CreateAndStartContainer(ctx, containerName, image, opts)
 	if err != nil {
@@ -109,12 +106,11 @@ func (p *DockerEngineProvider) Start(ctx context.Context, name string, config ma
 	// Store container ID
 	p.containers[name] = containerID
 
-	fmt.Printf("Container started: %s\n", containerID[:12])
-	fmt.Println("Waiting for service to be ready...")
+	slog.Info("container started, waiting for service to be ready", "container_id", containerID[:12])
 
 	// Wait for service to be ready
 	if err := p.waitForReady(ctx, containerID, name, port); err != nil {
-		fmt.Printf("Warning: service may not be fully ready: %v\n", err)
+		slog.Warn("service may not be fully ready", "error", err)
 	}
 
 	return &engine.StartResult{
@@ -135,7 +131,7 @@ func (p *DockerEngineProvider) Stop(ctx context.Context, name string, force bool
 		containerID = containers[0]
 	}
 
-	fmt.Printf("Stopping %s engine (container: %s)...\n", name, containerID[:12])
+	slog.Info("stopping engine", "engine", name, "container_id", containerID[:12])
 
 	if force {
 		// For force stop, we kill and remove immediately
@@ -147,7 +143,7 @@ func (p *DockerEngineProvider) Stop(ctx context.Context, name string, force bool
 	}
 
 	delete(p.containers, name)
-	fmt.Printf("Engine %s stopped.\n", name)
+	slog.Info("engine stopped", "engine", name)
 	
 	return &engine.StopResult{Success: true}, nil
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
+\t"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/ptrs"
 )
 
 type StatusQuery struct {
@@ -444,7 +445,7 @@ func (q *CanAllocateQuery) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "number",
 					Description: "Memory bytes to allocate",
-					Min:         ptrFloat(0),
+					Min:         ptrs.Float64(0),
 				},
 			},
 			"priority": {
@@ -452,7 +453,7 @@ func (q *CanAllocateQuery) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "number",
 					Description: "Priority level (optional)",
-					Min:         ptrFloat(0),
+					Min:         ptrs.Float64(0),
 				},
 			},
 		},

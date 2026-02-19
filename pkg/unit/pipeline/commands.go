@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
+\t"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/ptrs"
 )
 
 type CreateCommand struct {
@@ -43,7 +44,7 @@ func (c *CreateCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "string",
 					Description: "Pipeline name",
-					MinLength:   ptrInt(1),
+					MinLength:   ptrs.Int(1),
 				},
 			},
 			"steps": {
@@ -226,7 +227,7 @@ func (c *DeleteCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "string",
 					Description: "Pipeline ID to delete",
-					MinLength:   ptrInt(1),
+					MinLength:   ptrs.Int(1),
 				},
 			},
 		},
@@ -336,7 +337,7 @@ func (c *RunCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "string",
 					Description: "Pipeline ID to run",
-					MinLength:   ptrInt(1),
+					MinLength:   ptrs.Int(1),
 				},
 			},
 			"input": {
@@ -493,7 +494,7 @@ func (c *CancelCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "string",
 					Description: "Run ID to cancel",
-					MinLength:   ptrInt(1),
+					MinLength:   ptrs.Int(1),
 				},
 			},
 		},

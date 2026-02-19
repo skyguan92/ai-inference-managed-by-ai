@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -84,7 +84,7 @@ func runStart(ctx context.Context, root *RootCommand, addr string, port int, tls
 
 	errCh := make(chan error, 1)
 	go func() {
-		log.Printf("AIMA server starting on %s", listenAddr)
+		slog.Info("AIMA server starting", "addr", listenAddr)
 
 		var err error
 		if cert != "" && key != "" {
@@ -103,11 +103,11 @@ func runStart(ctx context.Context, root *RootCommand, addr string, port int, tls
 
 	select {
 	case <-ctx.Done():
-		log.Println("Context cancelled, shutting down...")
+		slog.Info("context cancelled, shutting down")
 	case err := <-errCh:
 		return fmt.Errorf("server error: %w", err)
 	case sig := <-quit:
-		log.Printf("Received signal %v, shutting down gracefully...", sig)
+		slog.Info("received signal, shutting down gracefully", "signal", sig)
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -117,7 +117,7 @@ func runStart(ctx context.Context, root *RootCommand, addr string, port int, tls
 		return fmt.Errorf("server shutdown: %w", err)
 	}
 
-	log.Println("AIMA server stopped")
+	slog.Info("AIMA server stopped")
 	return nil
 }
 

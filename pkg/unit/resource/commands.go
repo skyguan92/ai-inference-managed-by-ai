@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
+\t"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/ptrs"
 )
 
 type AllocateCommand struct {
@@ -58,7 +59,7 @@ func (c *AllocateCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "number",
 					Description: "Memory to allocate in bytes",
-					Min:         ptrFloat(0),
+					Min:         ptrs.Float64(0),
 				},
 			},
 			"gpu_fraction": {
@@ -66,8 +67,8 @@ func (c *AllocateCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "number",
 					Description: "Fraction of GPU to allocate (0.0-1.0)",
-					Min:         ptrFloat(0),
-					Max:         ptrFloat(1),
+					Min:         ptrs.Float64(0),
+					Max:         ptrs.Float64(1),
 				},
 			},
 			"priority": {
@@ -75,8 +76,8 @@ func (c *AllocateCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "number",
 					Description: "Priority level (higher = more important)",
-					Min:         ptrFloat(0),
-					Max:         ptrFloat(100),
+					Min:         ptrs.Float64(0),
+					Max:         ptrs.Float64(100),
 				},
 			},
 		},
@@ -330,7 +331,7 @@ func (c *UpdateSlotCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "number",
 					Description: "New memory limit in bytes",
-					Min:         ptrFloat(0),
+					Min:         ptrs.Float64(0),
 				},
 			},
 			"status": {
@@ -420,10 +421,6 @@ func (c *UpdateSlotCommand) Execute(ctx context.Context, input any) (any, error)
 	output := map[string]any{"success": true}
 	ec.PublishCompleted(output)
 	return output, nil
-}
-
-func ptrFloat(v float64) *float64 {
-	return &v
 }
 
 func toFloat64(v any) (float64, bool) {

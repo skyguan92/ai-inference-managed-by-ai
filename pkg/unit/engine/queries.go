@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/ptrs"
 )
 
 type GetQuery struct {
@@ -179,8 +180,8 @@ func (q *ListQuery) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "number",
 					Description: "Maximum number of results",
-					Min:         ptrFloat(1),
-					Max:         ptrFloat(100),
+					Min:         ptrs.Float64(1),
+					Max:         ptrs.Float64(100),
 				},
 			},
 			"offset": {
@@ -188,7 +189,7 @@ func (q *ListQuery) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "number",
 					Description: "Offset for pagination",
-					Min:         ptrFloat(0),
+					Min:         ptrs.Float64(0),
 				},
 			},
 		},
@@ -409,8 +410,4 @@ func (q *FeaturesQuery) Execute(ctx context.Context, input any) (any, error) {
 	}
 	ec.PublishCompleted(output)
 	return output, nil
-}
-
-func ptrFloat(v float64) *float64 {
-	return &v
 }

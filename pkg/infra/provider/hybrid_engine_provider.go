@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -166,12 +167,12 @@ func (p *HybridEngineProvider) Install(ctx context.Context, name string, version
 	if err := docker.CheckDocker(); err == nil {
 		// Get list of candidate images
 		candidates := p.getDockerImages(name, version)
-		fmt.Printf("Checking Docker images for %s...\n", name)
+		slog.Info("checking Docker images", "engine", name)
 
 		// Check all candidates for local availability
 		for _, image := range candidates {
 			if p.imageExists(image) {
-				fmt.Printf("✓ Docker image already exists: %s\n", image)
+				slog.Info("Docker image already exists", "image", image)
 				return &engine.InstallResult{
 					Success: true,
 					Path:    image,
@@ -181,27 +182,26 @@ func (p *HybridEngineProvider) Install(ctx context.Context, name string, version
 
 		// No local image found, try to pull the first candidate
 		image := candidates[0]
-		fmt.Printf("⚠ No local image found. Pulling: %s...\n", image)
+		slog.Warn("no local image found, pulling", "image", image)
 		pullCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 		defer cancel()
 
 		if err := p.dockerClient.PullImage(pullCtx, image); err != nil {
-			fmt.Printf("⚠ Failed to pull image: %v\n", err)
-			fmt.Println("Will try to use existing image or native mode.")
+			slog.Warn("failed to pull image, will try existing image or native mode", "image", image, "error", err)
 		} else {
-			fmt.Printf("✓ Docker image pulled successfully\n")
+			slog.Info("Docker image pulled successfully", "image", image)
 			return &engine.InstallResult{
 				Success: true,
 				Path:    image,
 			}, nil
 		}
 	} else {
-		fmt.Printf("Docker not available: %v\n", err)
+		slog.Debug("Docker not available", "error", err)
 	}
 
 	// Fall back to native mode
 	if p.checkNativeBinary(name) {
-		fmt.Printf("✓ Native binary available for %s\n", name)
+		slog.Info("native binary available", "engine", name)
 		return &engine.InstallResult{
 			Success: true,
 			Path:    name,
@@ -209,8 +209,7 @@ func (p *HybridEngineProvider) Install(ctx context.Context, name string, version
 	}
 
 	// Return success anyway - will try to start with available resources
-	fmt.Printf("⚠ Neither Docker image nor native binary available for %s\n", name)
-	fmt.Println("Will attempt to start with best-effort mode.")
+	slog.Warn("neither Docker image nor native binary available, will attempt best-effort mode", "engine", name)
 	return &engine.InstallResult{
 		Success: true,
 		Path:    name,
@@ -272,7 +271,7 @@ func (p *HybridEngineProvider) Start(ctx context.Context, name string, config ma
 		var lastErr error
 		for attempt := 1; attempt <= startupCfg.MaxRetries; attempt++ {
 			if attempt > 1 {
-				fmt.Printf("Retrying %s start (attempt %d/%d)...\n", name, attempt, startupCfg.MaxRetries)
+				slog.Info("retrying engine start", "engine", name, "attempt", attempt, "max_retries", startupCfg.MaxRetries)
 				time.Sleep(startupCfg.RetryInterval)
 			}
 
@@ -280,21 +279,17 @@ func (p *HybridEngineProvider) Start(ctx context.Context, name string, config ma
 			if err == nil {
 				// In async mode, don't wait for health check
 				if asyncMode {
-					fmt.Printf("⚡ Async mode: Container started, model loading in background\n")
-					fmt.Printf("   Container ID: %s\n", result.ProcessID[:12])
-					fmt.Printf("   Use 'aima service status' to check progress\n")
+					slog.Info("async mode: container started, model loading in background", "container_id", result.ProcessID[:12])
 					return result, nil
 				}
 
 				// Wait for health check
 				if err := p.waitForHealth(ctx, result.ProcessID, port, startupCfg.HealthCheckURL, startupCfg.StartupTimeout); err != nil {
-					fmt.Printf("⚠ Health check failed: %v\n", err)
+					slog.Warn("health check failed", "error", err)
 					// For large models like Qwen3-Omni, don't stop container on health check timeout
 					// The model may still be loading
 					if strings.Contains(modelPath, "Omni") || strings.Contains(modelPath, "omni") {
-						fmt.Printf("⚠ Large model detected, keeping container running despite health check timeout\n")
-						fmt.Printf("   Container ID: %s\n", result.ProcessID[:12])
-						fmt.Printf("   The model is still loading. Check 'docker logs' for progress.\n")
+						slog.Warn("large model detected, keeping container running despite health check timeout", "container_id", result.ProcessID[:12], "model_path", modelPath)
 						// Return success even though health check failed
 						// User can check status manually
 						return result, nil
@@ -306,9 +301,9 @@ func (p *HybridEngineProvider) Start(ctx context.Context, name string, config ma
 				return result, nil
 			}
 			lastErr = err
-			fmt.Printf("⚠ Docker start failed (attempt %d): %v\n", attempt, err)
+			slog.Warn("Docker start failed", "attempt", attempt, "error", err)
 		}
-		fmt.Printf("Docker start failed after %d attempts: %v, trying native mode...\n", startupCfg.MaxRetries, lastErr)
+		slog.Warn("Docker start failed after retries, trying native mode", "attempts", startupCfg.MaxRetries, "error", lastErr)
 	}
 
 	// Fall back to native mode
@@ -364,17 +359,9 @@ func (p *HybridEngineProvider) startDockerWithRetry(ctx context.Context, engineT
 
 	containerName := fmt.Sprintf("aima-%s-%d", engineType, time.Now().Unix())
 
-	fmt.Printf("\n🐳 Starting %s in Docker container...\n", engineType)
-	fmt.Printf("   Image: %s\n", image)
-	fmt.Printf("   Model: %s\n", modelPath)
-	fmt.Printf("   Port: %d\n", port)
-	fmt.Printf("   GPU: %v\n", useGPU)
-	if limits.Memory != "" {
-		fmt.Printf("   Memory Limit: %s\n", limits.Memory)
-	}
-	if limits.CPU > 0 {
-		fmt.Printf("   CPU Limit: %.1f cores\n", limits.CPU)
-	}
+	slog.Info("starting engine in Docker container",
+		"engine", engineType, "image", image, "model_path", modelPath,
+		"port", port, "gpu", useGPU, "memory_limit", limits.Memory, "cpu_limit", limits.CPU)
 
 	containerID, err := p.dockerClient.CreateAndStartContainer(ctx, containerName, image, opts)
 	if err != nil {
@@ -385,8 +372,7 @@ func (p *HybridEngineProvider) startDockerWithRetry(ctx context.Context, engineT
 	p.containers[engineType] = containerID
 	p.mu.Unlock()
 
-	fmt.Printf("✓ Container started: %s\n", containerID[:12])
-	fmt.Printf("   Endpoint: http://localhost:%d\n", port)
+	slog.Info("container started", "container_id", containerID[:12], "endpoint", fmt.Sprintf("http://localhost:%d", port))
 
 	return &engine.StartResult{
 		ProcessID: containerID,
@@ -401,7 +387,7 @@ func (p *HybridEngineProvider) waitForHealth(ctx context.Context, containerID st
 	}
 
 	endpoint := fmt.Sprintf("http://localhost:%d%s", port, healthPath)
-	fmt.Printf("⏳ Waiting for health check: %s (timeout: %v)\n", endpoint, timeout)
+	slog.Info("waiting for health check", "endpoint", endpoint, "timeout", timeout)
 
 	deadline := time.Now().Add(timeout)
 	checkInterval := 2 * time.Second
@@ -420,7 +406,7 @@ func (p *HybridEngineProvider) waitForHealth(ctx context.Context, containerID st
 			func() {
 				defer resp.Body.Close()
 				if resp.StatusCode == http.StatusOK {
-					fmt.Printf("✓ Health check passed!\n")
+					slog.Info("health check passed", "endpoint", endpoint)
 				}
 			}()
 			if resp.StatusCode == http.StatusOK {
@@ -442,7 +428,7 @@ func (p *HybridEngineProvider) waitForHealth(ctx context.Context, containerID st
 
 // startNative starts engine as native process
 func (p *HybridEngineProvider) startNative(ctx context.Context, engineType, modelPath string, port int, useGPU bool, config map[string]any) (*engine.StartResult, error) {
-	fmt.Printf("\n⚙️  Starting %s as native process...\n", engineType)
+	slog.Info("starting engine as native process", "engine", engineType)
 
 	// Check if vllm is available in PATH
 	if _, err := exec.LookPath("vllm"); err != nil {
@@ -472,7 +458,7 @@ func (p *HybridEngineProvider) startNative(ctx context.Context, engineType, mode
 		cmd.Env = append(cmd.Env, "CUDA_VISIBLE_DEVICES=")
 	}
 
-	fmt.Printf("   Command: vllm %s\n", strings.Join(args, " "))
+	slog.Debug("native process command", "command", "vllm "+strings.Join(args, " "))
 
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start vllm: %w", err)
@@ -485,15 +471,14 @@ func (p *HybridEngineProvider) startNative(ctx context.Context, engineType, mode
 	// Start goroutine to wait for process and clean up
 	go func() {
 		if err := cmd.Wait(); err != nil {
-			fmt.Printf("Process %s exited with error: %v\n", engineType, err)
+			slog.Error("native process exited with error", "engine", engineType, "error", err)
 		}
 		p.mu.Lock()
 		delete(p.nativeProcesses, engineType)
 		p.mu.Unlock()
 	}()
 
-	fmt.Printf("✓ Process started (PID: %d)\n", cmd.Process.Pid)
-	fmt.Printf("   Endpoint: http://localhost:%d\n", port)
+	slog.Info("native process started", "pid", cmd.Process.Pid, "endpoint", fmt.Sprintf("http://localhost:%d", port))
 
 	return &engine.StartResult{
 		ProcessID: strconv.Itoa(cmd.Process.Pid),
@@ -508,7 +493,7 @@ func (p *HybridEngineProvider) Stop(ctx context.Context, name string, force bool
 	containerID, exists := p.containers[name]
 	p.mu.RUnlock()
 	if exists {
-		fmt.Printf("Stopping Docker container: %s...\n", containerID[:12])
+		slog.Info("stopping Docker container", "container_id", containerID[:12])
 		if err := p.dockerClient.StopContainer(ctx, containerID, timeout); err != nil {
 			return nil, err
 		}
@@ -523,7 +508,7 @@ func (p *HybridEngineProvider) Stop(ctx context.Context, name string, force bool
 	cmd, exists := p.nativeProcesses[name]
 	p.mu.RUnlock()
 	if exists {
-		fmt.Printf("Stopping native process (PID: %d)...\n", cmd.Process.Pid)
+		slog.Info("stopping native process", "pid", cmd.Process.Pid)
 		if force {
 			cmd.Process.Kill()
 		} else {
@@ -630,13 +615,13 @@ func (p *HybridEngineProvider) getDockerImage(name, version string) string {
 	// Try each candidate in order
 	for _, image := range candidates {
 		if p.imageExists(image) {
-			fmt.Printf("✓ Using local image: %s\n", image)
+			slog.Debug("using local image", "image", image)
 			return image
 		}
 	}
 
 	// Return first candidate (will trigger pull attempt)
-	fmt.Printf("⚠ No local image found, will attempt to pull: %s\n", candidates[0])
+	slog.Warn("no local image found, will attempt to pull", "image", candidates[0])
 	return candidates[0]
 }
 
@@ -856,9 +841,9 @@ func (p *HybridServiceProvider) StartAsync(ctx context.Context, serviceID string
 			}
 
 			if async {
-				fmt.Printf("✓ Engine %s started in async mode (Container: %s)\n", engineType, result.ProcessID[:12])
+				slog.Info("engine started in async mode", "engine", engineType, "container_id", result.ProcessID[:12])
 			} else {
-				fmt.Printf("✓ Engine started: %s (PID: %s)\n", engineType, result.ProcessID)
+				slog.Info("engine started", "engine", engineType, "process_id", result.ProcessID)
 			}
 			return nil
 		}

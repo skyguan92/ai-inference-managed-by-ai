@@ -3,11 +3,13 @@ package model
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
+\t"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/ptrs"
 )
 
 // Domain errors are defined in errors.go
@@ -75,7 +77,7 @@ func (c *CreateCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "string",
 					Description: "Model name",
-					MinLength:   ptrInt(1),
+					MinLength:   ptrs.Int(1),
 				},
 			},
 			"type": {
@@ -182,7 +184,7 @@ func (c *CreateCommand) Execute(ctx context.Context, input any) (any, error) {
 	if c.events != nil {
 		if err := c.events.Publish(NewCreatedEvent(model)); err != nil {
 			// Log error but don't fail the command
-			fmt.Printf("warning: failed to publish model.created event: %v\n", err)
+			slog.Warn("failed to publish model.created event", "error", err)
 		}
 	}
 
@@ -291,7 +293,7 @@ func (c *DeleteCommand) Execute(ctx context.Context, input any) (any, error) {
 	// Publish event if event publisher is set
 	if c.events != nil {
 		if err := c.events.Publish(NewDeletedEvent(modelID, model.Name)); err != nil {
-			fmt.Printf("warning: failed to publish model.deleted event: %v\n", err)
+			slog.Warn("failed to publish model.deleted event", "error", err)
 		}
 	}
 
@@ -739,8 +741,4 @@ func (c *VerifyCommand) Execute(ctx context.Context, input any) (any, error) {
 
 func generateModelID() string {
 	return "model-" + uuid.New().String()[:8]
-}
-
-func ptrInt(v int) *int {
-	return &v
 }

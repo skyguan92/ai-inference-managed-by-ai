@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -80,7 +80,7 @@ func runMCPServe(ctx context.Context, root *RootCommand) error {
 
 	go func() {
 		<-quit
-		log.Println("MCP server shutting down...")
+		slog.Info("MCP server shutting down")
 		server.Shutdown()
 	}()
 
@@ -95,7 +95,7 @@ func runMCPSSE(ctx context.Context, root *RootCommand, addr string) error {
 
 	errCh := make(chan error, 1)
 	go func() {
-		log.Printf("MCP SSE server starting on %s", addr)
+		slog.Info("MCP SSE server starting", "addr", addr)
 		if err := server.Serve(ctx); err != nil {
 			if !errors.Is(err, http.ErrServerClosed) {
 				errCh <- err
@@ -108,11 +108,11 @@ func runMCPSSE(ctx context.Context, root *RootCommand, addr string) error {
 
 	select {
 	case <-ctx.Done():
-		log.Println("Context cancelled, shutting down...")
+		slog.Info("context cancelled, shutting down")
 	case err := <-errCh:
 		return fmt.Errorf("MCP SSE server error: %w", err)
 	case sig := <-quit:
-		log.Printf("Received signal %v, shutting down gracefully...", sig)
+		slog.Info("received signal, shutting down gracefully", "signal", sig)
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

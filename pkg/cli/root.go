@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -101,10 +102,10 @@ func (r *RootCommand) persistentPreRunE(cmd *cobra.Command, args []string) error
 	sqliteStore, err := store.NewSQLiteStore(dbPath)
 	if err != nil {
 		// Fallback to file store if SQLite fails
-		fmt.Fprintf(os.Stderr, "Warning: failed to create SQLite store, trying file store: %v\n", err)
+		slog.Warn("failed to create SQLite store, trying file store", "error", err)
 		fileStore, err := store.NewFileStore(dataDir)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to create file store, using memory store: %v\n", err)
+			slog.Warn("failed to create file store, using memory store", "error", err)
 			modelStore = model.NewMemoryStore()
 			serviceStore = service.NewMemoryStore()
 		} else {
@@ -112,12 +113,12 @@ func (r *RootCommand) persistentPreRunE(cmd *cobra.Command, args []string) error
 			serviceStore = service.NewMemoryStore()
 		}
 	} else {
-		fmt.Println("Using SQLite database for persistent storage")
+		slog.Info("using SQLite database for persistent storage")
 		modelStore = sqliteStore
 		// Create service store using the same database
 		svcStore, err := store.NewServiceSQLiteStore(sqliteStore.DB())
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to create service SQLite store, using memory store: %v\n", err)
+			slog.Warn("failed to create service SQLite store, using memory store", "error", err)
 			serviceStore = service.NewMemoryStore()
 		} else {
 			serviceStore = svcStore
@@ -130,7 +131,7 @@ func (r *RootCommand) persistentPreRunE(cmd *cobra.Command, args []string) error
 	)
 
 	// Create hybrid engine provider (supports Docker + Native modes)
-	fmt.Println("Initializing hybrid engine provider (Docker + Native)...")
+	slog.Info("initializing hybrid engine provider", "mode", "Docker + Native")
 	serviceProvider := provider.NewHybridServiceProvider(modelStore)
 	engineProvider := serviceProvider.GetEngineProvider()
 

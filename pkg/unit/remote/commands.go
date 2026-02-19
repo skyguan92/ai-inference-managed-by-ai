@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/ptrs"
 )
 
 type EnableCommand struct {
@@ -281,7 +282,7 @@ func (c *ExecCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "string",
 					Description: "Command to execute",
-					MinLength:   ptrInt(1),
+					MinLength:   ptrs.Int(1),
 				},
 			},
 			"timeout": {
@@ -289,8 +290,8 @@ func (c *ExecCommand) InputSchema() unit.Schema {
 				Schema: unit.Schema{
 					Type:        "number",
 					Description: "Timeout in seconds",
-					Min:         ptrFloat(1),
-					Max:         ptrFloat(3600),
+					Min:         ptrs.Float64(1),
+					Max:         ptrs.Float64(3600),
 					Default:     30,
 				},
 			},
