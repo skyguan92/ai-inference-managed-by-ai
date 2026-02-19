@@ -89,7 +89,7 @@ func (a *HTTPAdapter) writeResponse(w http.ResponseWriter, resp *Response) {
 	}
 
 	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 func errorToStatusCode(err *ErrorInfo) int {
@@ -130,7 +130,7 @@ func writeJSONError(w http.ResponseWriter, statusCode int, code string, message 
 			RequestID: requestID,
 		},
 	}
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 func generateRequestIDSimple() string {

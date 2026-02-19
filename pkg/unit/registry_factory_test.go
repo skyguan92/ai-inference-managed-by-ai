@@ -1,7 +1,6 @@
 package unit
 
 import (
-	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -171,4 +170,3 @@ func TestGetResourceWithFactory_MultipleFactories(t *testing.T) {
 
 // Ensure regTestResource from registry_test.go is accessible
 var _ Resource = (*regTestResource)(nil)
-var _ context.Context = context.Background()

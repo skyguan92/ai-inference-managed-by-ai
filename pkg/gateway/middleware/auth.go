@@ -234,5 +234,5 @@ func writeAuthError(w http.ResponseWriter, message string) {
 			"message": message,
 		},
 	}
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }

@@ -147,7 +147,7 @@ func handleExecute(gw *gateway.Gateway) http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}
 }
 
@@ -155,7 +155,7 @@ func handleHealth(gw *gateway.Gateway) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"status":    "healthy",
 			"timestamp": time.Now().UTC().Format(time.RFC3339),
 			"version":   cliVersion,
@@ -166,7 +166,7 @@ func handleHealth(gw *gateway.Gateway) http.HandlerFunc {
 func writeJSONError(w http.ResponseWriter, statusCode int, code, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(map[string]any{
+	_ = json.NewEncoder(w).Encode(map[string]any{
 		"success": false,
 		"error": map[string]any{
 			"code":    code,
@@ -211,59 +211,56 @@ func handlePrometheusMetrics(rm *metrics.RequestMetrics, sc metrics.Collector) h
 		// --- HTTP request metrics ---
 		snap := rm.Snapshot()
 
-		writeMetric(&sb, "# HELP aima_http_requests_total Total number of HTTP requests processed.\n")
-		writeMetric(&sb, "# TYPE aima_http_requests_total counter\n")
+		sb.WriteString("# HELP aima_http_requests_total Total number of HTTP requests processed.\n")
+		sb.WriteString("# TYPE aima_http_requests_total counter\n")
 		fmt.Fprintf(&sb, "aima_http_requests_total %d\n", snap.TotalRequests)
 
-		writeMetric(&sb, "# HELP aima_http_errors_total Total number of HTTP requests that resulted in a 5xx error.\n")
-		writeMetric(&sb, "# TYPE aima_http_errors_total counter\n")
+		sb.WriteString("# HELP aima_http_errors_total Total number of HTTP requests that resulted in a 5xx error.\n")
+		sb.WriteString("# TYPE aima_http_errors_total counter\n")
 		fmt.Fprintf(&sb, "aima_http_errors_total %d\n", snap.TotalErrors)
 
-		writeMetric(&sb, "# HELP aima_http_request_duration_avg_ms Average HTTP request latency in milliseconds.\n")
-		writeMetric(&sb, "# TYPE aima_http_request_duration_avg_ms gauge\n")
-		fmt.Fprintf(&sb, "aima_http_request_duration_avg_ms %.3f\n", snap.AvgLatencyMs)
-
-		writeMetric(&sb, "# HELP aima_http_error_rate Ratio of errored requests to total requests (0–1).\n")
-		writeMetric(&sb, "# TYPE aima_http_error_rate gauge\n")
-		fmt.Fprintf(&sb, "aima_http_error_rate %.6f\n", snap.ErrorRate)
+		// Expose the accumulated duration sum so Prometheus can compute rates and averages.
+		sb.WriteString("# HELP aima_http_request_duration_ms_sum Total accumulated HTTP request latency in milliseconds.\n")
+		sb.WriteString("# TYPE aima_http_request_duration_ms_sum counter\n")
+		fmt.Fprintf(&sb, "aima_http_request_duration_ms_sum %d\n", snap.TotalLatencyMs)
 
 		// --- System metrics (best-effort; available on Linux and Windows) ---
 		sysMetrics, err := sc.Collect(r.Context())
 		if err == nil {
-			writeMetric(&sb, "# HELP aima_system_cpu_usage_percent Current CPU usage percentage (0–100).\n")
-			writeMetric(&sb, "# TYPE aima_system_cpu_usage_percent gauge\n")
+			sb.WriteString("# HELP aima_system_cpu_usage_percent Current CPU usage percentage (0–100).\n")
+			sb.WriteString("# TYPE aima_system_cpu_usage_percent gauge\n")
 			fmt.Fprintf(&sb, "aima_system_cpu_usage_percent %.3f\n", sysMetrics.CPU)
 
-			writeMetric(&sb, "# HELP aima_system_memory_used_bytes Memory used in bytes.\n")
-			writeMetric(&sb, "# TYPE aima_system_memory_used_bytes gauge\n")
+			sb.WriteString("# HELP aima_system_memory_used_bytes Memory used in bytes.\n")
+			sb.WriteString("# TYPE aima_system_memory_used_bytes gauge\n")
 			fmt.Fprintf(&sb, "aima_system_memory_used_bytes %d\n", sysMetrics.Memory.Used)
 
-			writeMetric(&sb, "# HELP aima_system_memory_total_bytes Total memory in bytes.\n")
-			writeMetric(&sb, "# TYPE aima_system_memory_total_bytes gauge\n")
+			sb.WriteString("# HELP aima_system_memory_total_bytes Total memory in bytes.\n")
+			sb.WriteString("# TYPE aima_system_memory_total_bytes gauge\n")
 			fmt.Fprintf(&sb, "aima_system_memory_total_bytes %d\n", sysMetrics.Memory.Total)
 
-			writeMetric(&sb, "# HELP aima_system_memory_usage_percent Memory usage percentage (0–100).\n")
-			writeMetric(&sb, "# TYPE aima_system_memory_usage_percent gauge\n")
+			sb.WriteString("# HELP aima_system_memory_usage_percent Memory usage percentage (0–100).\n")
+			sb.WriteString("# TYPE aima_system_memory_usage_percent gauge\n")
 			fmt.Fprintf(&sb, "aima_system_memory_usage_percent %.3f\n", sysMetrics.Memory.Percent)
 
-			writeMetric(&sb, "# HELP aima_system_disk_used_bytes Disk space used in bytes.\n")
-			writeMetric(&sb, "# TYPE aima_system_disk_used_bytes gauge\n")
+			sb.WriteString("# HELP aima_system_disk_used_bytes Disk space used in bytes.\n")
+			sb.WriteString("# TYPE aima_system_disk_used_bytes gauge\n")
 			fmt.Fprintf(&sb, "aima_system_disk_used_bytes %d\n", sysMetrics.Disk.Used)
 
-			writeMetric(&sb, "# HELP aima_system_disk_total_bytes Total disk space in bytes.\n")
-			writeMetric(&sb, "# TYPE aima_system_disk_total_bytes gauge\n")
+			sb.WriteString("# HELP aima_system_disk_total_bytes Total disk space in bytes.\n")
+			sb.WriteString("# TYPE aima_system_disk_total_bytes gauge\n")
 			fmt.Fprintf(&sb, "aima_system_disk_total_bytes %d\n", sysMetrics.Disk.Total)
 
-			writeMetric(&sb, "# HELP aima_system_disk_usage_percent Disk usage percentage (0–100).\n")
-			writeMetric(&sb, "# TYPE aima_system_disk_usage_percent gauge\n")
+			sb.WriteString("# HELP aima_system_disk_usage_percent Disk usage percentage (0–100).\n")
+			sb.WriteString("# TYPE aima_system_disk_usage_percent gauge\n")
 			fmt.Fprintf(&sb, "aima_system_disk_usage_percent %.3f\n", sysMetrics.Disk.Percent)
 
-			writeMetric(&sb, "# HELP aima_system_network_bytes_sent_total Total bytes sent over the network.\n")
-			writeMetric(&sb, "# TYPE aima_system_network_bytes_sent_total counter\n")
+			sb.WriteString("# HELP aima_system_network_bytes_sent_total Total bytes sent over the network.\n")
+			sb.WriteString("# TYPE aima_system_network_bytes_sent_total counter\n")
 			fmt.Fprintf(&sb, "aima_system_network_bytes_sent_total %d\n", sysMetrics.Network.BytesSent)
 
-			writeMetric(&sb, "# HELP aima_system_network_bytes_recv_total Total bytes received over the network.\n")
-			writeMetric(&sb, "# TYPE aima_system_network_bytes_recv_total counter\n")
+			sb.WriteString("# HELP aima_system_network_bytes_recv_total Total bytes received over the network.\n")
+			sb.WriteString("# TYPE aima_system_network_bytes_recv_total counter\n")
 			fmt.Fprintf(&sb, "aima_system_network_bytes_recv_total %d\n", sysMetrics.Network.BytesRecv)
 		} else {
 			slog.Debug("system metrics unavailable", "error", err)
@@ -275,6 +272,3 @@ func handlePrometheusMetrics(rm *metrics.RequestMetrics, sc metrics.Collector) h
 	}
 }
 
-func writeMetric(sb *strings.Builder, s string) {
-	sb.WriteString(s)
-}

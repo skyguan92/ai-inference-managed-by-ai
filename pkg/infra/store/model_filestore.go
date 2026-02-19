@@ -89,7 +89,9 @@ func (s *FileStore) Get(ctx context.Context, id string) (*model.Model, error) {
 		return nil, model.ErrModelNotFound
 	}
 
-	return m, nil
+	// Return a copy to prevent callers from mutating the internal map entry.
+	copy := *m
+	return &copy, nil
 }
 
 // List implements ModelStore.List

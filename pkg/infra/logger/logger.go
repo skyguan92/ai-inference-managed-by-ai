@@ -24,6 +24,7 @@ const (
 var (
 	defaultLogger *slog.Logger
 	once          sync.Once
+	mu            sync.RWMutex
 )
 
 // Config holds logger configuration.
@@ -42,14 +43,18 @@ type Config struct {
 // It is safe to call multiple times; only the first call takes effect.
 // Use Reset() followed by Init() to reconfigure.
 func Init(cfg Config) {
+	mu.Lock()
+	defer mu.Unlock()
 	once.Do(func() {
 		initLogger(cfg)
 	})
 }
 
 // Reset resets the default logger so Init can be called again.
-// This is primarily for testing.
+// This is primarily for testing. It is safe to call concurrently.
 func Reset() {
+	mu.Lock()
+	defer mu.Unlock()
 	once = sync.Once{}
 	defaultLogger = nil
 }
@@ -95,10 +100,13 @@ func parseLevel(s string) slog.Level {
 // Default returns the default logger instance.
 // If Init() has not been called, returns a basic text logger on stderr.
 func Default() *slog.Logger {
-	if defaultLogger == nil {
+	mu.RLock()
+	l := defaultLogger
+	mu.RUnlock()
+	if l == nil {
 		return slog.Default()
 	}
-	return defaultLogger
+	return l
 }
 
 // WithContext returns a logger enriched with context values

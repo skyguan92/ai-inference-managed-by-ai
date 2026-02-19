@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
@@ -121,7 +120,6 @@ func (r *ModelResource) Watch(ctx context.Context) (<-chan unit.ResourceUpdate, 
 		defer ticker.Stop()
 
 		var lastStatus ModelStatus
-		var mu sync.Mutex
 
 		for {
 			select {
@@ -139,7 +137,6 @@ func (r *ModelResource) Watch(ctx context.Context) (<-chan unit.ResourceUpdate, 
 					continue
 				}
 
-				mu.Lock()
 				dataMap, ok := data.(map[string]any)
 				if ok {
 					newStatus := ModelStatus("")
@@ -164,7 +161,6 @@ func (r *ModelResource) Watch(ctx context.Context) (<-chan unit.ResourceUpdate, 
 					}
 					lastStatus = newStatus
 				}
-				mu.Unlock()
 			}
 		}
 	}()

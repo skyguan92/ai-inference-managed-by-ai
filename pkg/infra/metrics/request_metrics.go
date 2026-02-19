@@ -30,32 +30,17 @@ func (m *RequestMetrics) Record(latency time.Duration, isError bool) {
 
 // Snapshot returns a point-in-time snapshot of the counters.
 func (m *RequestMetrics) Snapshot() RequestSnapshot {
-	total := m.totalRequests.Load()
-	errors := m.totalErrors.Load()
-	latencyMs := m.totalLatencyMs.Load()
-
-	var avgLatencyMs float64
-	if total > 0 {
-		avgLatencyMs = float64(latencyMs) / float64(total)
-	}
-
-	var errorRate float64
-	if total > 0 {
-		errorRate = float64(errors) / float64(total)
-	}
-
 	return RequestSnapshot{
-		TotalRequests:  total,
-		TotalErrors:    errors,
-		AvgLatencyMs:   avgLatencyMs,
-		ErrorRate:      errorRate,
+		TotalRequests:    m.totalRequests.Load(),
+		TotalErrors:      m.totalErrors.Load(),
+		TotalLatencyMs:   m.totalLatencyMs.Load(),
 	}
 }
 
 // RequestSnapshot is an immutable snapshot of request metrics at a point in time.
+// Expose raw counters so callers (e.g. Prometheus) can compute rates and averages.
 type RequestSnapshot struct {
-	TotalRequests int64
-	TotalErrors   int64
-	AvgLatencyMs  float64
-	ErrorRate     float64
+	TotalRequests  int64
+	TotalErrors    int64
+	TotalLatencyMs int64
 }

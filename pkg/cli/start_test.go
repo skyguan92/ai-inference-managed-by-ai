@@ -217,8 +217,7 @@ func TestHandlePrometheusMetrics_Get(t *testing.T) {
 	body := rec.Body.String()
 	assert.Contains(t, body, "aima_http_requests_total")
 	assert.Contains(t, body, "aima_http_errors_total")
-	assert.Contains(t, body, "aima_http_request_duration_avg_ms")
-	assert.Contains(t, body, "aima_http_error_rate")
+	assert.Contains(t, body, "aima_http_request_duration_ms_sum")
 }
 
 func TestHandlePrometheusMetrics_InvalidMethod(t *testing.T) {

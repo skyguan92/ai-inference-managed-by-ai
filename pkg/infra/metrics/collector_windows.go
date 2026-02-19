@@ -2,6 +2,8 @@ package metrics
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"time"
 	"unsafe"
 
@@ -60,28 +62,45 @@ func (c *systemCollector) Collect(ctx context.Context) (Metrics, error) {
 	return metrics, nil
 }
 
-func (c *systemCollector) collectCPU() (float64, error) {
+func (c *systemCollector) getSystemTimes() (idle, kernel, user uint64, err error) {
 	var idleTime, kernelTime, userTime windows.Filetime
-	r1, _, err := procGetSystemTimes.Call(
+	r1, _, callErr := procGetSystemTimes.Call(
 		uintptr(unsafe.Pointer(&idleTime)),
 		uintptr(unsafe.Pointer(&kernelTime)),
 		uintptr(unsafe.Pointer(&userTime)),
 	)
 	if r1 == 0 {
+		return 0, 0, 0, callErr
+	}
+	idle = uint64(idleTime.HighDateTime)<<32 | uint64(idleTime.LowDateTime)
+	kernel = uint64(kernelTime.HighDateTime)<<32 | uint64(kernelTime.LowDateTime)
+	user = uint64(userTime.HighDateTime)<<32 | uint64(userTime.LowDateTime)
+	return
+}
+
+// collectCPU takes two snapshots 200ms apart to compute current CPU usage.
+// A single snapshot gives cumulative averages since boot, not current load.
+func (c *systemCollector) collectCPU() (float64, error) {
+	idle1, kernel1, user1, err := c.getSystemTimes()
+	if err != nil {
 		return 0, err
 	}
 
-	idle := uint64(idleTime.HighDateTime)<<32 | uint64(idleTime.LowDateTime)
-	kernel := uint64(kernelTime.HighDateTime)<<32 | uint64(kernelTime.LowDateTime)
-	user := uint64(userTime.HighDateTime)<<32 | uint64(userTime.LowDateTime)
+	time.Sleep(200 * time.Millisecond)
 
-	// kernel time includes idle time
-	total := kernel + user
-	if total == 0 {
+	idle2, kernel2, user2, err := c.getSystemTimes()
+	if err != nil {
+		return 0, err
+	}
+
+	deltaIdle := idle2 - idle1
+	// kernel time includes idle time; total non-idle = (kernel+user) - idle
+	deltaTotal := (kernel2 + user2) - (kernel1 + user1)
+	if deltaTotal == 0 {
 		return 0, nil
 	}
 
-	percent := float64(total-idle) / float64(total) * 100
+	percent := float64(deltaTotal-deltaIdle) / float64(deltaTotal) * 100
 	return percent, nil
 }
 
@@ -110,8 +129,15 @@ func (c *systemCollector) collectMemory() (MemoryMetrics, error) {
 }
 
 func (c *systemCollector) collectDisk() (DiskMetrics, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return DiskMetrics{}, err
+	}
+	// Use the volume root of the current working directory (e.g., "C:\").
+	volRoot := filepath.VolumeName(cwd) + `\`
+
 	var freeBytesAvailable, totalBytes, totalFreeBytes uint64
-	wd, err := windows.UTF16PtrFromString(`C:\`)
+	wd, err := windows.UTF16PtrFromString(volRoot)
 	if err != nil {
 		return DiskMetrics{}, err
 	}

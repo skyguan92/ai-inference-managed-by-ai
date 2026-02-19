@@ -23,11 +23,8 @@ func TestRequestMetrics_InitialSnapshot(t *testing.T) {
 	if snap.TotalErrors != 0 {
 		t.Errorf("expected TotalErrors=0, got %d", snap.TotalErrors)
 	}
-	if snap.AvgLatencyMs != 0 {
-		t.Errorf("expected AvgLatencyMs=0, got %f", snap.AvgLatencyMs)
-	}
-	if snap.ErrorRate != 0 {
-		t.Errorf("expected ErrorRate=0, got %f", snap.ErrorRate)
+	if snap.TotalLatencyMs != 0 {
+		t.Errorf("expected TotalLatencyMs=0, got %d", snap.TotalLatencyMs)
 	}
 }
 
@@ -44,12 +41,9 @@ func TestRequestMetrics_RecordSuccess(t *testing.T) {
 	if snap.TotalErrors != 0 {
 		t.Errorf("expected TotalErrors=0, got %d", snap.TotalErrors)
 	}
-	// Average of 10ms and 20ms
-	if snap.AvgLatencyMs != 15.0 {
-		t.Errorf("expected AvgLatencyMs=15.0, got %f", snap.AvgLatencyMs)
-	}
-	if snap.ErrorRate != 0 {
-		t.Errorf("expected ErrorRate=0, got %f", snap.ErrorRate)
+	// Sum of 10ms + 20ms = 30ms
+	if snap.TotalLatencyMs != 30 {
+		t.Errorf("expected TotalLatencyMs=30, got %d", snap.TotalLatencyMs)
 	}
 }
 
@@ -66,8 +60,8 @@ func TestRequestMetrics_RecordError(t *testing.T) {
 	if snap.TotalErrors != 1 {
 		t.Errorf("expected TotalErrors=1, got %d", snap.TotalErrors)
 	}
-	if snap.ErrorRate != 0.5 {
-		t.Errorf("expected ErrorRate=0.5, got %f", snap.ErrorRate)
+	if snap.TotalLatencyMs != 30 {
+		t.Errorf("expected TotalLatencyMs=30, got %d", snap.TotalLatencyMs)
 	}
 }
 
@@ -83,9 +77,6 @@ func TestRequestMetrics_AllErrors(t *testing.T) {
 	}
 	if snap.TotalErrors != 2 {
 		t.Errorf("expected TotalErrors=2, got %d", snap.TotalErrors)
-	}
-	if snap.ErrorRate != 1.0 {
-		t.Errorf("expected ErrorRate=1.0, got %f", snap.ErrorRate)
 	}
 }
 
@@ -114,10 +105,9 @@ func TestRequestMetrics_ConcurrentRecords(t *testing.T) {
 
 func TestRequestSnapshot_Fields(t *testing.T) {
 	snap := RequestSnapshot{
-		TotalRequests: 10,
-		TotalErrors:   2,
-		AvgLatencyMs:  15.5,
-		ErrorRate:     0.2,
+		TotalRequests:  10,
+		TotalErrors:    2,
+		TotalLatencyMs: 155,
 	}
 
 	if snap.TotalRequests != 10 {
@@ -126,10 +116,7 @@ func TestRequestSnapshot_Fields(t *testing.T) {
 	if snap.TotalErrors != 2 {
 		t.Errorf("TotalErrors mismatch")
 	}
-	if snap.AvgLatencyMs != 15.5 {
-		t.Errorf("AvgLatencyMs mismatch")
-	}
-	if snap.ErrorRate != 0.2 {
-		t.Errorf("ErrorRate mismatch")
+	if snap.TotalLatencyMs != 155 {
+		t.Errorf("TotalLatencyMs mismatch")
 	}
 }

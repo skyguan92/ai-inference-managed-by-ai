@@ -49,35 +49,62 @@ func (c *systemCollector) Collect(ctx context.Context) (Metrics, error) {
 	return metrics, nil
 }
 
-func (c *systemCollector) collectCPU() (float64, error) {
+type cpuStat struct{ idle, total uint64 }
+
+func readCPUStat() (cpuStat, error) {
 	file, err := os.Open("/proc/stat")
 	if err != nil {
-		return 0, err
+		return cpuStat{}, err
 	}
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
 	if !scanner.Scan() {
-		return 0, scanner.Err()
+		return cpuStat{}, scanner.Err()
 	}
 
 	line := scanner.Text()
 	parts := strings.Fields(line)
 	if len(parts) < 5 || parts[0] != "cpu" {
+		return cpuStat{}, nil
+	}
+
+	var vals [4]uint64
+	for i := 0; i < 4; i++ {
+		v, err := strconv.ParseUint(parts[i+1], 10, 64)
+		if err != nil {
+			return cpuStat{}, fmt.Errorf("parse /proc/stat field %d: %w", i+1, err)
+		}
+		vals[i] = v
+	}
+	// vals: user, nice, system, idle
+	idle := vals[3]
+	total := vals[0] + vals[1] + vals[2] + vals[3]
+	return cpuStat{idle: idle, total: total}, nil
+}
+
+// collectCPU takes two snapshots 200ms apart to compute current CPU usage.
+// A single snapshot gives cumulative averages since boot, not current load.
+func (c *systemCollector) collectCPU() (float64, error) {
+	s1, err := readCPUStat()
+	if err != nil {
+		return 0, err
+	}
+
+	time.Sleep(200 * time.Millisecond)
+
+	s2, err := readCPUStat()
+	if err != nil {
+		return 0, err
+	}
+
+	deltaIdle := s2.idle - s1.idle
+	deltaTotal := s2.total - s1.total
+	if deltaTotal == 0 {
 		return 0, nil
 	}
 
-	user, _ := strconv.ParseUint(parts[1], 10, 64)
-	nice, _ := strconv.ParseUint(parts[2], 10, 64)
-	system, _ := strconv.ParseUint(parts[3], 10, 64)
-	idle, _ := strconv.ParseUint(parts[4], 10, 64)
-
-	total := user + nice + system + idle
-	if total == 0 {
-		return 0, nil
-	}
-
-	percent := float64(total-idle) / float64(total) * 100
+	percent := float64(deltaTotal-deltaIdle) / float64(deltaTotal) * 100
 	return percent, nil
 }
 

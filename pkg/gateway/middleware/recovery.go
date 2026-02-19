@@ -42,7 +42,7 @@ func Recovery(logger *slog.Logger) func(http.Handler) http.Handler {
 							"message": "Internal server error",
 						},
 					}
-					json.NewEncoder(w).Encode(resp)
+					_ = json.NewEncoder(w).Encode(resp)
 				}
 			}()
 
