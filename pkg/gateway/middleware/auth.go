@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -197,14 +198,20 @@ func extractBearerToken(r *http.Request) string {
 	return strings.TrimSpace(parts[1])
 }
 
-// isValidToken returns true if token is in the valid key set.
+// isValidToken returns true if token matches any key in the valid key set.
+// Uses constant-time comparison to mitigate timing side-channel attacks.
 func isValidToken(token string, validKeys map[string]struct{}) bool {
 	if len(validKeys) == 0 {
 		// No keys configured — treat all tokens as invalid (fail-secure).
 		return false
 	}
-	_, ok := validKeys[token]
-	return ok
+	tokenBytes := []byte(token)
+	for k := range validKeys {
+		if subtle.ConstantTimeCompare(tokenBytes, []byte(k)) == 1 {
+			return true
+		}
+	}
+	return false
 }
 
 // logUnauthorized logs an auth failure at warn level.

@@ -3,6 +3,7 @@ package metrics
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -66,20 +67,22 @@ func readCPUStat() (cpuStat, error) {
 	line := scanner.Text()
 	parts := strings.Fields(line)
 	if len(parts) < 5 || parts[0] != "cpu" {
-		return cpuStat{}, nil
+		return cpuStat{}, fmt.Errorf("unexpected /proc/stat format: %q", line)
 	}
 
-	var vals [4]uint64
-	for i := 0; i < 4; i++ {
-		v, err := strconv.ParseUint(parts[i+1], 10, 64)
+	// Sum all fields (user, nice, system, idle, iowait, irq, softirq, steal, …)
+	// to get accurate total jiffies. Field index 4 is idle.
+	var idle, total uint64
+	for i, field := range parts[1:] {
+		v, err := strconv.ParseUint(field, 10, 64)
 		if err != nil {
 			return cpuStat{}, fmt.Errorf("parse /proc/stat field %d: %w", i+1, err)
 		}
-		vals[i] = v
+		total += v
+		if i == 3 { // index 3 (0-based within value fields) is idle
+			idle = v
+		}
 	}
-	// vals: user, nice, system, idle
-	idle := vals[3]
-	total := vals[0] + vals[1] + vals[2] + vals[3]
 	return cpuStat{idle: idle, total: total}, nil
 }
 

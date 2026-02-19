@@ -116,18 +116,22 @@ func (s *Server) buildHandler() http.Handler {
 		routerHandler.ServeHTTP(w, r)
 	})
 
-	handler = middleware.Recovery(s.logger)(handler)
-	handler = middleware.Logging(s.logger)(handler)
-
-	if s.config.EnableCORS {
-		handler = middleware.CORS(s.config.CORSConfig)(handler)
-	}
-
 	// Auth middleware: wire the logger and the global Enabled flag from server config.
 	authCfg := s.config.AuthConfig
 	authCfg.Enabled = s.config.EnableAuth
 	authCfg.Logger = s.logger
 	handler = middleware.Auth(authCfg)(handler)
+
+	// CORS must run before Auth so that browser preflight OPTIONS requests
+	// are answered without requiring a bearer token.
+	if s.config.EnableCORS {
+		handler = middleware.CORS(s.config.CORSConfig)(handler)
+	}
+
+	// Logging and Recovery are outermost so they observe every request,
+	// including those rejected by Auth, and catch panics from any middleware.
+	handler = middleware.Logging(s.logger)(handler)
+	handler = middleware.Recovery(s.logger)(handler)
 
 	return handler
 }
