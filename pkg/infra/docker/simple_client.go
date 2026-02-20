@@ -96,8 +96,9 @@ func (c *SimpleClient) StopContainer(ctx context.Context, containerID string, ti
 		_ = output
 	}
 
-	// Remove the container
-	rmCmd := exec.CommandContext(ctx, "docker", "rm", containerID)
+	// Remove the container using a fresh context — the request context may have
+	// expired while docker stop was running (especially with long timeouts).
+	rmCmd := exec.CommandContext(context.Background(), "docker", "rm", containerID)
 	if output, err := rmCmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("docker rm failed: %w\nOutput: %s", err, string(output))
 	}

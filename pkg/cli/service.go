@@ -3,11 +3,17 @@ package cli
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/gateway"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/service"
 	"github.com/spf13/cobra"
 )
+
+// serviceStopTimeout is the per-request timeout for service stop commands.
+// Stopping a container may require a graceful shutdown window (up to 30s before
+// SIGKILL) plus docker rm, so we need significantly more than the default 30s.
+const serviceStopTimeout = 2 * time.Minute
 
 func NewServiceCommand(root *RootCommand) *cobra.Command {
 	cmd := &cobra.Command{
@@ -232,6 +238,9 @@ func runServiceStop(ctx context.Context, root *RootCommand, serviceID string, fo
 		Input: map[string]any{
 			"service_id": serviceID,
 			"force":      force,
+		},
+		Options: gateway.RequestOptions{
+			Timeout: serviceStopTimeout,
 		},
 	}
 
