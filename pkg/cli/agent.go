@@ -3,10 +3,16 @@ package cli
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/gateway"
 	"github.com/spf13/cobra"
 )
+
+// agentChatTimeout is the per-request timeout for agent chat commands.
+// Agent conversations involve multi-turn LLM calls + tool executions and can
+// take several minutes, so we use a much longer timeout than the default 30s.
+const agentChatTimeout = 10 * time.Minute
 
 func NewAgentCommand(root *RootCommand) *cobra.Command {
 	cmd := &cobra.Command{
@@ -67,6 +73,11 @@ func runAgentChat(ctx context.Context, root *RootCommand, message, conversationI
 		Type:  gateway.TypeCommand,
 		Unit:  "agent.chat",
 		Input: input,
+		Options: gateway.RequestOptions{
+			// Override the default 30s gateway timeout: agent conversations
+			// require multiple LLM+tool-execution turns and can take minutes.
+			Timeout: agentChatTimeout,
+		},
 	}
 
 	resp := gw.Handle(ctx, req)
