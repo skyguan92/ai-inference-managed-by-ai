@@ -66,7 +66,7 @@ func TestServer_HandleHealth(t *testing.T) {
 	}
 
 	var resp map[string]string
-	json.Unmarshal(rec.Body.Bytes(), &resp)
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
 
 	if resp["status"] != "healthy" {
 		t.Errorf("expected status healthy, got %s", resp["status"])

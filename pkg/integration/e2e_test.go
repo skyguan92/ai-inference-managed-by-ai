@@ -104,7 +104,7 @@ func TestE2E_ModelLifecycle(t *testing.T) {
 		return nil
 	}, eventbus.FilterByDomain("model"))
 	require.NoError(t, err)
-	defer bus.Unsubscribe(subID)
+	defer func() { _ = bus.Unsubscribe(subID) }()
 
 	// Step 1: Create a model
 	createResp := gw.Handle(ctx, &gateway.Request{
@@ -253,7 +253,7 @@ func TestE2E_PipelineExecution(t *testing.T) {
 		return nil
 	}, eventbus.FilterByDomain("pipeline"))
 	require.NoError(t, err)
-	defer bus.Unsubscribe(subID)
+	defer func() { _ = bus.Unsubscribe(subID) }()
 
 	// Step 1: Create a pipeline
 	createResp := gw.Handle(ctx, &gateway.Request{
@@ -653,7 +653,7 @@ func TestE2E_CompleteWorkflow(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
-	defer bus.Unsubscribe(subID)
+	defer func() { _ = bus.Unsubscribe(subID) }()
 
 	// Workflow:
 	// 1. Create model

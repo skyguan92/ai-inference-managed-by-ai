@@ -121,10 +121,10 @@ func TestInMemoryEventBus_FilterByType(t *testing.T) {
 		t.Fatalf("Subscribe failed: %v", err)
 	}
 
-	bus.Publish(newMockEvent("target.event", "test"))
-	bus.Publish(newMockEvent("other.event", "test"))
-	bus.Publish(newMockEvent("target.event", "test"))
-	bus.Publish(newMockEvent("another.event", "test"))
+	_ = bus.Publish(newMockEvent("target.event", "test"))
+	_ = bus.Publish(newMockEvent("other.event", "test"))
+	_ = bus.Publish(newMockEvent("target.event", "test"))
+	_ = bus.Publish(newMockEvent("another.event", "test"))
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -149,10 +149,10 @@ func TestInMemoryEventBus_FilterByDomain(t *testing.T) {
 		t.Fatalf("Subscribe failed: %v", err)
 	}
 
-	bus.Publish(newMockEvent("event1", "model"))
-	bus.Publish(newMockEvent("event2", "engine"))
-	bus.Publish(newMockEvent("event3", "model"))
-	bus.Publish(newMockEvent("event4", "device"))
+	_ = bus.Publish(newMockEvent("event1", "model"))
+	_ = bus.Publish(newMockEvent("event2", "engine"))
+	_ = bus.Publish(newMockEvent("event3", "model"))
+	_ = bus.Publish(newMockEvent("event4", "device"))
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -177,10 +177,10 @@ func TestInMemoryEventBus_FilterByTypes(t *testing.T) {
 		t.Fatalf("Subscribe failed: %v", err)
 	}
 
-	bus.Publish(newMockEvent("event1", "test"))
-	bus.Publish(newMockEvent("event2", "test"))
-	bus.Publish(newMockEvent("event3", "test"))
-	bus.Publish(newMockEvent("event4", "test"))
+	_ = bus.Publish(newMockEvent("event1", "test"))
+	_ = bus.Publish(newMockEvent("event2", "test"))
+	_ = bus.Publish(newMockEvent("event3", "test"))
+	_ = bus.Publish(newMockEvent("event4", "test"))
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -205,10 +205,10 @@ func TestInMemoryEventBus_FilterByDomains(t *testing.T) {
 		t.Fatalf("Subscribe failed: %v", err)
 	}
 
-	bus.Publish(newMockEvent("event1", "model"))
-	bus.Publish(newMockEvent("event2", "engine"))
-	bus.Publish(newMockEvent("event3", "device"))
-	bus.Publish(newMockEvent("event4", "inference"))
+	_ = bus.Publish(newMockEvent("event1", "model"))
+	_ = bus.Publish(newMockEvent("event2", "engine"))
+	_ = bus.Publish(newMockEvent("event3", "device"))
+	_ = bus.Publish(newMockEvent("event4", "inference"))
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -236,10 +236,10 @@ func TestInMemoryEventBus_CombinedFilters(t *testing.T) {
 		t.Fatalf("Subscribe failed: %v", err)
 	}
 
-	bus.Publish(newMockEvent("model.created", "model"))
-	bus.Publish(newMockEvent("model.deleted", "model"))
-	bus.Publish(newMockEvent("model.created", "engine"))
-	bus.Publish(newMockEvent("model.created", "model"))
+	_ = bus.Publish(newMockEvent("model.created", "model"))
+	_ = bus.Publish(newMockEvent("model.deleted", "model"))
+	_ = bus.Publish(newMockEvent("model.created", "engine"))
+	_ = bus.Publish(newMockEvent("model.created", "model"))
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -271,7 +271,7 @@ func TestInMemoryEventBus_Unsubscribe(t *testing.T) {
 		t.Fatalf("Subscribe failed: %v", err)
 	}
 
-	bus.Publish(newMockEvent("test.event", "test"))
+	_ = bus.Publish(newMockEvent("test.event", "test"))
 	time.Sleep(50 * time.Millisecond)
 
 	if atomic.LoadInt64(&counter) != 1 {
@@ -283,7 +283,7 @@ func TestInMemoryEventBus_Unsubscribe(t *testing.T) {
 		t.Fatalf("Unsubscribe failed: %v", err)
 	}
 
-	bus.Publish(newMockEvent("test.event", "test"))
+	_ = bus.Publish(newMockEvent("test.event", "test"))
 	time.Sleep(50 * time.Millisecond)
 
 	if atomic.LoadInt64(&counter) != 1 {
@@ -335,7 +335,7 @@ func TestInMemoryEventBus_Close(t *testing.T) {
 		t.Fatalf("Subscribe failed: %v", err)
 	}
 
-	bus.Publish(newMockEvent("test.event", "test"))
+	_ = bus.Publish(newMockEvent("test.event", "test"))
 	time.Sleep(50 * time.Millisecond)
 
 	err = bus.Close()
@@ -411,7 +411,7 @@ func TestInMemoryEventBus_Concurrency(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for j := 0; j < eventsPerPublisher; j++ {
-				bus.Publish(newMockEvent("test.event", "test"))
+				_ = bus.Publish(newMockEvent("test.event", "test"))
 			}
 		}()
 	}
@@ -445,10 +445,10 @@ func TestInMemoryEventBus_MultipleFiltersAllMustMatch(t *testing.T) {
 		t.Fatalf("Subscribe failed: %v", err)
 	}
 
-	bus.Publish(newMockEvent("engine.started", "engine"))
-	bus.Publish(newMockEvent("engine.stopped", "engine"))
-	bus.Publish(newMockEvent("engine.started", "model"))
-	bus.Publish(newMockEvent("model.created", "engine"))
+	_ = bus.Publish(newMockEvent("engine.started", "engine"))
+	_ = bus.Publish(newMockEvent("engine.stopped", "engine"))
+	_ = bus.Publish(newMockEvent("engine.started", "model"))
+	_ = bus.Publish(newMockEvent("model.created", "engine"))
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -477,12 +477,12 @@ func TestInMemoryEventBus_CustomFilter(t *testing.T) {
 		t.Fatalf("Subscribe failed: %v", err)
 	}
 
-	bus.Publish(&mockEvent{
+	_ = bus.Publish(&mockEvent{
 		eventType:     "test.event",
 		domain:        "test",
 		correlationID: "target-correlation-id",
 	})
-	bus.Publish(&mockEvent{
+	_ = bus.Publish(&mockEvent{
 		eventType:     "test.event",
 		domain:        "test",
 		correlationID: "other-correlation-id",
@@ -519,7 +519,7 @@ func TestInMemoryEventBus_ContextCancellation(t *testing.T) {
 
 	bus.Subscribe(handler)
 
-	bus.Publish(newMockEvent("test", "test"))
+	_ = bus.Publish(newMockEvent("test", "test"))
 	time.Sleep(50 * time.Millisecond)
 
 	if atomic.LoadInt64(&counter) != 1 {

@@ -114,9 +114,9 @@ func TestPersistentEventBus_SubscribeWithFilter(t *testing.T) {
 	}, FilterByDomain("engine"))
 	require.NoError(t, err)
 
-	bus.Publish(&testEvent{eventType: "test", domain: "model", timestamp: time.Now()})
-	bus.Publish(&testEvent{eventType: "test", domain: "engine", timestamp: time.Now()})
-	bus.Publish(&testEvent{eventType: "test", domain: "model", timestamp: time.Now()})
+	_ = bus.Publish(&testEvent{eventType: "test", domain: "model", timestamp: time.Now()})
+	_ = bus.Publish(&testEvent{eventType: "test", domain: "engine", timestamp: time.Now()})
+	_ = bus.Publish(&testEvent{eventType: "test", domain: "model", timestamp: time.Now()})
 
 	time.Sleep(100 * time.Millisecond)
 	assert.Equal(t, int32(2), modelEvents.Load())
@@ -176,7 +176,7 @@ func TestPersistentEventBus_Replay(t *testing.T) {
 			payload:       map[string]int{"step": i},
 			timestamp:     time.Now(),
 		}
-		bus.Publish(event)
+		_ = bus.Publish(event)
 	}
 
 	time.Sleep(200 * time.Millisecond)
@@ -235,7 +235,7 @@ func TestPersistentEventBus_ConcurrentPublish(t *testing.T) {
 				timestamp:     time.Now(),
 				correlationID: "concurrent",
 			}
-			bus.Publish(event)
+			_ = bus.Publish(event)
 		}(i)
 	}
 

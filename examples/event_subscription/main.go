@@ -103,7 +103,7 @@ func main() {
 		"name":     "llama3.2",
 		"size":     3825393664,
 	}, "trace_001")
-	bus.Publish(ctx, event1)
+	_ = bus.Publish(ctx, event1)
 	fmt.Println("   发布: model.created")
 
 	// 发布拉取进度事件
@@ -113,7 +113,7 @@ func main() {
 			"progress": float64(i),
 			"status":   "downloading",
 		}, "trace_001")
-		bus.Publish(ctx, progressEvent)
+		_ = bus.Publish(ctx, progressEvent)
 		time.Sleep(100 * time.Millisecond)
 	}
 
@@ -122,7 +122,7 @@ func main() {
 		"model_id": "llama3.2:latest",
 		"valid":    true,
 	}, "trace_001")
-	bus.Publish(ctx, event2)
+	_ = bus.Publish(ctx, event2)
 	fmt.Println("   发布: model.verified")
 	fmt.Println()
 
@@ -158,7 +158,7 @@ func main() {
 			timestamp:     time.Now(),
 			correlationID: "trace_002",
 		}
-		bus.Publish(ctx, event)
+		_ = bus.Publish(ctx, event)
 		time.Sleep(50 * time.Millisecond)
 	}
 	fmt.Println("   推理事件发布完成")
@@ -171,7 +171,7 @@ func main() {
 	fmt.Println("   已注册 ModelEventHandler")
 
 	// 发布事件触发处理器
-	bus.Publish(ctx, NewModelEvent("model.created", map[string]any{
+	_ = bus.Publish(ctx, NewModelEvent("model.created", map[string]any{
 		"model_id": "mistral:latest",
 		"name":     "mistral",
 	}, "trace_003"))

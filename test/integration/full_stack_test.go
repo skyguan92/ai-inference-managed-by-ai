@@ -167,7 +167,7 @@ func TestFullStackEndToEndModelOperations(t *testing.T) {
 		fs.router.ServeHTTP(rec, req)
 
 		var resp gateway.Response
-		json.Unmarshal(rec.Body.Bytes(), &resp)
+		_ = json.Unmarshal(rec.Body.Bytes(), &resp)
 	})
 
 	t.Run("list models via Gateway", func(t *testing.T) {
@@ -281,7 +281,7 @@ func TestFullStackConsistentResults(t *testing.T) {
 		gateway.NewHTTPAdapter(fs.gateway).ServeHTTP(httpRec, httpReq)
 
 		var httpResp gateway.Response
-		json.Unmarshal(httpRec.Body.Bytes(), &httpResp)
+		_ = json.Unmarshal(httpRec.Body.Bytes(), &httpResp)
 
 		assert.Equal(t, gatewayResp.Success, httpResp.Success)
 	})

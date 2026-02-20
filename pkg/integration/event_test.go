@@ -27,7 +27,7 @@ func TestEvent_System(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
-	defer bus.Unsubscribe(subID)
+	defer func() { _ = bus.Unsubscribe(subID) }()
 
 	// Create registry and publish events through commands
 	reg := unit.NewRegistry()
@@ -61,7 +61,7 @@ func TestEvent_FilterByType(t *testing.T) {
 		return nil
 	}, eventbus.FilterByType("test.type1"))
 	require.NoError(t, err)
-	defer bus.Unsubscribe(sub1)
+	defer func() { _ = bus.Unsubscribe(sub1) }()
 
 	// Subscribe to type2 events only
 	sub2, err := bus.Subscribe(func(evt unit.Event) error {
@@ -69,7 +69,7 @@ func TestEvent_FilterByType(t *testing.T) {
 		return nil
 	}, eventbus.FilterByType("test.type2"))
 	require.NoError(t, err)
-	defer bus.Unsubscribe(sub2)
+	defer func() { _ = bus.Unsubscribe(sub2) }()
 
 	// Publish events of different types
 	err = bus.Publish(&testEvent{eventType: "test.type1", domain: "test", payload: "data1"})
@@ -102,7 +102,7 @@ func TestEvent_FilterByDomain(t *testing.T) {
 		return nil
 	}, eventbus.FilterByDomain("model"))
 	require.NoError(t, err)
-	defer bus.Unsubscribe(sub1)
+	defer func() { _ = bus.Unsubscribe(sub1) }()
 
 	// Subscribe to engine domain events
 	sub2, err := bus.Subscribe(func(evt unit.Event) error {
@@ -110,7 +110,7 @@ func TestEvent_FilterByDomain(t *testing.T) {
 		return nil
 	}, eventbus.FilterByDomain("engine"))
 	require.NoError(t, err)
-	defer bus.Unsubscribe(sub2)
+	defer func() { _ = bus.Unsubscribe(sub2) }()
 
 	// Publish events from different domains
 	err = bus.Publish(&testEvent{eventType: "model.created", domain: "model", payload: "m1"})
@@ -141,7 +141,7 @@ func TestEvent_FilterByTypes(t *testing.T) {
 		return nil
 	}, eventbus.FilterByTypes("model.created", "model.deleted", "pipeline.completed"))
 	require.NoError(t, err)
-	defer bus.Unsubscribe(subID)
+	defer func() { _ = bus.Unsubscribe(subID) }()
 
 	// Publish various event types
 	err = bus.Publish(&testEvent{eventType: "model.created", domain: "model"})
@@ -177,7 +177,7 @@ func TestEvent_FilterByDomains(t *testing.T) {
 		return nil
 	}, eventbus.FilterByDomains("model", "resource"))
 	require.NoError(t, err)
-	defer bus.Unsubscribe(subID)
+	defer func() { _ = bus.Unsubscribe(subID) }()
 
 	// Publish events from various domains
 	domains := []string{"model", "engine", "resource", "pipeline", "model", "service"}

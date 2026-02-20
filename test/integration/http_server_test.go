@@ -189,7 +189,7 @@ func TestHTTPServerIntegrationModelCRUD(t *testing.T) {
 		adapter.ServeHTTP(rec, req)
 
 		var resp gateway.Response
-		json.Unmarshal(rec.Body.Bytes(), &resp)
+		_ = json.Unmarshal(rec.Body.Bytes(), &resp)
 	})
 
 	t.Run("get model", func(t *testing.T) {
@@ -209,7 +209,7 @@ func TestHTTPServerIntegrationModelCRUD(t *testing.T) {
 		adapter.ServeHTTP(rec, req)
 
 		var resp gateway.Response
-		json.Unmarshal(rec.Body.Bytes(), &resp)
+		_ = json.Unmarshal(rec.Body.Bytes(), &resp)
 	})
 
 	t.Run("delete model", func(t *testing.T) {
@@ -229,7 +229,7 @@ func TestHTTPServerIntegrationModelCRUD(t *testing.T) {
 		adapter.ServeHTTP(rec, req)
 
 		var resp gateway.Response
-		json.Unmarshal(rec.Body.Bytes(), &resp)
+		_ = json.Unmarshal(rec.Body.Bytes(), &resp)
 	})
 }
 
@@ -252,7 +252,7 @@ func TestHTTPServerIntegrationEngineEndpoints(t *testing.T) {
 		adapter.ServeHTTP(rec, req)
 
 		var resp gateway.Response
-		json.Unmarshal(rec.Body.Bytes(), &resp)
+		_ = json.Unmarshal(rec.Body.Bytes(), &resp)
 	})
 
 	t.Run("get engine", func(t *testing.T) {
@@ -272,7 +272,7 @@ func TestHTTPServerIntegrationEngineEndpoints(t *testing.T) {
 		adapter.ServeHTTP(rec, req)
 
 		var resp gateway.Response
-		json.Unmarshal(rec.Body.Bytes(), &resp)
+		_ = json.Unmarshal(rec.Body.Bytes(), &resp)
 	})
 
 	t.Run("start engine", func(t *testing.T) {
@@ -292,7 +292,7 @@ func TestHTTPServerIntegrationEngineEndpoints(t *testing.T) {
 		adapter.ServeHTTP(rec, req)
 
 		var resp gateway.Response
-		json.Unmarshal(rec.Body.Bytes(), &resp)
+		_ = json.Unmarshal(rec.Body.Bytes(), &resp)
 	})
 
 	t.Run("stop engine", func(t *testing.T) {
@@ -312,7 +312,7 @@ func TestHTTPServerIntegrationEngineEndpoints(t *testing.T) {
 		adapter.ServeHTTP(rec, req)
 
 		var resp gateway.Response
-		json.Unmarshal(rec.Body.Bytes(), &resp)
+		_ = json.Unmarshal(rec.Body.Bytes(), &resp)
 	})
 }
 
@@ -358,7 +358,7 @@ func TestHTTPServerIntegrationWithServer(t *testing.T) {
 	})
 
 	go func() {
-		server.Start()
+		_ = server.Start()
 	}()
 
 	time.Sleep(100 * time.Millisecond)

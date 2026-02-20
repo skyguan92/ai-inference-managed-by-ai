@@ -146,7 +146,7 @@ func TestRouter_QueryParams(t *testing.T) {
 	}
 
 	var resp Response
-	json.Unmarshal(rec.Body.Bytes(), &resp)
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
 
 	data, ok := resp.Data.(map[string]any)
 	if !ok {

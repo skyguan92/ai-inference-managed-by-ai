@@ -118,7 +118,7 @@ func TestHTTPAdapter_ServeHTTP(t *testing.T) {
 		adapter.ServeHTTP(rec, req)
 
 		var resp Response
-		json.Unmarshal(rec.Body.Bytes(), &resp)
+		_ = json.Unmarshal(rec.Body.Bytes(), &resp)
 
 		if resp.Meta.TraceID != "custom-trace-123" {
 			t.Errorf("expected trace_id custom-trace-123, got %s", resp.Meta.TraceID)

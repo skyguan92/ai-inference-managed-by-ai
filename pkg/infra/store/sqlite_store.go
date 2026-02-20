@@ -111,7 +111,7 @@ func (s *SQLiteStore) Get(ctx context.Context, id string) (*model.Model, error) 
 	m.Status = model.ModelStatus(statusStr)
 
 	if tagsStr != "" {
-		json.Unmarshal([]byte(tagsStr), &m.Tags)
+		_ = json.Unmarshal([]byte(tagsStr), &m.Tags)
 	}
 
 	return m, nil
@@ -183,7 +183,7 @@ func (s *SQLiteStore) List(ctx context.Context, filter model.ModelFilter) ([]mod
 		m.Status = model.ModelStatus(statusStr)
 
 		if tagsStr != "" {
-			json.Unmarshal([]byte(tagsStr), &m.Tags)
+			_ = json.Unmarshal([]byte(tagsStr), &m.Tags)
 		}
 
 		models = append(models, m)
