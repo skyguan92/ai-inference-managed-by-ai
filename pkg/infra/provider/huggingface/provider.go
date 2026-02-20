@@ -239,7 +239,7 @@ func (p *Provider) downloadFile(ctx context.Context, repo, filename, revision, d
 	if err != nil {
 		return 0, err
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
 		return 0, fmt.Errorf("create directory: %w", err)
@@ -249,7 +249,7 @@ func (p *Provider) downloadFile(ctx context.Context, repo, filename, revision, d
 	if err != nil {
 		return 0, fmt.Errorf("create file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	written, err := io.Copy(file, reader)
 	if err != nil {
@@ -605,7 +605,7 @@ func (p *Provider) calculateFileHash(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	hash := sha256.New()
 	if _, err := io.Copy(hash, file); err != nil {

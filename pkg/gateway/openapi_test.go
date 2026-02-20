@@ -68,8 +68,8 @@ func TestGenerateOpenAPI(t *testing.T) {
 			},
 		}
 
-		registry.RegisterCommand(cmd)
-		registry.RegisterQuery(query)
+		_ = registry.RegisterCommand(cmd)
+		_ = registry.RegisterQuery(query)
 
 		spec := GenerateOpenAPI(registry)
 

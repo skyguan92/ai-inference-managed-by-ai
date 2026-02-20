@@ -15,7 +15,7 @@ import (
 func TestHTTPAdapter_ServeHTTP(t *testing.T) {
 	reg := unit.NewRegistry()
 	cmd := &mockCommand{name: "test.echo", domain: "test"}
-	reg.RegisterCommand(cmd)
+	_ = reg.RegisterCommand(cmd)
 	g := NewGateway(reg)
 	adapter := NewHTTPAdapter(g)
 
@@ -206,7 +206,7 @@ func TestHTTPAdapter_Gateway(t *testing.T) {
 func BenchmarkHTTPAdapter_ServeHTTP(b *testing.B) {
 	reg := unit.NewRegistry()
 	cmd := &mockCommand{name: "test.echo", domain: "test"}
-	reg.RegisterCommand(cmd)
+	_ = reg.RegisterCommand(cmd)
 	g := NewGateway(reg)
 	adapter := NewHTTPAdapter(g)
 
@@ -235,7 +235,7 @@ func TestHTTPAdapter_Timeout(t *testing.T) {
 			}
 		},
 	}
-	reg.RegisterCommand(slowCmd)
+	_ = reg.RegisterCommand(slowCmd)
 
 	g := NewGateway(reg, WithTimeout(100*time.Millisecond))
 	adapter := NewHTTPAdapter(g)

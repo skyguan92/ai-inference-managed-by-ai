@@ -104,7 +104,7 @@ func TestServer_HandleOpenAPI(t *testing.T) {
 func TestServer_BuildHandler(t *testing.T) {
 	reg := unit.NewRegistry()
 	cmd := &mockCommand{name: "test.echo", domain: "test"}
-	reg.RegisterCommand(cmd)
+	_ = reg.RegisterCommand(cmd)
 
 	g := NewGateway(reg)
 	s := NewServer(g, DefaultServerConfig())
@@ -202,7 +202,7 @@ func TestDefaultServerConfig(t *testing.T) {
 func TestServer_CORS(t *testing.T) {
 	reg := unit.NewRegistry()
 	cmd := &mockCommand{name: "test.echo", domain: "test"}
-	reg.RegisterCommand(cmd)
+	_ = reg.RegisterCommand(cmd)
 
 	g := NewGateway(reg)
 	s := NewServer(g, ServerConfig{
@@ -246,7 +246,7 @@ func TestServer_PanicRecovery(t *testing.T) {
 			panic("test panic")
 		},
 	}
-	reg.RegisterCommand(panicCmd)
+	_ = reg.RegisterCommand(panicCmd)
 
 	g := NewGateway(reg)
 	s := NewServer(g, DefaultServerConfig())

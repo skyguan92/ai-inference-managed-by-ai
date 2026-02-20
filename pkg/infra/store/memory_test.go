@@ -62,9 +62,9 @@ func TestMemoryStore_List(t *testing.T) {
 	})
 
 	t.Run("list records", func(t *testing.T) {
-		s.Create("items", "item1", "value1")
-		s.Create("items", "item2", "value2")
-		s.Create("items", "item3", "value3")
+		_ = s.Create("items", "item1", "value1")
+		_ = s.Create("items", "item2", "value2")
+		_ = s.Create("items", "item3", "value3")
 
 		result := s.List("items")
 		if len(result) != 3 {
@@ -81,8 +81,8 @@ func TestMemoryStore_List(t *testing.T) {
 	})
 
 	t.Run("list is isolated per table", func(t *testing.T) {
-		s.Create("table_a", "key1", "a1")
-		s.Create("table_b", "key1", "b1")
+		_ = s.Create("table_a", "key1", "a1")
+		_ = s.Create("table_b", "key1", "b1")
 
 		aList := s.List("table_a")
 		bList := s.List("table_b")
@@ -100,7 +100,7 @@ func TestMemoryStore_Update_Delete(t *testing.T) {
 	s := NewMemoryStore()
 
 	t.Run("update existing record", func(t *testing.T) {
-		s.Create("updates", "key1", "original")
+		_ = s.Create("updates", "key1", "original")
 		err := s.Update("updates", "key1", "updated")
 		if err != nil {
 			t.Fatalf("Update failed: %v", err)
@@ -127,7 +127,7 @@ func TestMemoryStore_Update_Delete(t *testing.T) {
 	})
 
 	t.Run("delete existing record", func(t *testing.T) {
-		s.Create("deletes", "key1", "value")
+		_ = s.Create("deletes", "key1", "value")
 		err := s.Delete("deletes", "key1")
 		if err != nil {
 			t.Fatalf("Delete failed: %v", err)
@@ -147,7 +147,7 @@ func TestMemoryStore_Update_Delete(t *testing.T) {
 	})
 
 	t.Run("delete non-existent key fails", func(t *testing.T) {
-		s.Create("deletes2", "key1", "value")
+		_ = s.Create("deletes2", "key1", "value")
 		err := s.Delete("deletes2", "nonexistent")
 		if err == nil {
 			t.Fatal("expected error for non-existent key")
@@ -186,7 +186,7 @@ func TestMemoryStore_NextID(t *testing.T) {
 func TestMemoryStore_Clear(t *testing.T) {
 	s := NewMemoryStore()
 
-	s.Create("table1", "key1", "value1")
+	_ = s.Create("table1", "key1", "value1")
 	s.NextID("table1")
 
 	s.Clear()

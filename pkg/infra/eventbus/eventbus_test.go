@@ -36,7 +36,7 @@ func newMockEvent(eventType, domain string) *mockEvent {
 
 func TestInMemoryEventBus_PublishSubscribe(t *testing.T) {
 	bus := NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	var receivedCount int64
 	var mu sync.Mutex
@@ -76,7 +76,7 @@ func TestInMemoryEventBus_PublishSubscribe(t *testing.T) {
 
 func TestInMemoryEventBus_MultipleSubscribers(t *testing.T) {
 	bus := NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	var counter int64
 
@@ -107,7 +107,7 @@ func TestInMemoryEventBus_MultipleSubscribers(t *testing.T) {
 
 func TestInMemoryEventBus_FilterByType(t *testing.T) {
 	bus := NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	var receivedCount int64
 
@@ -135,7 +135,7 @@ func TestInMemoryEventBus_FilterByType(t *testing.T) {
 
 func TestInMemoryEventBus_FilterByDomain(t *testing.T) {
 	bus := NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	var receivedCount int64
 
@@ -163,7 +163,7 @@ func TestInMemoryEventBus_FilterByDomain(t *testing.T) {
 
 func TestInMemoryEventBus_FilterByTypes(t *testing.T) {
 	bus := NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	var receivedCount int64
 
@@ -191,7 +191,7 @@ func TestInMemoryEventBus_FilterByTypes(t *testing.T) {
 
 func TestInMemoryEventBus_FilterByDomains(t *testing.T) {
 	bus := NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	var receivedCount int64
 
@@ -219,7 +219,7 @@ func TestInMemoryEventBus_FilterByDomains(t *testing.T) {
 
 func TestInMemoryEventBus_CombinedFilters(t *testing.T) {
 	bus := NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	var receivedEvents []unit.Event
 	var mu sync.Mutex
@@ -257,7 +257,7 @@ func TestInMemoryEventBus_CombinedFilters(t *testing.T) {
 
 func TestInMemoryEventBus_Unsubscribe(t *testing.T) {
 	bus := NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	var counter int64
 
@@ -293,7 +293,7 @@ func TestInMemoryEventBus_Unsubscribe(t *testing.T) {
 
 func TestInMemoryEventBus_UnsubscribeNotFound(t *testing.T) {
 	bus := NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	err := bus.Unsubscribe("non-existent-id")
 	if err == nil {
@@ -303,7 +303,7 @@ func TestInMemoryEventBus_UnsubscribeNotFound(t *testing.T) {
 
 func TestInMemoryEventBus_PublishNilEvent(t *testing.T) {
 	bus := NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	err := bus.Publish(nil)
 	if err == nil {
@@ -313,7 +313,7 @@ func TestInMemoryEventBus_PublishNilEvent(t *testing.T) {
 
 func TestInMemoryEventBus_SubscribeNilHandler(t *testing.T) {
 	bus := NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	_, err := bus.Subscribe(nil)
 	if err == nil {
@@ -373,7 +373,7 @@ func TestInMemoryEventBus_Options(t *testing.T) {
 		WithBufferSize(500),
 		WithWorkerCount(2),
 	)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	if bus.bufferSize != 500 {
 		t.Errorf("Expected buffer size 500, got %d", bus.bufferSize)
@@ -389,7 +389,7 @@ func TestInMemoryEventBus_Concurrency(t *testing.T) {
 		WithBufferSize(10000),
 		WithWorkerCount(8),
 	)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	var eventCount int64
 	handler := func(event unit.Event) error {
@@ -427,7 +427,7 @@ func TestInMemoryEventBus_Concurrency(t *testing.T) {
 
 func TestInMemoryEventBus_MultipleFiltersAllMustMatch(t *testing.T) {
 	bus := NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	var receivedCount int64
 
@@ -459,7 +459,7 @@ func TestInMemoryEventBus_MultipleFiltersAllMustMatch(t *testing.T) {
 
 func TestInMemoryEventBus_CustomFilter(t *testing.T) {
 	bus := NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	var receivedCount int64
 

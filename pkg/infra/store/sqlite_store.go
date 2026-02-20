@@ -161,7 +161,7 @@ func (s *SQLiteStore) List(ctx context.Context, filter model.ModelFilter) ([]mod
 	if err != nil {
 		return nil, 0, fmt.Errorf("query models: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var models []model.Model
 	for rows.Next() {

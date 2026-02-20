@@ -14,7 +14,7 @@ func TestPipelineService_NewPipelineService(t *testing.T) {
 	store := pipeline.NewMemoryStore()
 	executor := pipeline.NewExecutor(store, pipeline.MockStepExecutor)
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	tests := []struct {
 		name     string
@@ -60,10 +60,10 @@ func TestPipelineService_CreateWithValidation_Success(t *testing.T) {
 	store := pipeline.NewMemoryStore()
 	executor := pipeline.NewExecutor(store, pipeline.MockStepExecutor)
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "pipeline.create",
 		execute: func(ctx context.Context, input any) (any, error) {
 			p := &pipeline.Pipeline{
@@ -105,7 +105,7 @@ func TestPipelineService_CreateWithValidation_InvalidSteps(t *testing.T) {
 	store := pipeline.NewMemoryStore()
 	executor := pipeline.NewExecutor(store, pipeline.MockStepExecutor)
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
 	svc := NewPipelineService(registry, store, executor, bus)
@@ -127,7 +127,7 @@ func TestPipelineService_CreateWithValidation_CommandNotFound(t *testing.T) {
 	store := pipeline.NewMemoryStore()
 	executor := pipeline.NewExecutor(store, pipeline.MockStepExecutor)
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
 	svc := NewPipelineService(registry, store, executor, bus)
@@ -149,10 +149,10 @@ func TestPipelineService_RunAsync_Success(t *testing.T) {
 	store := pipeline.NewMemoryStore()
 	executor := pipeline.NewExecutor(store, pipeline.MockStepExecutor)
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "pipeline.run",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{"run_id": "run-123", "status": "running"}, nil
@@ -178,7 +178,7 @@ func TestPipelineService_RunAsync_CommandNotFound(t *testing.T) {
 	store := pipeline.NewMemoryStore()
 	executor := pipeline.NewExecutor(store, pipeline.MockStepExecutor)
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
 	svc := NewPipelineService(registry, store, executor, bus)
@@ -196,7 +196,7 @@ func TestPipelineService_GetRunWithResults_Success(t *testing.T) {
 	store := pipeline.NewMemoryStore()
 	executor := pipeline.NewExecutor(store, pipeline.MockStepExecutor)
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	now := time.Now()
 	store.CreateRun(context.Background(), &pipeline.PipelineRun{
@@ -208,7 +208,7 @@ func TestPipelineService_GetRunWithResults_Success(t *testing.T) {
 	})
 
 	registry := unit.NewRegistry()
-	registry.RegisterQuery(&mockQuery{
+	_ = registry.RegisterQuery(&mockQuery{
 		name: "pipeline.status",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{
@@ -237,7 +237,7 @@ func TestPipelineService_CancelRun_Success(t *testing.T) {
 	store := pipeline.NewMemoryStore()
 	executor := pipeline.NewExecutor(store, pipeline.MockStepExecutor)
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	store.CreateRun(context.Background(), &pipeline.PipelineRun{
 		ID:         "run-123",
@@ -247,7 +247,7 @@ func TestPipelineService_CancelRun_Success(t *testing.T) {
 	})
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "pipeline.cancel",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{"success": true}, nil
@@ -270,7 +270,7 @@ func TestPipelineService_CancelRun_NotCancellable(t *testing.T) {
 	store := pipeline.NewMemoryStore()
 	executor := pipeline.NewExecutor(store, pipeline.MockStepExecutor)
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	now := time.Now()
 	store.CreateRun(context.Background(), &pipeline.PipelineRun{
@@ -298,10 +298,10 @@ func TestPipelineService_ListByStatus_Success(t *testing.T) {
 	store := pipeline.NewMemoryStore()
 	executor := pipeline.NewExecutor(store, pipeline.MockStepExecutor)
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterQuery(&mockQuery{
+	_ = registry.RegisterQuery(&mockQuery{
 		name: "pipeline.list",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{
@@ -333,10 +333,10 @@ func TestPipelineService_ValidateDefinition_Success(t *testing.T) {
 	store := pipeline.NewMemoryStore()
 	executor := pipeline.NewExecutor(store, pipeline.MockStepExecutor)
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterQuery(&mockQuery{
+	_ = registry.RegisterQuery(&mockQuery{
 		name: "pipeline.validate",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{"valid": true, "issues": []string{}}, nil
@@ -366,7 +366,7 @@ func TestPipelineService_DeleteWithCleanup_Success(t *testing.T) {
 	store := pipeline.NewMemoryStore()
 	executor := pipeline.NewExecutor(store, pipeline.MockStepExecutor)
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	now := time.Now().Unix()
 	store.CreatePipeline(context.Background(), &pipeline.Pipeline{
@@ -378,11 +378,11 @@ func TestPipelineService_DeleteWithCleanup_Success(t *testing.T) {
 	})
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "pipeline.delete",
 		execute: func(ctx context.Context, input any) (any, error) {
 			inputMap := input.(map[string]any)
-			store.DeletePipeline(ctx, inputMap["pipeline_id"].(string))
+			_ = store.DeletePipeline(ctx, inputMap["pipeline_id"].(string))
 			return map[string]any{"success": true}, nil
 		},
 	})
@@ -403,7 +403,7 @@ func TestPipelineService_DeleteWithCleanup_ActiveRuns(t *testing.T) {
 	store := pipeline.NewMemoryStore()
 	executor := pipeline.NewExecutor(store, pipeline.MockStepExecutor)
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	now := time.Now().Unix()
 	store.CreatePipeline(context.Background(), &pipeline.Pipeline{
@@ -436,7 +436,7 @@ func TestPipelineService_DeleteWithCleanup_Force(t *testing.T) {
 	store := pipeline.NewMemoryStore()
 	executor := pipeline.NewExecutor(store, pipeline.MockStepExecutor)
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	now := time.Now().Unix()
 	store.CreatePipeline(context.Background(), &pipeline.Pipeline{
@@ -454,17 +454,17 @@ func TestPipelineService_DeleteWithCleanup_Force(t *testing.T) {
 	})
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "pipeline.cancel",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{"success": true}, nil
 		},
 	})
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "pipeline.delete",
 		execute: func(ctx context.Context, input any) (any, error) {
 			inputMap := input.(map[string]any)
-			store.DeletePipeline(ctx, inputMap["pipeline_id"].(string))
+			_ = store.DeletePipeline(ctx, inputMap["pipeline_id"].(string))
 			return map[string]any{"success": true}, nil
 		},
 	})
@@ -488,7 +488,7 @@ func TestPipelineService_GetPipeline(t *testing.T) {
 	store := pipeline.NewMemoryStore()
 	executor := pipeline.NewExecutor(store, pipeline.MockStepExecutor)
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	now := time.Now().Unix()
 	store.CreatePipeline(context.Background(), &pipeline.Pipeline{
@@ -516,7 +516,7 @@ func TestPipelineService_ListRuns(t *testing.T) {
 	store := pipeline.NewMemoryStore()
 	executor := pipeline.NewExecutor(store, pipeline.MockStepExecutor)
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	store.CreateRun(context.Background(), &pipeline.PipelineRun{
 		ID:         "run-1",

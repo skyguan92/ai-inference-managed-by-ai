@@ -104,7 +104,7 @@ func (s *SQLiteEventStore) Query(ctx context.Context, filter EventQueryFilter) (
 	if err != nil {
 		return nil, fmt.Errorf("query events: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var events []unit.Event
 	for rows.Next() {
@@ -157,7 +157,7 @@ func (s *SQLiteEventStore) SaveBatch(ctx context.Context, events []unit.Event) e
 	if err != nil {
 		return fmt.Errorf("prepare statement: %w", err)
 	}
-	defer stmt.Close()
+	defer func() { _ = stmt.Close() }()
 
 	for _, event := range events {
 		payload, err := json.Marshal(event.Payload())

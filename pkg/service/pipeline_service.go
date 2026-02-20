@@ -194,7 +194,7 @@ func (s *PipelineService) RunSync(ctx context.Context, pipelineID string, input 
 			run.Error = execErr.Error()
 			now := time.Now()
 			run.CompletedAt = &now
-			s.store.UpdateRun(ctx, run)
+			_ = s.store.UpdateRun(ctx, run)
 		}
 	}
 
@@ -216,7 +216,7 @@ func (s *PipelineService) RunSync(ctx context.Context, pipelineID string, input 
 				updatedRun.Status == pipeline.RunStatusCancelled {
 				p.Status = pipeline.PipelineStatusIdle
 				p.UpdatedAt = time.Now().Unix()
-				s.store.UpdatePipeline(ctx, p)
+				_ = s.store.UpdatePipeline(ctx, p)
 
 				return &RunWithResults{
 					RunID:       updatedRun.ID,

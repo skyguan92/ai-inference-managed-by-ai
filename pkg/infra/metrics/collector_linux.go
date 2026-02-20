@@ -59,7 +59,7 @@ func readCPUStat() (cpuStat, error) {
 	if err != nil {
 		return cpuStat{}, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	scanner := bufio.NewScanner(file)
 	if !scanner.Scan() {
@@ -118,7 +118,7 @@ func (c *systemCollector) collectMemory() (MemoryMetrics, error) {
 	if err != nil {
 		return MemoryMetrics{}, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	var memTotal, memAvailable uint64
 
@@ -187,7 +187,7 @@ func (c *systemCollector) collectNetwork() (NetworkMetrics, error) {
 	if err != nil {
 		return NetworkMetrics{}, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	var totalSent, totalRecv, totalPktSent, totalPktRecv uint64
 

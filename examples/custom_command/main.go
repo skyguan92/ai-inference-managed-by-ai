@@ -208,7 +208,7 @@ func main() {
 	// 2. 注册自定义 Command
 	fmt.Println("2. 注册自定义 Command...")
 	customCmd := NewCustomCommand()
-	r.RegisterCommand(customCmd)
+	_ = r.RegisterCommand(customCmd)
 	fmt.Printf("   已注册 Command: %s\n", customCmd.Name())
 	fmt.Println()
 

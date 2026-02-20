@@ -15,7 +15,7 @@ func TestAppService_NewAppService(t *testing.T) {
 	store := app.NewMemoryStore()
 	provider := &app.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	tests := []struct {
 		name     string
@@ -61,10 +61,10 @@ func TestAppService_InstallWithVerify_Success(t *testing.T) {
 	store := app.NewMemoryStore()
 	provider := &app.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "app.install",
 		execute: func(ctx context.Context, input any) (any, error) {
 			a := &app.App{
@@ -75,17 +75,17 @@ func TestAppService_InstallWithVerify_Success(t *testing.T) {
 				CreatedAt: time.Now().Unix(),
 				UpdatedAt: time.Now().Unix(),
 			}
-			store.Create(ctx, a)
+			_ = store.Create(ctx, a)
 			return map[string]any{"app_id": a.ID}, nil
 		},
 	})
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "app.start",
 		execute: func(ctx context.Context, input any) (any, error) {
 			inputMap := input.(map[string]any)
 			a, _ := store.Get(ctx, inputMap["app_id"].(string))
 			a.Status = app.AppStatusRunning
-			store.Update(ctx, a)
+			_ = store.Update(ctx, a)
 			return map[string]any{"success": true}, nil
 		},
 	})
@@ -109,10 +109,10 @@ func TestAppService_InstallWithVerify_InstallFails(t *testing.T) {
 	store := app.NewMemoryStore()
 	provider := &app.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "app.install",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return nil, errors.New("install failed")
@@ -134,7 +134,7 @@ func TestAppService_InstallWithVerify_CommandNotFound(t *testing.T) {
 	store := app.NewMemoryStore()
 	provider := &app.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
 	svc := NewAppService(registry, store, provider, bus)
@@ -152,10 +152,10 @@ func TestAppService_UninstallWithCleanup_Success(t *testing.T) {
 	store := app.NewMemoryStore()
 	provider := &app.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	now := time.Now().Unix()
-	store.Create(context.Background(), &app.App{
+	_ = store.Create(context.Background(), &app.App{
 		ID:        "app-test123",
 		Name:      "test-app",
 		Template:  "open-webui",
@@ -166,17 +166,17 @@ func TestAppService_UninstallWithCleanup_Success(t *testing.T) {
 	})
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "app.stop",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{"success": true}, nil
 		},
 	})
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "app.uninstall",
 		execute: func(ctx context.Context, input any) (any, error) {
 			inputMap := input.(map[string]any)
-			store.Delete(ctx, inputMap["app_id"].(string))
+			_ = store.Delete(ctx, inputMap["app_id"].(string))
 			return map[string]any{"success": true}, nil
 		},
 	})
@@ -203,10 +203,10 @@ func TestAppService_UninstallWithCleanup_AppNotFound(t *testing.T) {
 	store := app.NewMemoryStore()
 	provider := &app.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "app.uninstall",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{"success": true}, nil
@@ -228,10 +228,10 @@ func TestAppService_StartWithHealthCheck_Success(t *testing.T) {
 	store := app.NewMemoryStore()
 	provider := &app.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	now := time.Now().Unix()
-	store.Create(context.Background(), &app.App{
+	_ = store.Create(context.Background(), &app.App{
 		ID:        "app-test123",
 		Name:      "test-app",
 		Template:  "open-webui",
@@ -241,13 +241,13 @@ func TestAppService_StartWithHealthCheck_Success(t *testing.T) {
 	})
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "app.start",
 		execute: func(ctx context.Context, input any) (any, error) {
 			inputMap := input.(map[string]any)
 			a, _ := store.Get(ctx, inputMap["app_id"].(string))
 			a.Status = app.AppStatusRunning
-			store.Update(ctx, a)
+			_ = store.Update(ctx, a)
 			return map[string]any{"success": true}, nil
 		},
 	})
@@ -268,10 +268,10 @@ func TestAppService_StopGracefully_Success(t *testing.T) {
 	store := app.NewMemoryStore()
 	provider := &app.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	now := time.Now().Unix()
-	store.Create(context.Background(), &app.App{
+	_ = store.Create(context.Background(), &app.App{
 		ID:        "app-test123",
 		Name:      "test-app",
 		Template:  "open-webui",
@@ -281,13 +281,13 @@ func TestAppService_StopGracefully_Success(t *testing.T) {
 	})
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "app.stop",
 		execute: func(ctx context.Context, input any) (any, error) {
 			inputMap := input.(map[string]any)
 			a, _ := store.Get(ctx, inputMap["app_id"].(string))
 			a.Status = app.AppStatusStopped
-			store.Update(ctx, a)
+			_ = store.Update(ctx, a)
 			return map[string]any{"success": true}, nil
 		},
 	})
@@ -311,10 +311,10 @@ func TestAppService_StopGracefully_AlreadyStopped(t *testing.T) {
 	store := app.NewMemoryStore()
 	provider := &app.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	now := time.Now().Unix()
-	store.Create(context.Background(), &app.App{
+	_ = store.Create(context.Background(), &app.App{
 		ID:        "app-test123",
 		Name:      "test-app",
 		Template:  "open-webui",
@@ -343,10 +343,10 @@ func TestAppService_GetFullInfo_Success(t *testing.T) {
 	store := app.NewMemoryStore()
 	provider := &app.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterQuery(&mockQuery{
+	_ = registry.RegisterQuery(&mockQuery{
 		name: "app.get",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{
@@ -381,14 +381,14 @@ func TestAppService_ListByStatus(t *testing.T) {
 	store := app.NewMemoryStore()
 
 	now := time.Now().Unix()
-	store.Create(context.Background(), &app.App{ID: "app1", Name: "app1", Status: app.AppStatusRunning, CreatedAt: now, UpdatedAt: now})
-	store.Create(context.Background(), &app.App{ID: "app2", Name: "app2", Status: app.AppStatusRunning, CreatedAt: now, UpdatedAt: now})
-	store.Create(context.Background(), &app.App{ID: "app3", Name: "app3", Status: app.AppStatusStopped, CreatedAt: now, UpdatedAt: now})
+	_ = store.Create(context.Background(), &app.App{ID: "app1", Name: "app1", Status: app.AppStatusRunning, CreatedAt: now, UpdatedAt: now})
+	_ = store.Create(context.Background(), &app.App{ID: "app2", Name: "app2", Status: app.AppStatusRunning, CreatedAt: now, UpdatedAt: now})
+	_ = store.Create(context.Background(), &app.App{ID: "app3", Name: "app3", Status: app.AppStatusStopped, CreatedAt: now, UpdatedAt: now})
 
 	registry := unit.NewRegistry()
 	provider := &app.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	svc := NewAppService(registry, store, provider, bus)
 
@@ -409,10 +409,10 @@ func TestAppService_GetLogsWithTail_Success(t *testing.T) {
 	store := app.NewMemoryStore()
 	provider := &app.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterQuery(&mockQuery{
+	_ = registry.RegisterQuery(&mockQuery{
 		name: "app.logs",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{
@@ -440,10 +440,10 @@ func TestAppService_ListTemplatesByCategory_Success(t *testing.T) {
 	store := app.NewMemoryStore()
 	provider := &app.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterQuery(&mockQuery{
+	_ = registry.RegisterQuery(&mockQuery{
 		name: "app.templates",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{

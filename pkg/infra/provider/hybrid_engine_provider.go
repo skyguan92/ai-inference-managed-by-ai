@@ -410,7 +410,7 @@ func (p *HybridEngineProvider) waitForHealth(ctx context.Context, containerID st
 		resp, err := client.Get(endpoint)
 		if err == nil {
 			func() {
-				defer resp.Body.Close()
+				defer func() { _ = resp.Body.Close() }()
 				if resp.StatusCode == http.StatusOK {
 					slog.Info("health check passed", "endpoint", endpoint)
 				}

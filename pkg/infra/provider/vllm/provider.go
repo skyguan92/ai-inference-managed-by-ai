@@ -350,7 +350,7 @@ func (p *Provider) waitForReady(ctx context.Context, svcInfo *ServiceInfo) error
 			// Service not yet accepting connections — keep polling.
 			continue
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if resp.StatusCode == http.StatusOK {
 			return nil
 		}
@@ -426,7 +426,7 @@ func (p *Provider) scrapeMetrics(metricsURL string) (*service.ServiceMetrics, er
 		// Service may be starting or metrics not yet exposed; return zeros.
 		return metrics, nil
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return metrics, nil

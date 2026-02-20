@@ -58,7 +58,7 @@ func TestGRPCAdapter_Execute(t *testing.T) {
 			}, nil
 		},
 	}
-	registry.RegisterCommand(testCmd)
+	_ = registry.RegisterCommand(testCmd)
 
 	gateway := NewGateway(registry)
 	adapter := NewGRPCAdapter(gateway)
@@ -100,7 +100,7 @@ func TestGRPCAdapter_ExecuteStream(t *testing.T) {
 			domain: "test",
 		},
 	}
-	registry.RegisterCommand(streamingCmd)
+	_ = registry.RegisterCommand(streamingCmd)
 
 	gateway := NewGateway(registry)
 	adapter := NewGRPCAdapter(gateway)
@@ -144,7 +144,7 @@ func TestGRPCAdapter_ExecuteStream(t *testing.T) {
 			name:   "test.nonstream",
 			domain: "test",
 		}
-		registry.RegisterCommand(nonStreamingCmd)
+		_ = registry.RegisterCommand(nonStreamingCmd)
 
 		input := map[string]any{}
 		chunkChan, err := adapter.ExecuteStream(ctx, TypeCommand, "test.nonstream", input)

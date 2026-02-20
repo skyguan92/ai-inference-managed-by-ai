@@ -445,7 +445,7 @@ func TestMCPE2E_StdioServer_InitializeAndToolsList(t *testing.T) {
 	})
 
 	// Close stdin to signal EOF and let the server stop
-	pw.Close()
+	_ = pw.Close()
 
 	select {
 	case <-done:
@@ -497,7 +497,7 @@ func TestMCPE2E_StdioServer_InvalidJSONProducesParseError(t *testing.T) {
 
 	// Write a non-JSON line
 	fmt.Fprintln(pw, `this is not json`)
-	pw.Close()
+	_ = pw.Close()
 
 	select {
 	case <-done:
@@ -538,7 +538,7 @@ func TestMCPE2E_StdioServer_ToolCallRoundTrip(t *testing.T) {
 		JSONRPC: "2.0", ID: 2, Method: "tools/call",
 		Params: json.RawMessage(`{"name":"model_list","arguments":{}}`),
 	})
-	pw.Close()
+	_ = pw.Close()
 
 	select {
 	case <-done:
@@ -578,7 +578,7 @@ func startSSEServer(t *testing.T, adapter *gateway.MCPAdapter) string {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	addr := ln.Addr().String()
-	ln.Close()
+	_ = ln.Close()
 
 	sseServer := gateway.NewMCPSSEServer(adapter, addr)
 
@@ -600,7 +600,7 @@ func startSSEServer(t *testing.T, adapter *gateway.MCPAdapter) string {
 	for time.Now().Before(deadline) {
 		resp, err := http.Get(base + "/health")
 		if err == nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
 				return base
 			}
@@ -619,7 +619,7 @@ func TestMCPE2E_SSEServer_HealthEndpoint(t *testing.T) {
 
 	resp, err := http.Get(base + "/health")
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
@@ -639,14 +639,14 @@ func TestMCPE2E_SSEServer_MessageEndpointErrors(t *testing.T) {
 	t.Run("method not allowed on /message GET", func(t *testing.T) {
 		resp, err := http.Get(base + "/message")
 		require.NoError(t, err)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		assert.Equal(t, http.StatusMethodNotAllowed, resp.StatusCode)
 	})
 
 	t.Run("missing session param", func(t *testing.T) {
 		resp, err := http.Post(base+"/message", "application/json", strings.NewReader("{}"))
 		require.NoError(t, err)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
 
@@ -654,7 +654,7 @@ func TestMCPE2E_SSEServer_MessageEndpointErrors(t *testing.T) {
 		resp, err := http.Post(base+"/message?session=does-not-exist",
 			"application/json", strings.NewReader("{}"))
 		require.NoError(t, err)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 	})
 
@@ -662,7 +662,7 @@ func TestMCPE2E_SSEServer_MessageEndpointErrors(t *testing.T) {
 		resp, err := http.Post(base+"/message?session=ghost",
 			"application/json", strings.NewReader("{bad json}"))
 		require.NoError(t, err)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		// Session not found takes priority over JSON parse error
 		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 	})
@@ -675,7 +675,7 @@ func TestMCPE2E_SSEServer_MethodNotAllowedOnSSE(t *testing.T) {
 
 	resp, err := http.Post(base+"/sse", "application/json", nil)
 	require.NoError(t, err)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	assert.Equal(t, http.StatusMethodNotAllowed, resp.StatusCode)
 }
 
@@ -689,7 +689,7 @@ func TestMCPE2E_SSEServer_FullSessionLifecycle(t *testing.T) {
 	// Open SSE stream (streaming, so we use a client with no timeout on read)
 	sseResp, err := http.Get(base + "/sse")
 	require.NoError(t, err)
-	defer sseResp.Body.Close()
+	defer func() { _ = sseResp.Body.Close() }()
 
 	assert.Equal(t, http.StatusOK, sseResp.StatusCode)
 	assert.Equal(t, "text/event-stream", sseResp.Header.Get("Content-Type"))
@@ -818,6 +818,6 @@ func postMCPRequest(t *testing.T, url string, req *gateway.MCPRequest, expectedS
 
 	resp, err := http.Post(url, "application/json", bytes.NewReader(data))
 	require.NoError(t, err)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	assert.Equal(t, expectedStatus, resp.StatusCode)
 }

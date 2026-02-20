@@ -220,7 +220,7 @@ func TestConcurrent_EventPublishing(t *testing.T) {
 		eventbus.WithBufferSize(1000),
 		eventbus.WithWorkerCount(4),
 	)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	const numSubscribers = 5
 	const numEvents = 100

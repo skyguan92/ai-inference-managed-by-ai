@@ -297,7 +297,7 @@ func TestServicesResource_GetWithPagination(t *testing.T) {
 	store := NewMemoryStore()
 	for i := 0; i < 5; i++ {
 		svc := createTestService(string(rune('a'+i)), "model-1", ServiceStatusRunning)
-		store.Create(context.Background(), svc)
+		_ = store.Create(context.Background(), svc)
 	}
 
 	r := NewServicesResource(store)

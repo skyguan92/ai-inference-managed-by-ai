@@ -298,7 +298,7 @@ func TestResponseWriter_DefaultStatus(t *testing.T) {
 	rec := httptest.NewRecorder()
 	rw := &responseWriter{ResponseWriter: rec, statusCode: http.StatusOK}
 	// Write without calling WriteHeader explicitly
-	rw.Write([]byte("hello"))
+	_, _ = rw.Write([]byte("hello"))
 	assert.Equal(t, http.StatusOK, rw.statusCode)
 }
 

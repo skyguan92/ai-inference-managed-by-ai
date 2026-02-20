@@ -18,7 +18,7 @@ func TestEvent_System(t *testing.T) {
 		eventbus.WithBufferSize(100),
 		eventbus.WithWorkerCount(2),
 	)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	// Subscribe to events
 	receivedEvents := make([]unit.Event, 0)
@@ -50,7 +50,7 @@ func TestEvent_System(t *testing.T) {
 // TestEvent_FilterByType tests event filtering by type
 func TestEvent_FilterByType(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	type1Events := make([]unit.Event, 0)
 	type2Events := make([]unit.Event, 0)
@@ -91,7 +91,7 @@ func TestEvent_FilterByType(t *testing.T) {
 // TestEvent_FilterByDomain tests event filtering by domain
 func TestEvent_FilterByDomain(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	modelEvents := make([]unit.Event, 0)
 	engineEvents := make([]unit.Event, 0)
@@ -131,7 +131,7 @@ func TestEvent_FilterByDomain(t *testing.T) {
 // TestEvent_FilterByTypes tests filtering by multiple event types
 func TestEvent_FilterByTypes(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	receivedEvents := make([]unit.Event, 0)
 
@@ -167,7 +167,7 @@ func TestEvent_FilterByTypes(t *testing.T) {
 // TestEvent_FilterByDomains tests filtering by multiple domains
 func TestEvent_FilterByDomains(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	receivedEvents := make([]unit.Event, 0)
 
@@ -195,7 +195,7 @@ func TestEvent_FilterByDomains(t *testing.T) {
 // TestEvent_MultipleSubscribers tests multiple subscribers receiving the same events
 func TestEvent_MultipleSubscribers(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	const numSubscribers = 5
 	const numEvents = 10
@@ -241,7 +241,7 @@ func TestEvent_MultipleSubscribers(t *testing.T) {
 // TestEvent_Unsubscribe tests unsubscription functionality
 func TestEvent_Unsubscribe(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	receivedCount := 0
 	subID, err := bus.Subscribe(func(evt unit.Event) error {
@@ -274,7 +274,7 @@ func TestEvent_Unsubscribe(t *testing.T) {
 // TestEvent_HandlerError tests that errors in handlers don't crash the system
 func TestEvent_HandlerError(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	goodHandlerCount := 0
 	errorHandlerCount := 0
@@ -312,7 +312,7 @@ func TestEvent_BufferOverflow(t *testing.T) {
 		eventbus.WithBufferSize(5),
 		eventbus.WithWorkerCount(1),
 	)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	// Slow handler to cause backup
 	receivedCount := 0
@@ -366,7 +366,7 @@ func TestEvent_CloseDrainsBuffer(t *testing.T) {
 // TestEvent_NilEventHandling tests handling of nil events
 func TestEvent_NilEventHandling(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	// Try to publish nil event
 	err := bus.Publish(nil)
@@ -393,7 +393,7 @@ func TestEvent_IntegrationWithCommands(t *testing.T) {
 	require.NoError(t, err)
 
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	// Collect events
 	events := make([]unit.Event, 0)

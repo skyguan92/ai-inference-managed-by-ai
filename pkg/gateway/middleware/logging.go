@@ -25,7 +25,7 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 	if rw.statusCode == 0 {
 		rw.statusCode = http.StatusOK
 	}
-	rw.body.Write(b)
+	_, _ = rw.body.Write(b)
 	return rw.ResponseWriter.Write(b)
 }
 

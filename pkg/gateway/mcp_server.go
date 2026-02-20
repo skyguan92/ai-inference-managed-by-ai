@@ -112,8 +112,8 @@ func (s *MCPServer) writeResponse(resp *MCPResponse) {
 		return
 	}
 
-	s.stdout.Write(data)
-	s.stdout.Write([]byte("\n"))
+	_, _ = s.stdout.Write(data)
+	_, _ = s.stdout.Write([]byte("\n"))
 }
 
 func (s *MCPServer) Shutdown() {

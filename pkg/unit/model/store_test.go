@@ -24,7 +24,7 @@ func TestMemoryStore_Create(t *testing.T) {
 func TestMemoryStore_Get(t *testing.T) {
 	s := NewMemoryStore()
 	m := createTestModel("model-1", "llama3")
-	s.Create(context.Background(), m)
+	_ = s.Create(context.Background(), m)
 
 	got, err := s.Get(context.Background(), "model-1")
 	if err != nil {
@@ -43,7 +43,7 @@ func TestMemoryStore_Get(t *testing.T) {
 func TestMemoryStore_Update(t *testing.T) {
 	s := NewMemoryStore()
 	m := createTestModel("model-1", "llama3")
-	s.Create(context.Background(), m)
+	_ = s.Create(context.Background(), m)
 
 	m.Name = "llama3-updated"
 	err := s.Update(context.Background(), m)
@@ -67,7 +67,7 @@ func TestMemoryStore_Update(t *testing.T) {
 func TestMemoryStore_Delete(t *testing.T) {
 	s := NewMemoryStore()
 	m := createTestModel("model-1", "llama3")
-	s.Create(context.Background(), m)
+	_ = s.Create(context.Background(), m)
 
 	err := s.Delete(context.Background(), "model-1")
 	if err != nil {
@@ -95,9 +95,9 @@ func TestMemoryStore_List_WithFilters(t *testing.T) {
 	vlm1.Format = FormatSafetensors
 	vlm1.Status = StatusPulling
 
-	s.Create(context.Background(), llm1)
-	s.Create(context.Background(), llm2)
-	s.Create(context.Background(), vlm1)
+	_ = s.Create(context.Background(), llm1)
+	_ = s.Create(context.Background(), llm2)
+	_ = s.Create(context.Background(), vlm1)
 
 	// Filter by type
 	results, total, err := s.List(context.Background(), ModelFilter{Type: ModelTypeLLM})
@@ -189,7 +189,7 @@ func TestCreateCommandWithEvents(t *testing.T) {
 
 func TestDeleteCommandWithEvents(t *testing.T) {
 	store := NewMemoryStore()
-	store.Create(context.Background(), createTestModel("model-del-1", "test"))
+	_ = store.Create(context.Background(), createTestModel("model-del-1", "test"))
 	pub := &mockPublisher{}
 
 	cmd := NewDeleteCommandWithEvents(store, pub)

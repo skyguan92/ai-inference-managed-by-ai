@@ -273,7 +273,7 @@ func handlePrometheusMetrics(rm *metrics.RequestMetrics, sc metrics.Collector) h
 
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(sb.String()))
+		_, _ = w.Write([]byte(sb.String()))
 	}
 }
 

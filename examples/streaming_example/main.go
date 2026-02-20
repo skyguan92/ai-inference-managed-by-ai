@@ -249,7 +249,7 @@ func (c *StreamClient) StreamChat(ctx context.Context, req *ChatRequest) (<-chan
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		return nil, fmt.Errorf("HTTP error: %d", resp.StatusCode)
 	}
 
@@ -258,7 +258,7 @@ func (c *StreamClient) StreamChat(ctx context.Context, req *ChatRequest) (<-chan
 
 	go func() {
 		defer close(chunks)
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		reader := bufio.NewReader(resp.Body)
 

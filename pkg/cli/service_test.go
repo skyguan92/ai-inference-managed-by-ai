@@ -125,14 +125,14 @@ func TestRunServiceCreate_ModelNotFound(t *testing.T) {
 func TestRunServiceCreate_ServiceCreated(t *testing.T) {
 	registry := unit.NewRegistry()
 	// Register model.get to succeed
-	registry.RegisterQuery(&testServiceQuery{
+	_ = registry.RegisterQuery(&testServiceQuery{
 		name: "model.get",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{"id": "model-123", "name": "llama3"}, nil
 		},
 	})
 	// Register service.create to succeed
-	registry.RegisterCommand(&testServiceCommand{
+	_ = registry.RegisterCommand(&testServiceCommand{
 		name: "service.create",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{"service_id": "svc-001", "status": "created"}, nil
@@ -153,13 +153,13 @@ func TestRunServiceCreate_ServiceCreated(t *testing.T) {
 
 func TestRunServiceCreate_CPUDevice(t *testing.T) {
 	registry := unit.NewRegistry()
-	registry.RegisterQuery(&testServiceQuery{
+	_ = registry.RegisterQuery(&testServiceQuery{
 		name: "model.get",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{"id": "model-123"}, nil
 		},
 	})
-	registry.RegisterCommand(&testServiceCommand{
+	_ = registry.RegisterCommand(&testServiceCommand{
 		name: "service.create",
 		execute: func(ctx context.Context, input any) (any, error) {
 			inputMap := input.(map[string]any)
@@ -183,7 +183,7 @@ func TestRunServiceCreate_CPUDevice(t *testing.T) {
 
 func TestRunServiceCreate_ServiceFails(t *testing.T) {
 	registry := unit.NewRegistry()
-	registry.RegisterQuery(&testServiceQuery{
+	_ = registry.RegisterQuery(&testServiceQuery{
 		name: "model.get",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{"id": "model-123"}, nil
@@ -205,7 +205,7 @@ func TestRunServiceCreate_ServiceFails(t *testing.T) {
 
 func TestRunServiceStart_Success(t *testing.T) {
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&testServiceCommand{
+	_ = registry.RegisterCommand(&testServiceCommand{
 		name: "service.start",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{"status": "running"}, nil
@@ -226,7 +226,7 @@ func TestRunServiceStart_Success(t *testing.T) {
 
 func TestRunServiceStart_Async(t *testing.T) {
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&testServiceCommand{
+	_ = registry.RegisterCommand(&testServiceCommand{
 		name: "service.start",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{"status": "starting"}, nil
@@ -255,7 +255,7 @@ func TestRunServiceStart_Fails(t *testing.T) {
 
 func TestRunServiceStop_Success(t *testing.T) {
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&testServiceCommand{
+	_ = registry.RegisterCommand(&testServiceCommand{
 		name: "service.stop",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{"success": true}, nil
@@ -276,7 +276,7 @@ func TestRunServiceStop_Success(t *testing.T) {
 
 func TestRunServiceStop_Force(t *testing.T) {
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&testServiceCommand{
+	_ = registry.RegisterCommand(&testServiceCommand{
 		name: "service.stop",
 		execute: func(ctx context.Context, input any) (any, error) {
 			inputMap := input.(map[string]any)
@@ -306,7 +306,7 @@ func TestRunServiceStop_Fails(t *testing.T) {
 
 func TestRunServiceStatus_Success(t *testing.T) {
 	registry := unit.NewRegistry()
-	registry.RegisterQuery(&testServiceQuery{
+	_ = registry.RegisterQuery(&testServiceQuery{
 		name: "service.status",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{"status": "running", "health": "healthy"}, nil
@@ -334,7 +334,7 @@ func TestRunServiceStatus_Fails(t *testing.T) {
 
 func TestRunServiceList_Success(t *testing.T) {
 	registry := unit.NewRegistry()
-	registry.RegisterQuery(&testServiceQuery{
+	_ = registry.RegisterQuery(&testServiceQuery{
 		name: "service.list",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{
@@ -360,7 +360,7 @@ func TestRunServiceList_Success(t *testing.T) {
 
 func TestRunServiceList_WithFilters(t *testing.T) {
 	registry := unit.NewRegistry()
-	registry.RegisterQuery(&testServiceQuery{
+	_ = registry.RegisterQuery(&testServiceQuery{
 		name: "service.list",
 		execute: func(ctx context.Context, input any) (any, error) {
 			inputMap := input.(map[string]any)

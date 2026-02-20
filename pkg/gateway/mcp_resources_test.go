@@ -18,7 +18,7 @@ func TestMCPAdapter_ListResources(t *testing.T) {
 				return map[string]any{"data": "test"}, nil
 			},
 		}
-		reg.RegisterResource(res)
+		_ = reg.RegisterResource(res)
 
 		g := NewGateway(reg)
 		adapter := NewMCPAdapter(g)
@@ -66,7 +66,7 @@ func TestMCPAdapter_handleResourcesList(t *testing.T) {
 			return map[string]any{"data": "test"}, nil
 		},
 	}
-	reg.RegisterResource(res)
+	_ = reg.RegisterResource(res)
 
 	g := NewGateway(reg)
 	adapter := NewMCPAdapter(g)
@@ -105,7 +105,7 @@ func TestMCPAdapter_ReadResource(t *testing.T) {
 				return map[string]any{"data": "test", "value": 123}, nil
 			},
 		}
-		reg.RegisterResource(res)
+		_ = reg.RegisterResource(res)
 
 		g := NewGateway(reg)
 		adapter := NewMCPAdapter(g)
@@ -155,7 +155,7 @@ func TestMCPAdapter_ReadResource(t *testing.T) {
 				return nil, errors.New("resource error")
 			},
 		}
-		reg.RegisterResource(res)
+		_ = reg.RegisterResource(res)
 
 		g := NewGateway(reg)
 		adapter := NewMCPAdapter(g)
@@ -174,7 +174,7 @@ func TestMCPAdapter_ReadResource(t *testing.T) {
 				return []byte("raw bytes data"), nil
 			},
 		}
-		reg.RegisterResource(res)
+		_ = reg.RegisterResource(res)
 
 		g := NewGateway(reg)
 		adapter := NewMCPAdapter(g)
@@ -199,7 +199,7 @@ func TestMCPAdapter_handleResourcesRead(t *testing.T) {
 				return map[string]any{"data": "test"}, nil
 			},
 		}
-		reg.RegisterResource(res)
+		_ = reg.RegisterResource(res)
 
 		g := NewGateway(reg)
 		adapter := NewMCPAdapter(g)

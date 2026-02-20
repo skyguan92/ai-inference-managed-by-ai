@@ -243,7 +243,7 @@ func TestProvider_Pull(t *testing.T) {
 				_ = json.NewEncoder(w).Encode(mockInfo)
 			case "/test-org/test-model/resolve/main/model.gguf":
 				w.Header().Set("Content-Length", "18")
-				w.Write(fileContent)
+				_, _ = w.Write(fileContent)
 			default:
 				w.WriteHeader(http.StatusNotFound)
 			}
@@ -290,7 +290,7 @@ func TestProvider_Pull(t *testing.T) {
 			}
 			if strings.Contains(r.URL.Path, "/resolve/v1.0/") {
 				w.Header().Set("Content-Length", "8")
-				w.Write([]byte("testfile"))
+				_, _ = w.Write([]byte("testfile"))
 				return
 			}
 			w.WriteHeader(http.StatusNotFound)
@@ -547,7 +547,7 @@ func TestClient_DownloadFile(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if strings.Contains(r.URL.Path, "/resolve/main/model.gguf") {
 				w.Header().Set("Content-Length", "30")
-				w.Write(content)
+				_, _ = w.Write(content)
 				return
 			}
 			w.WriteHeader(http.StatusNotFound)
@@ -564,7 +564,7 @@ func TestClient_DownloadFile(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		defer reader.Close()
+		defer func() { _ = reader.Close() }()
 
 		data, err := io.ReadAll(reader)
 		if err != nil {
@@ -584,7 +584,7 @@ func TestClient_DownloadFile(t *testing.T) {
 	t.Run("error response", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusForbidden)
-			w.Write([]byte("access denied"))
+			_, _ = w.Write([]byte("access denied"))
 		}))
 		defer server.Close()
 

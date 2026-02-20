@@ -52,7 +52,7 @@ func TestAppResource_Get(t *testing.T) {
 			name: "successful get",
 			store: func() AppStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestApp("app-123", "open-webui", AppStatusInstalled))
+				_ = s.Create(context.Background(), createTestApp("app-123", "open-webui", AppStatusInstalled))
 				return s
 			}(),
 			provider:   &MockProvider{},
@@ -65,7 +65,7 @@ func TestAppResource_Get(t *testing.T) {
 			name: "get running app with metrics",
 			store: func() AppStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestApp("app-123", "open-webui", AppStatusRunning))
+				_ = s.Create(context.Background(), createTestApp("app-123", "open-webui", AppStatusRunning))
 				return s
 			}(),
 			provider:   &MockProvider{},

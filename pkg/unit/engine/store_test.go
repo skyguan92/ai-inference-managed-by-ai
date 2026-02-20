@@ -24,7 +24,7 @@ func TestMemoryStore_Create(t *testing.T) {
 func TestMemoryStore_Get(t *testing.T) {
 	s := NewMemoryStore()
 	e := createTestEngine("ollama", EngineTypeOllama)
-	s.Create(context.Background(), e)
+	_ = s.Create(context.Background(), e)
 
 	got, err := s.Get(context.Background(), "ollama")
 	if err != nil {
@@ -43,7 +43,7 @@ func TestMemoryStore_Get(t *testing.T) {
 func TestMemoryStore_GetByID(t *testing.T) {
 	s := NewMemoryStore()
 	e := createTestEngine("ollama", EngineTypeOllama)
-	s.Create(context.Background(), e)
+	_ = s.Create(context.Background(), e)
 
 	got, err := s.GetByID(context.Background(), e.ID)
 	if err != nil {
@@ -62,7 +62,7 @@ func TestMemoryStore_GetByID(t *testing.T) {
 func TestMemoryStore_Update(t *testing.T) {
 	s := NewMemoryStore()
 	e := createTestEngine("ollama", EngineTypeOllama)
-	s.Create(context.Background(), e)
+	_ = s.Create(context.Background(), e)
 
 	e.Status = EngineStatusRunning
 	err := s.Update(context.Background(), e)
@@ -86,7 +86,7 @@ func TestMemoryStore_Update(t *testing.T) {
 func TestMemoryStore_Delete(t *testing.T) {
 	s := NewMemoryStore()
 	e := createTestEngine("ollama", EngineTypeOllama)
-	s.Create(context.Background(), e)
+	_ = s.Create(context.Background(), e)
 
 	err := s.Delete(context.Background(), "ollama")
 	if err != nil {
@@ -113,9 +113,9 @@ func TestMemoryStore_List_WithFilters(t *testing.T) {
 	e3 := createTestEngine("whisper", EngineTypeWhisper)
 	e3.Status = EngineStatusRunning
 
-	s.Create(context.Background(), e1)
-	s.Create(context.Background(), e2)
-	s.Create(context.Background(), e3)
+	_ = s.Create(context.Background(), e1)
+	_ = s.Create(context.Background(), e2)
+	_ = s.Create(context.Background(), e3)
 
 	// Filter by type
 	results, total, err := s.List(context.Background(), EngineFilter{Type: EngineTypeOllama})

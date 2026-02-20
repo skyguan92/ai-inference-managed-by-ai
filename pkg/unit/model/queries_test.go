@@ -52,7 +52,7 @@ func TestGetQuery_Execute(t *testing.T) {
 			name: "successful get",
 			store: func() ModelStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestModel("model-123", "llama3"))
+				_ = s.Create(context.Background(), createTestModel("model-123", "llama3"))
 				return s
 			}(),
 			input:      map[string]any{"model_id": "model-123"},
@@ -142,8 +142,8 @@ func TestListQuery_Execute(t *testing.T) {
 			name: "list all models",
 			store: func() ModelStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestModel("model-1", "llama3"))
-				s.Create(context.Background(), createTestModel("model-2", "mistral"))
+				_ = s.Create(context.Background(), createTestModel("model-1", "llama3"))
+				_ = s.Create(context.Background(), createTestModel("model-2", "mistral"))
 				return s
 			}(),
 			input:     map[string]any{},
@@ -155,10 +155,10 @@ func TestListQuery_Execute(t *testing.T) {
 			name: "list with type filter",
 			store: func() ModelStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestModel("model-1", "llama3"))
+				_ = s.Create(context.Background(), createTestModel("model-1", "llama3"))
 				m := createTestModel("model-2", "whisper")
 				m.Type = ModelTypeASR
-				s.Create(context.Background(), m)
+				_ = s.Create(context.Background(), m)
 				return s
 			}(),
 			input:     map[string]any{"type": "llm"},
@@ -170,9 +170,9 @@ func TestListQuery_Execute(t *testing.T) {
 			name: "list with pagination",
 			store: func() ModelStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestModel("model-1", "llama3"))
-				s.Create(context.Background(), createTestModel("model-2", "mistral"))
-				s.Create(context.Background(), createTestModel("model-3", "codellama"))
+				_ = s.Create(context.Background(), createTestModel("model-1", "llama3"))
+				_ = s.Create(context.Background(), createTestModel("model-2", "mistral"))
+				_ = s.Create(context.Background(), createTestModel("model-3", "codellama"))
 				return s
 			}(),
 			input:     map[string]any{"limit": 2, "offset": 1},
@@ -349,7 +349,7 @@ func TestEstimateResourcesQuery_Execute(t *testing.T) {
 			name: "estimate from model requirements",
 			store: func() ModelStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestModel("model-123", "llama3"))
+				_ = s.Create(context.Background(), createTestModel("model-123", "llama3"))
 				return s
 			}(),
 			provider:      &MockProvider{},
@@ -364,7 +364,7 @@ func TestEstimateResourcesQuery_Execute(t *testing.T) {
 				s := NewMemoryStore()
 				m := createTestModel("model-123", "llama3")
 				m.Requirements = nil
-				s.Create(context.Background(), m)
+				_ = s.Create(context.Background(), m)
 				return s
 			}(),
 			provider: &MockProvider{
@@ -406,7 +406,7 @@ func TestEstimateResourcesQuery_Execute(t *testing.T) {
 				s := NewMemoryStore()
 				m := createTestModel("model-123", "llama3")
 				m.Requirements = nil
-				s.Create(context.Background(), m)
+				_ = s.Create(context.Background(), m)
 				return s
 			}(),
 			provider: &MockProvider{estimateErr: errors.New("estimate failed")},

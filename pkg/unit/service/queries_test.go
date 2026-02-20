@@ -335,8 +335,8 @@ func TestQueryImplementsInterface(t *testing.T) {
 
 func createStoreWithMultipleServices() ServiceStore {
 	store := NewMemoryStore()
-	store.Create(context.Background(), createTestService("svc-1", "model-1", ServiceStatusRunning))
-	store.Create(context.Background(), createTestService("svc-2", "model-1", ServiceStatusStopped))
-	store.Create(context.Background(), createTestService("svc-3", "model-2", ServiceStatusRunning))
+	_ = store.Create(context.Background(), createTestService("svc-1", "model-1", ServiceStatusRunning))
+	_ = store.Create(context.Background(), createTestService("svc-2", "model-1", ServiceStatusStopped))
+	_ = store.Create(context.Background(), createTestService("svc-3", "model-2", ServiceStatusRunning))
 	return store
 }

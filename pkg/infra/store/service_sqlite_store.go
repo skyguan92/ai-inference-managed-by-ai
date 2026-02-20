@@ -167,7 +167,7 @@ func (s *ServiceSQLiteStore) List(ctx context.Context, filter service.ServiceFil
 	if err != nil {
 		return nil, 0, fmt.Errorf("query services: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var services []service.ModelService
 	for rows.Next() {

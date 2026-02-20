@@ -76,7 +76,7 @@ func TestHandleStream_StreamingCommand(t *testing.T) {
 	registry := unit.NewRegistry()
 	provider := inference.NewMockProvider()
 	chatCmd := inference.NewChatCommand(provider)
-	registry.RegisterCommand(chatCmd)
+	_ = registry.RegisterCommand(chatCmd)
 
 	gateway := NewGateway(registry)
 
@@ -128,7 +128,7 @@ func TestHandleStream_NonStreamingCommand(t *testing.T) {
 	// Register a command that doesn't support streaming
 	provider := inference.NewMockProvider()
 	embedCmd := inference.NewEmbedCommand(provider)
-	registry.RegisterCommand(embedCmd)
+	_ = registry.RegisterCommand(embedCmd)
 
 	gateway := NewGateway(registry)
 

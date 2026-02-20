@@ -213,7 +213,7 @@ func TestHandle_Command(t *testing.T) {
 				return nil, errors.New("execution failed")
 			},
 		}
-		reg.RegisterCommand(errorCmd)
+		_ = reg.RegisterCommand(errorCmd)
 
 		resp := g.Handle(context.Background(), &Request{
 			Type: TypeCommand,
@@ -271,7 +271,7 @@ func TestHandle_Query(t *testing.T) {
 				return nil, errors.New("query failed")
 			},
 		}
-		reg.RegisterQuery(errorQuery)
+		_ = reg.RegisterQuery(errorQuery)
 
 		resp := g.Handle(context.Background(), &Request{
 			Type: TypeQuery,
@@ -327,7 +327,7 @@ func TestHandle_Resource(t *testing.T) {
 				return nil, errors.New("resource error")
 			},
 		}
-		reg.RegisterResource(errorRes)
+		_ = reg.RegisterResource(errorRes)
 
 		resp := g.Handle(context.Background(), &Request{
 			Type: TypeResource,
@@ -356,7 +356,7 @@ func TestHandle_Timeout(t *testing.T) {
 			}
 		},
 	}
-	reg.RegisterCommand(slowCmd)
+	_ = reg.RegisterCommand(slowCmd)
 
 	g := NewGateway(reg, WithTimeout(100*time.Millisecond))
 
@@ -382,7 +382,7 @@ func TestHandle_CustomTimeout(t *testing.T) {
 			return "fast", nil
 		},
 	}
-	reg.RegisterCommand(fastCmd)
+	_ = reg.RegisterCommand(fastCmd)
 
 	g := NewGateway(reg)
 
@@ -402,7 +402,7 @@ func TestHandle_CustomTimeout(t *testing.T) {
 func TestHandle_TraceID(t *testing.T) {
 	reg := unit.NewRegistry()
 	cmd := &mockCommand{name: "test.trace", domain: "test"}
-	reg.RegisterCommand(cmd)
+	_ = reg.RegisterCommand(cmd)
 	g := NewGateway(reg)
 
 	t.Run("custom trace_id", func(t *testing.T) {

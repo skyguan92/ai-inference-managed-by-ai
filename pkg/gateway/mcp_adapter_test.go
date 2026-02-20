@@ -396,7 +396,7 @@ func TestIsCommand(t *testing.T) {
 	t.Run("with command", func(t *testing.T) {
 		reg := unit.NewRegistry()
 		cmd := &mockCommand{name: "test.cmd", domain: "test"}
-		reg.RegisterCommand(cmd)
+		_ = reg.RegisterCommand(cmd)
 		g := NewGateway(reg)
 
 		if !isCommand("test.cmd", g) {

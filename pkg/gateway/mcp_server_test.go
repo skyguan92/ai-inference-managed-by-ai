@@ -147,7 +147,7 @@ func TestMCPServer_handleLine(t *testing.T) {
 				return map[string]any{"echo": input}, nil
 			},
 		}
-		reg.RegisterCommand(cmd)
+		_ = reg.RegisterCommand(cmd)
 		g := NewGateway(reg)
 		adapter := NewMCPAdapter(g)
 		server := NewMCPServer(adapter, stdin, stdout, stderr)
@@ -182,7 +182,7 @@ func TestMCPServer_handleLine(t *testing.T) {
 				return map[string]any{"data": "test"}, nil
 			},
 		}
-		reg.RegisterResource(res)
+		_ = reg.RegisterResource(res)
 		g := NewGateway(reg)
 		adapter := NewMCPAdapter(g)
 		server := NewMCPServer(adapter, stdin, stdout, stderr)

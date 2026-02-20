@@ -15,7 +15,7 @@ func TestRemoteService_NewRemoteService(t *testing.T) {
 	store := remote.NewMemoryStore()
 	provider := &remote.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	tests := []struct {
 		name     string
@@ -61,10 +61,10 @@ func TestRemoteService_EnableWithVerify_Success(t *testing.T) {
 	store := remote.NewMemoryStore()
 	provider := &remote.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "remote.enable",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{
@@ -73,7 +73,7 @@ func TestRemoteService_EnableWithVerify_Success(t *testing.T) {
 			}, nil
 		},
 	})
-	registry.RegisterQuery(&mockQuery{
+	_ = registry.RegisterQuery(&mockQuery{
 		name: "remote.status",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{"enabled": true}, nil
@@ -102,7 +102,7 @@ func TestRemoteService_EnableWithVerify_CommandNotFound(t *testing.T) {
 	store := remote.NewMemoryStore()
 	provider := &remote.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
 	svc := NewRemoteService(registry, store, provider, bus)
@@ -120,10 +120,10 @@ func TestRemoteService_EnableWithVerify_EnableFails(t *testing.T) {
 	store := remote.NewMemoryStore()
 	provider := &remote.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "remote.enable",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return nil, errors.New("enable failed")
@@ -145,9 +145,9 @@ func TestRemoteService_DisableWithCleanup_Success(t *testing.T) {
 	store := remote.NewMemoryStore()
 	provider := &remote.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
-	store.SetTunnel(context.Background(), &remote.TunnelInfo{
+	_ = store.SetTunnel(context.Background(), &remote.TunnelInfo{
 		ID:        "tunnel-123",
 		Status:    remote.TunnelStatusConnected,
 		Provider:  remote.TunnelProviderFRP,
@@ -156,10 +156,10 @@ func TestRemoteService_DisableWithCleanup_Success(t *testing.T) {
 	})
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "remote.disable",
 		execute: func(ctx context.Context, input any) (any, error) {
-			store.DeleteTunnel(ctx)
+			_ = store.DeleteTunnel(ctx)
 			return map[string]any{"success": true}, nil
 		},
 	})
@@ -183,7 +183,7 @@ func TestRemoteService_DisableWithCleanup_CommandNotFound(t *testing.T) {
 	store := remote.NewMemoryStore()
 	provider := &remote.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
 	svc := NewRemoteService(registry, store, provider, bus)
@@ -201,10 +201,10 @@ func TestRemoteService_ExecWithTimeout_Success(t *testing.T) {
 	store := remote.NewMemoryStore()
 	provider := &remote.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "remote.exec",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{
@@ -237,10 +237,10 @@ func TestRemoteService_ExecWithTimeout_TimeoutClamp(t *testing.T) {
 	store := remote.NewMemoryStore()
 	provider := &remote.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "remote.exec",
 		execute: func(ctx context.Context, input any) (any, error) {
 			inputMap := input.(map[string]any)
@@ -268,7 +268,7 @@ func TestRemoteService_ExecWithTimeout_CommandNotFound(t *testing.T) {
 	store := remote.NewMemoryStore()
 	provider := &remote.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
 	svc := NewRemoteService(registry, store, provider, bus)
@@ -286,10 +286,10 @@ func TestRemoteService_ExecWithTimeout_DefaultTimeout(t *testing.T) {
 	store := remote.NewMemoryStore()
 	provider := &remote.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "remote.exec",
 		execute: func(ctx context.Context, input any) (any, error) {
 			inputMap := input.(map[string]any)
@@ -317,9 +317,9 @@ func TestRemoteService_GetStatus_Success(t *testing.T) {
 	store := remote.NewMemoryStore()
 	provider := &remote.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
-	store.SetTunnel(context.Background(), &remote.TunnelInfo{
+	_ = store.SetTunnel(context.Background(), &remote.TunnelInfo{
 		ID:        "tunnel-123",
 		Status:    remote.TunnelStatusConnected,
 		Provider:  remote.TunnelProviderFRP,
@@ -328,7 +328,7 @@ func TestRemoteService_GetStatus_Success(t *testing.T) {
 	})
 
 	registry := unit.NewRegistry()
-	registry.RegisterQuery(&mockQuery{
+	_ = registry.RegisterQuery(&mockQuery{
 		name: "remote.status",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{
@@ -359,7 +359,7 @@ func TestRemoteService_GetStatus_QueryNotFound(t *testing.T) {
 	store := remote.NewMemoryStore()
 	provider := &remote.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
 	svc := NewRemoteService(registry, store, provider, bus)
@@ -377,10 +377,10 @@ func TestRemoteService_GetAuditLog_Success(t *testing.T) {
 	store := remote.NewMemoryStore()
 	provider := &remote.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterQuery(&mockQuery{
+	_ = registry.RegisterQuery(&mockQuery{
 		name: "remote.audit",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{
@@ -416,7 +416,7 @@ func TestRemoteService_GetAuditLog_QueryNotFound(t *testing.T) {
 	store := remote.NewMemoryStore()
 	provider := &remote.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
 	svc := NewRemoteService(registry, store, provider, bus)
@@ -434,9 +434,9 @@ func TestRemoteService_IsEnabled_True(t *testing.T) {
 	store := remote.NewMemoryStore()
 	provider := &remote.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
-	store.SetTunnel(context.Background(), &remote.TunnelInfo{
+	_ = store.SetTunnel(context.Background(), &remote.TunnelInfo{
 		ID:        "tunnel-123",
 		Status:    remote.TunnelStatusConnected,
 		Provider:  remote.TunnelProviderFRP,
@@ -461,7 +461,7 @@ func TestRemoteService_IsEnabled_False(t *testing.T) {
 	store := remote.NewMemoryStore()
 	provider := &remote.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
 	svc := NewRemoteService(registry, store, provider, bus)
@@ -480,9 +480,9 @@ func TestRemoteService_GetPublicURL_Success(t *testing.T) {
 	store := remote.NewMemoryStore()
 	provider := &remote.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
-	store.SetTunnel(context.Background(), &remote.TunnelInfo{
+	_ = store.SetTunnel(context.Background(), &remote.TunnelInfo{
 		ID:        "tunnel-123",
 		Status:    remote.TunnelStatusConnected,
 		Provider:  remote.TunnelProviderFRP,
@@ -507,9 +507,9 @@ func TestRemoteService_GetPublicURL_NotConnected(t *testing.T) {
 	store := remote.NewMemoryStore()
 	provider := &remote.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
-	store.SetTunnel(context.Background(), &remote.TunnelInfo{
+	_ = store.SetTunnel(context.Background(), &remote.TunnelInfo{
 		ID:        "tunnel-123",
 		Status:    remote.TunnelStatusDisconnected,
 		Provider:  remote.TunnelProviderFRP,
@@ -533,7 +533,7 @@ func TestRemoteService_GetPublicURL_NoTunnel(t *testing.T) {
 	store := remote.NewMemoryStore()
 	provider := &remote.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
 	svc := NewRemoteService(registry, store, provider, bus)
@@ -551,10 +551,10 @@ func TestRemoteService_EnableWithVerify_VerificationFails(t *testing.T) {
 	store := remote.NewMemoryStore()
 	provider := &remote.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "remote.enable",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{
@@ -563,7 +563,7 @@ func TestRemoteService_EnableWithVerify_VerificationFails(t *testing.T) {
 			}, nil
 		},
 	})
-	registry.RegisterQuery(&mockQuery{
+	_ = registry.RegisterQuery(&mockQuery{
 		name: "remote.status",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{"enabled": false}, nil
@@ -586,10 +586,10 @@ func TestRemoteService_ExecWithTimeout_ExecFails(t *testing.T) {
 	store := remote.NewMemoryStore()
 	provider := &remote.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "remote.exec",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return nil, errors.New("exec failed")
@@ -611,10 +611,10 @@ func TestRemoteService_DisableWithCleanup_NoTunnel(t *testing.T) {
 	store := remote.NewMemoryStore()
 	provider := &remote.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "remote.disable",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{"success": true}, nil
@@ -636,10 +636,10 @@ func TestRemoteService_GetStatus_QueryFails(t *testing.T) {
 	store := remote.NewMemoryStore()
 	provider := &remote.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterQuery(&mockQuery{
+	_ = registry.RegisterQuery(&mockQuery{
 		name: "remote.status",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return nil, errors.New("query failed")

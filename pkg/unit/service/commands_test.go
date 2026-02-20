@@ -578,6 +578,6 @@ func TestCommandImplementsInterface(t *testing.T) {
 func createStoreWithService(id string, modelID string, status ServiceStatus) ServiceStore {
 	store := NewMemoryStore()
 	service := createTestService(id, modelID, status)
-	store.Create(context.Background(), service)
+	_ = store.Create(context.Background(), service)
 	return store
 }

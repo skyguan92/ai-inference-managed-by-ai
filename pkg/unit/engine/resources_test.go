@@ -51,7 +51,7 @@ func TestEngineResource_Get(t *testing.T) {
 			name: "successful get",
 			store: func() EngineStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestEngine("ollama", EngineTypeOllama))
+				_ = s.Create(context.Background(), createTestEngine("ollama", EngineTypeOllama))
 				return s
 			}(),
 			engineName: "ollama",
@@ -147,7 +147,7 @@ func TestEngineResource_GetWithModels(t *testing.T) {
 	engine := createTestEngine("ollama", EngineTypeOllama)
 	engine.Models = []string{"llama3", "mistral"}
 	engine.Capabilities = []string{"chat", "completion", "embedding"}
-	store.Create(context.Background(), engine)
+	_ = store.Create(context.Background(), engine)
 
 	r := NewEngineResource("ollama", store)
 	result, err := r.Get(context.Background())
@@ -285,7 +285,7 @@ func TestMemoryStore_ListWithFilter(t *testing.T) {
 	engines[1].Status = EngineStatusRunning
 
 	for _, e := range engines {
-		store.Create(ctx, e)
+		_ = store.Create(ctx, e)
 	}
 
 	ollamaEngines, total, err := store.List(ctx, EngineFilter{Type: EngineTypeOllama})
@@ -304,8 +304,8 @@ func TestMemoryStore_ListWithFilter(t *testing.T) {
 		t.Errorf("expected 1 running engine, got %d (total: %d)", len(runningEngines), total)
 	}
 
-	store.Create(ctx, createTestEngine("sglang", EngineTypeSGLang))
-	store.Create(ctx, createTestEngine("whisper", EngineTypeWhisper))
+	_ = store.Create(ctx, createTestEngine("sglang", EngineTypeSGLang))
+	_ = store.Create(ctx, createTestEngine("whisper", EngineTypeWhisper))
 
 	pagedEngines, total, err := store.List(ctx, EngineFilter{Limit: 2, Offset: 1})
 	if err != nil {

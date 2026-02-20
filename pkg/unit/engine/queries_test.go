@@ -155,8 +155,8 @@ func TestListQuery_Execute(t *testing.T) {
 			name: "list with type filter",
 			store: func() EngineStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestEngine("ollama", EngineTypeOllama))
-				s.Create(context.Background(), createTestEngine("whisper", EngineTypeWhisper))
+				_ = s.Create(context.Background(), createTestEngine("ollama", EngineTypeOllama))
+				_ = s.Create(context.Background(), createTestEngine("whisper", EngineTypeWhisper))
 				return s
 			}(),
 			input:     map[string]any{"type": "ollama"},
@@ -170,10 +170,10 @@ func TestListQuery_Execute(t *testing.T) {
 				s := NewMemoryStore()
 				e1 := createTestEngine("ollama", EngineTypeOllama)
 				e1.Status = EngineStatusRunning
-				s.Create(context.Background(), e1)
+				_ = s.Create(context.Background(), e1)
 				e2 := createTestEngine("vllm", EngineTypeVLLM)
 				e2.Status = EngineStatusStopped
-				s.Create(context.Background(), e2)
+				_ = s.Create(context.Background(), e2)
 				return s
 			}(),
 			input:     map[string]any{"status": "running"},
@@ -185,9 +185,9 @@ func TestListQuery_Execute(t *testing.T) {
 			name: "list with pagination",
 			store: func() EngineStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestEngine("ollama", EngineTypeOllama))
-				s.Create(context.Background(), createTestEngine("vllm", EngineTypeVLLM))
-				s.Create(context.Background(), createTestEngine("sglang", EngineTypeSGLang))
+				_ = s.Create(context.Background(), createTestEngine("ollama", EngineTypeOllama))
+				_ = s.Create(context.Background(), createTestEngine("vllm", EngineTypeVLLM))
+				_ = s.Create(context.Background(), createTestEngine("sglang", EngineTypeSGLang))
 				return s
 			}(),
 			input:     map[string]any{"limit": 2, "offset": 1},
@@ -274,7 +274,7 @@ func TestFeaturesQuery_Execute(t *testing.T) {
 			name: "successful get features",
 			store: func() EngineStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestEngine("ollama", EngineTypeOllama))
+				_ = s.Create(context.Background(), createTestEngine("ollama", EngineTypeOllama))
 				return s
 			}(),
 			provider:           &MockProvider{},
@@ -287,7 +287,7 @@ func TestFeaturesQuery_Execute(t *testing.T) {
 			name: "get custom features",
 			store: func() EngineStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestEngine("vllm", EngineTypeVLLM))
+				_ = s.Create(context.Background(), createTestEngine("vllm", EngineTypeVLLM))
 				return s
 			}(),
 			provider: &MockProvider{
@@ -337,7 +337,7 @@ func TestFeaturesQuery_Execute(t *testing.T) {
 			name: "provider error",
 			store: func() EngineStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestEngine("ollama", EngineTypeOllama))
+				_ = s.Create(context.Background(), createTestEngine("ollama", EngineTypeOllama))
 				return s
 			}(),
 			provider: &MockProvider{featuresErr: errors.New("features error")},

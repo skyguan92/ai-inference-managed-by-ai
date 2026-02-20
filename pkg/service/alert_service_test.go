@@ -14,7 +14,7 @@ import (
 func TestAlertService_NewAlertService(t *testing.T) {
 	store := alert.NewMemoryStore()
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	tests := []struct {
 		name     string
@@ -49,10 +49,10 @@ func TestAlertService_NewAlertService(t *testing.T) {
 func TestAlertService_CreateRuleWithTest_Success(t *testing.T) {
 	store := alert.NewMemoryStore()
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "alert.create_rule",
 		execute: func(ctx context.Context, input any) (any, error) {
 			rule := &alert.AlertRule{
@@ -62,7 +62,7 @@ func TestAlertService_CreateRuleWithTest_Success(t *testing.T) {
 				Severity:  alert.AlertSeverityWarning,
 				Enabled:   true,
 			}
-			store.CreateRule(ctx, rule)
+			_ = store.CreateRule(ctx, rule)
 			return map[string]any{"rule_id": rule.ID}, nil
 		},
 	})
@@ -96,7 +96,7 @@ func TestAlertService_CreateRuleWithTest_Success(t *testing.T) {
 func TestAlertService_CreateRuleWithTest_InvalidInput(t *testing.T) {
 	store := alert.NewMemoryStore()
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
 	svc := NewAlertService(registry, store, bus)
@@ -145,7 +145,7 @@ func TestAlertService_CreateRuleWithTest_InvalidInput(t *testing.T) {
 func TestAlertService_CreateRuleWithTest_CommandNotFound(t *testing.T) {
 	store := alert.NewMemoryStore()
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
 	svc := NewAlertService(registry, store, bus)
@@ -168,9 +168,9 @@ func TestAlertService_CreateRuleWithTest_CommandNotFound(t *testing.T) {
 func TestAlertService_UpdateRuleWithValidation_Success(t *testing.T) {
 	store := alert.NewMemoryStore()
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
-	store.CreateRule(context.Background(), &alert.AlertRule{
+	_ = store.CreateRule(context.Background(), &alert.AlertRule{
 		ID:        "rule-123",
 		Name:      "test-rule",
 		Condition: "cpu > 80",
@@ -179,7 +179,7 @@ func TestAlertService_UpdateRuleWithValidation_Success(t *testing.T) {
 	})
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "alert.update_rule",
 		execute: func(ctx context.Context, input any) (any, error) {
 			inputMap := input.(map[string]any)
@@ -187,7 +187,7 @@ func TestAlertService_UpdateRuleWithValidation_Success(t *testing.T) {
 			if name, ok := inputMap["name"].(string); ok {
 				rule.Name = name
 			}
-			store.UpdateRule(ctx, rule)
+			_ = store.UpdateRule(ctx, rule)
 			return map[string]any{"success": true}, nil
 		},
 	})
@@ -213,7 +213,7 @@ func TestAlertService_UpdateRuleWithValidation_Success(t *testing.T) {
 func TestAlertService_UpdateRuleWithValidation_EmptyRuleID(t *testing.T) {
 	store := alert.NewMemoryStore()
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
 	svc := NewAlertService(registry, store, bus)
@@ -232,16 +232,16 @@ func TestAlertService_UpdateRuleWithValidation_EmptyRuleID(t *testing.T) {
 func TestAlertService_DeleteRuleWithCleanup_Success(t *testing.T) {
 	store := alert.NewMemoryStore()
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
-	store.CreateRule(context.Background(), &alert.AlertRule{
+	_ = store.CreateRule(context.Background(), &alert.AlertRule{
 		ID:        "rule-123",
 		Name:      "test-rule",
 		Condition: "cpu > 80",
 		Severity:  alert.AlertSeverityWarning,
 		Enabled:   true,
 	})
-	store.CreateAlert(context.Background(), &alert.Alert{
+	_ = store.CreateAlert(context.Background(), &alert.Alert{
 		ID:          "alert-1",
 		RuleID:      "rule-123",
 		Status:      alert.AlertStatusResolved,
@@ -250,11 +250,11 @@ func TestAlertService_DeleteRuleWithCleanup_Success(t *testing.T) {
 	})
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "alert.delete_rule",
 		execute: func(ctx context.Context, input any) (any, error) {
 			inputMap := input.(map[string]any)
-			store.DeleteRule(ctx, inputMap["rule_id"].(string))
+			_ = store.DeleteRule(ctx, inputMap["rule_id"].(string))
 			return map[string]any{"success": true}, nil
 		},
 	})
@@ -274,10 +274,10 @@ func TestAlertService_DeleteRuleWithCleanup_Success(t *testing.T) {
 func TestAlertService_DeleteRuleWithCleanup_RuleNotFound(t *testing.T) {
 	store := alert.NewMemoryStore()
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "alert.delete_rule",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{"success": true}, nil
@@ -298,9 +298,9 @@ func TestAlertService_DeleteRuleWithCleanup_RuleNotFound(t *testing.T) {
 func TestAlertService_AcknowledgeAlert_Success(t *testing.T) {
 	store := alert.NewMemoryStore()
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
-	store.CreateAlert(context.Background(), &alert.Alert{
+	_ = store.CreateAlert(context.Background(), &alert.Alert{
 		ID:          "alert-123",
 		RuleID:      "rule-123",
 		Status:      alert.AlertStatusFiring,
@@ -309,7 +309,7 @@ func TestAlertService_AcknowledgeAlert_Success(t *testing.T) {
 	})
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "alert.acknowledge",
 		execute: func(ctx context.Context, input any) (any, error) {
 			inputMap := input.(map[string]any)
@@ -317,7 +317,7 @@ func TestAlertService_AcknowledgeAlert_Success(t *testing.T) {
 			a.Status = alert.AlertStatusAcknowledged
 			now := time.Now()
 			a.AcknowledgedAt = &now
-			store.UpdateAlert(ctx, a)
+			_ = store.UpdateAlert(ctx, a)
 			return map[string]any{"success": true}, nil
 		},
 	})
@@ -340,7 +340,7 @@ func TestAlertService_AcknowledgeAlert_Success(t *testing.T) {
 func TestAlertService_AcknowledgeAlert_EmptyAlertID(t *testing.T) {
 	store := alert.NewMemoryStore()
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
 	svc := NewAlertService(registry, store, bus)
@@ -357,9 +357,9 @@ func TestAlertService_AcknowledgeAlert_EmptyAlertID(t *testing.T) {
 func TestAlertService_ResolveAlert_Success(t *testing.T) {
 	store := alert.NewMemoryStore()
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
-	store.CreateAlert(context.Background(), &alert.Alert{
+	_ = store.CreateAlert(context.Background(), &alert.Alert{
 		ID:          "alert-123",
 		RuleID:      "rule-123",
 		Status:      alert.AlertStatusFiring,
@@ -368,7 +368,7 @@ func TestAlertService_ResolveAlert_Success(t *testing.T) {
 	})
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "alert.resolve",
 		execute: func(ctx context.Context, input any) (any, error) {
 			inputMap := input.(map[string]any)
@@ -376,7 +376,7 @@ func TestAlertService_ResolveAlert_Success(t *testing.T) {
 			a.Status = alert.AlertStatusResolved
 			now := time.Now()
 			a.ResolvedAt = &now
-			store.UpdateAlert(ctx, a)
+			_ = store.UpdateAlert(ctx, a)
 			return map[string]any{"success": true}, nil
 		},
 	})
@@ -399,10 +399,10 @@ func TestAlertService_ResolveAlert_Success(t *testing.T) {
 func TestAlertService_GetActiveAlerts_Success(t *testing.T) {
 	store := alert.NewMemoryStore()
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterQuery(&mockQuery{
+	_ = registry.RegisterQuery(&mockQuery{
 		name: "alert.active",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{
@@ -432,10 +432,10 @@ func TestAlertService_GetActiveAlerts_Success(t *testing.T) {
 func TestAlertService_GetHistoryByRule_Success(t *testing.T) {
 	store := alert.NewMemoryStore()
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterQuery(&mockQuery{
+	_ = registry.RegisterQuery(&mockQuery{
 		name: "alert.history",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{
@@ -461,7 +461,7 @@ func TestAlertService_GetHistoryByRule_Success(t *testing.T) {
 func TestAlertService_GetHistoryByRule_EmptyRuleID(t *testing.T) {
 	store := alert.NewMemoryStore()
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
 	svc := NewAlertService(registry, store, bus)
@@ -478,10 +478,10 @@ func TestAlertService_GetHistoryByRule_EmptyRuleID(t *testing.T) {
 func TestAlertService_GetHistoryBySeverity_Success(t *testing.T) {
 	store := alert.NewMemoryStore()
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterQuery(&mockQuery{
+	_ = registry.RegisterQuery(&mockQuery{
 		name: "alert.history",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{
@@ -507,7 +507,7 @@ func TestAlertService_GetHistoryBySeverity_Success(t *testing.T) {
 func TestAlertService_GetHistoryBySeverity_InvalidSeverity(t *testing.T) {
 	store := alert.NewMemoryStore()
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
 	svc := NewAlertService(registry, store, bus)
@@ -524,23 +524,23 @@ func TestAlertService_GetHistoryBySeverity_InvalidSeverity(t *testing.T) {
 func TestAlertService_GetRuleSummary_Success(t *testing.T) {
 	store := alert.NewMemoryStore()
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
-	store.CreateRule(context.Background(), &alert.AlertRule{
+	_ = store.CreateRule(context.Background(), &alert.AlertRule{
 		ID:        "rule-123",
 		Name:      "test-rule",
 		Condition: "cpu > 80",
 		Severity:  alert.AlertSeverityWarning,
 		Enabled:   true,
 	})
-	store.CreateAlert(context.Background(), &alert.Alert{
+	_ = store.CreateAlert(context.Background(), &alert.Alert{
 		ID:          "alert-1",
 		RuleID:      "rule-123",
 		Status:      alert.AlertStatusFiring,
 		Severity:    alert.AlertSeverityWarning,
 		TriggeredAt: time.Now(),
 	})
-	store.CreateAlert(context.Background(), &alert.Alert{
+	_ = store.CreateAlert(context.Background(), &alert.Alert{
 		ID:          "alert-2",
 		RuleID:      "rule-123",
 		Status:      alert.AlertStatusResolved,
@@ -567,14 +567,14 @@ func TestAlertService_GetRuleSummary_Success(t *testing.T) {
 func TestAlertService_ListRules(t *testing.T) {
 	store := alert.NewMemoryStore()
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
-	store.CreateRule(context.Background(), &alert.AlertRule{
+	_ = store.CreateRule(context.Background(), &alert.AlertRule{
 		ID:      "rule-1",
 		Name:    "Rule 1",
 		Enabled: true,
 	})
-	store.CreateRule(context.Background(), &alert.AlertRule{
+	_ = store.CreateRule(context.Background(), &alert.AlertRule{
 		ID:      "rule-2",
 		Name:    "Rule 2",
 		Enabled: false,
@@ -596,9 +596,9 @@ func TestAlertService_ListRules(t *testing.T) {
 func TestAlertService_AcknowledgeAlert_CommandNotFound(t *testing.T) {
 	store := alert.NewMemoryStore()
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
-	store.CreateAlert(context.Background(), &alert.Alert{
+	_ = store.CreateAlert(context.Background(), &alert.Alert{
 		ID:          "alert-123",
 		RuleID:      "rule-123",
 		Status:      alert.AlertStatusFiring,
@@ -620,10 +620,10 @@ func TestAlertService_AcknowledgeAlert_CommandNotFound(t *testing.T) {
 func TestAlertService_GetActiveAlerts_CommandFails(t *testing.T) {
 	store := alert.NewMemoryStore()
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterQuery(&mockQuery{
+	_ = registry.RegisterQuery(&mockQuery{
 		name: "alert.active",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return nil, errors.New("query failed")

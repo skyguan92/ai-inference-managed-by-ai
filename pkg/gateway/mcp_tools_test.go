@@ -17,14 +17,14 @@ func TestMCPAdapter_GenerateToolDefinitions(t *testing.T) {
 			domain:  "model",
 			execute: nil,
 		}
-		reg.RegisterCommand(cmd)
+		_ = reg.RegisterCommand(cmd)
 
 		query := &mockQuery{
 			name:    "model.list",
 			domain:  "model",
 			execute: nil,
 		}
-		reg.RegisterQuery(query)
+		_ = reg.RegisterQuery(query)
 
 		g := NewGateway(reg)
 		adapter := NewMCPAdapter(g)
@@ -177,7 +177,7 @@ func TestMCPAdapter_queryToToolDefinition(t *testing.T) {
 func TestMCPAdapter_handleToolsList(t *testing.T) {
 	reg := unit.NewRegistry()
 	cmd := &mockCommand{name: "test.cmd", domain: "test"}
-	reg.RegisterCommand(cmd)
+	_ = reg.RegisterCommand(cmd)
 
 	g := NewGateway(reg)
 	adapter := NewMCPAdapter(g)
@@ -221,7 +221,7 @@ func TestMCPAdapter_handleToolsCall(t *testing.T) {
 				return map[string]any{"echo": input}, nil
 			},
 		}
-		reg.RegisterCommand(cmd)
+		_ = reg.RegisterCommand(cmd)
 
 		g := NewGateway(reg)
 		adapter := NewMCPAdapter(g)
@@ -340,7 +340,7 @@ func TestMCPAdapter_handleToolsCall(t *testing.T) {
 				return nil, &ErrorInfo{Code: "TEST_ERROR", Message: "test error"}
 			},
 		}
-		reg.RegisterCommand(cmd)
+		_ = reg.RegisterCommand(cmd)
 
 		g := NewGateway(reg)
 		adapter := NewMCPAdapter(g)
@@ -394,7 +394,7 @@ func TestMCPAdapter_ExecuteTool(t *testing.T) {
 				return map[string]any{"result": "ok"}, nil
 			},
 		}
-		reg.RegisterQuery(query)
+		_ = reg.RegisterQuery(query)
 
 		g := NewGateway(reg)
 		adapter := NewMCPAdapter(g)
@@ -412,7 +412,7 @@ func TestMCPAdapter_ExecuteTool(t *testing.T) {
 	t.Run("with invalid arguments", func(t *testing.T) {
 		reg := unit.NewRegistry()
 		cmd := &mockCommand{name: "test.cmd", domain: "test"}
-		reg.RegisterCommand(cmd)
+		_ = reg.RegisterCommand(cmd)
 
 		g := NewGateway(reg)
 		adapter := NewMCPAdapter(g)

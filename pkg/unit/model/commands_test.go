@@ -141,7 +141,7 @@ func TestDeleteCommand_Execute(t *testing.T) {
 			name: "successful delete",
 			store: func() ModelStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestModel("model-123", "llama3"))
+				_ = s.Create(context.Background(), createTestModel("model-123", "llama3"))
 				return s
 			}(),
 			input:   map[string]any{"model_id": "model-123"},
@@ -169,7 +169,7 @@ func TestDeleteCommand_Execute(t *testing.T) {
 			name: "delete with force",
 			store: func() ModelStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestModel("model-123", "llama3"))
+				_ = s.Create(context.Background(), createTestModel("model-123", "llama3"))
 				return s
 			}(),
 			input:   map[string]any{"model_id": "model-123", "force": true},
@@ -422,7 +422,7 @@ func TestVerifyCommand_Execute(t *testing.T) {
 			name: "successful verification",
 			store: func() ModelStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestModel("model-123", "llama3"))
+				_ = s.Create(context.Background(), createTestModel("model-123", "llama3"))
 				return s
 			}(),
 			provider:  &MockProvider{},
@@ -434,7 +434,7 @@ func TestVerifyCommand_Execute(t *testing.T) {
 			name: "verification with checksum",
 			store: func() ModelStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestModel("model-123", "llama3"))
+				_ = s.Create(context.Background(), createTestModel("model-123", "llama3"))
 				return s
 			}(),
 			provider:  &MockProvider{},
@@ -446,7 +446,7 @@ func TestVerifyCommand_Execute(t *testing.T) {
 			name: "verification failed",
 			store: func() ModelStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestModel("model-123", "llama3"))
+				_ = s.Create(context.Background(), createTestModel("model-123", "llama3"))
 				return s
 			}(),
 			provider:  &MockProvider{verifyRes: &VerificationResult{Valid: false, Issues: []string{"checksum mismatch"}}},
@@ -479,7 +479,7 @@ func TestVerifyCommand_Execute(t *testing.T) {
 			name: "provider error",
 			store: func() ModelStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestModel("model-123", "llama3"))
+				_ = s.Create(context.Background(), createTestModel("model-123", "llama3"))
 				return s
 			}(),
 			provider: &MockProvider{verifyErr: errors.New("verify failed")},

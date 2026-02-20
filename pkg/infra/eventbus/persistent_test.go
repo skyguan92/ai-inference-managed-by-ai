@@ -42,7 +42,7 @@ func setupPersistentBus(t *testing.T) *PersistentEventBus {
 
 func TestPersistentEventBus_Publish(t *testing.T) {
 	bus := setupPersistentBus(t)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	event := &testEvent{
 		eventType:     "test.event",
@@ -58,7 +58,7 @@ func TestPersistentEventBus_Publish(t *testing.T) {
 
 func TestPersistentEventBus_PublishNil(t *testing.T) {
 	bus := setupPersistentBus(t)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	err := bus.Publish(nil)
 	assert.Error(t, err)
@@ -66,7 +66,7 @@ func TestPersistentEventBus_PublishNil(t *testing.T) {
 
 func TestPersistentEventBus_PublishClosed(t *testing.T) {
 	bus := setupPersistentBus(t)
-	bus.Close()
+	_ = bus.Close()
 
 	event := &testEvent{eventType: "test", domain: "test", timestamp: time.Now()}
 	err := bus.Publish(event)
@@ -75,7 +75,7 @@ func TestPersistentEventBus_PublishClosed(t *testing.T) {
 
 func TestPersistentEventBus_SubscribeAndPublish(t *testing.T) {
 	bus := setupPersistentBus(t)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	var received atomic.Int32
 	handler := func(event unit.Event) error {
@@ -97,7 +97,7 @@ func TestPersistentEventBus_SubscribeAndPublish(t *testing.T) {
 
 func TestPersistentEventBus_SubscribeWithFilter(t *testing.T) {
 	bus := setupPersistentBus(t)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	var modelEvents atomic.Int32
 	var engineEvents atomic.Int32
@@ -125,7 +125,7 @@ func TestPersistentEventBus_SubscribeWithFilter(t *testing.T) {
 
 func TestPersistentEventBus_Unsubscribe(t *testing.T) {
 	bus := setupPersistentBus(t)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	subID, err := bus.Subscribe(func(event unit.Event) error { return nil })
 	require.NoError(t, err)
@@ -139,7 +139,7 @@ func TestPersistentEventBus_Unsubscribe(t *testing.T) {
 
 func TestPersistentEventBus_Query(t *testing.T) {
 	bus := setupPersistentBus(t)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	ctx := context.Background()
 
@@ -164,7 +164,7 @@ func TestPersistentEventBus_Query(t *testing.T) {
 func TestPersistentEventBus_Replay(t *testing.T) {
 	t.Skip("TODO: fix timing-dependent flush test - pre-existing issue before sqlite.Open fix")
 	bus := setupPersistentBus(t)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	correlationID := "replay-test"
 
@@ -202,7 +202,7 @@ func TestPersistentEventBus_Replay(t *testing.T) {
 func TestPersistentEventBus_ReplayNilHandler(t *testing.T) {
 	t.Skip("TODO: fix timing-dependent flush test - pre-existing issue before sqlite.Open fix")
 	bus := setupPersistentBus(t)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	ctx := context.Background()
 	err := bus.Replay(ctx, "test", nil)
@@ -221,7 +221,7 @@ func TestPersistentEventBus_Close(t *testing.T) {
 
 func TestPersistentEventBus_ConcurrentPublish(t *testing.T) {
 	bus := setupPersistentBus(t)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	var wg sync.WaitGroup
 	for i := 0; i < 100; i++ {

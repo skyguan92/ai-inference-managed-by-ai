@@ -51,7 +51,7 @@ func TestModelResource_Get(t *testing.T) {
 			name: "successful get",
 			store: func() ModelStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestModel("model-123", "llama3"))
+				_ = s.Create(context.Background(), createTestModel("model-123", "llama3"))
 				return s
 			}(),
 			modelID:    "model-123",
@@ -115,7 +115,7 @@ func TestModelResource_Get(t *testing.T) {
 
 func TestModelResource_Watch(t *testing.T) {
 	store := NewMemoryStore()
-	store.Create(context.Background(), createTestModel("model-123", "llama3"))
+	_ = store.Create(context.Background(), createTestModel("model-123", "llama3"))
 
 	r := NewModelResource("model-123", store)
 
@@ -148,7 +148,7 @@ func TestModelResource_GetWithRequirements(t *testing.T) {
 		GPUType:           "NVIDIA RTX 4090",
 		GPUMemory:         24000000000,
 	}
-	store.Create(context.Background(), model)
+	_ = store.Create(context.Background(), model)
 
 	r := NewModelResource("model-123", store)
 	result, err := r.Get(context.Background())
@@ -276,7 +276,7 @@ func TestMemoryStore_ListWithFilter(t *testing.T) {
 	models[1].Type = ModelTypeEmbedding
 
 	for _, m := range models {
-		store.Create(ctx, m)
+		_ = store.Create(ctx, m)
 	}
 
 	llmModels, total, err := store.List(ctx, ModelFilter{Type: ModelTypeLLM})
@@ -287,8 +287,8 @@ func TestMemoryStore_ListWithFilter(t *testing.T) {
 		t.Errorf("expected 1 LLM model, got %d (total: %d)", len(llmModels), total)
 	}
 
-	store.Create(ctx, createTestModel("model-3", "codellama"))
-	store.Create(ctx, createTestModel("model-4", "gemma"))
+	_ = store.Create(ctx, createTestModel("model-3", "codellama"))
+	_ = store.Create(ctx, createTestModel("model-4", "gemma"))
 
 	pagedModels, total, err := store.List(ctx, ModelFilter{Limit: 2, Offset: 1})
 	if err != nil {

@@ -19,10 +19,10 @@ func TestRouter_ServeHTTP(t *testing.T) {
 	pullCmd := &mockCommand{name: "model.pull", domain: "model"}
 	deleteCmd := &mockCommand{name: "model.delete", domain: "model"}
 
-	reg.RegisterQuery(listQ)
-	reg.RegisterQuery(getQ)
-	reg.RegisterCommand(pullCmd)
-	reg.RegisterCommand(deleteCmd)
+	_ = reg.RegisterQuery(listQ)
+	_ = reg.RegisterQuery(getQ)
+	_ = reg.RegisterCommand(pullCmd)
+	_ = reg.RegisterCommand(deleteCmd)
 
 	g := NewGateway(reg)
 	router := NewRouter(g)
@@ -131,7 +131,7 @@ func TestRouter_QueryParams(t *testing.T) {
 			return input, nil
 		},
 	}
-	reg.RegisterQuery(listQ)
+	_ = reg.RegisterQuery(listQ)
 
 	g := NewGateway(reg)
 	router := NewRouter(g)

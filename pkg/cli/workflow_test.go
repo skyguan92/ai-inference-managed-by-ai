@@ -17,7 +17,7 @@ func makeWorkflowRoot(t *testing.T) *RootCommand {
 	t.Helper()
 	registry := unit.NewRegistry()
 	// Register model.list so workflow execution can succeed
-	registry.RegisterQuery(&testServiceQuery{
+	_ = registry.RegisterQuery(&testServiceQuery{
 		name: "model.list",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{"models": []map[string]any{}, "total": 0}, nil
@@ -110,7 +110,7 @@ func TestRunWorkflowRun_WithInputJSON(t *testing.T) {
 func TestRunWorkflowRun_RegistryExecutesModelList(t *testing.T) {
 	registry := unit.NewRegistry()
 	executed := false
-	registry.RegisterQuery(&testServiceQuery{
+	_ = registry.RegisterQuery(&testServiceQuery{
 		name: "model.list",
 		execute: func(ctx context.Context, input any) (any, error) {
 			executed = true

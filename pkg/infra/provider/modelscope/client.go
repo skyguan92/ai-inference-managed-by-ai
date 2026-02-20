@@ -170,7 +170,7 @@ func (c *Client) doRequest(ctx context.Context, method, path string, reqBody, re
 	if err != nil {
 		return fmt.Errorf("do request: %w", err)
 	}
-	defer httpResp.Body.Close()
+	defer func() { _ = httpResp.Body.Close() }()
 
 	respData, err := io.ReadAll(httpResp.Body)
 	if err != nil {
@@ -279,7 +279,7 @@ func (c *Client) DownloadFile(ctx context.Context, modelName, fileName, versionI
 	}
 
 	if httpResp.StatusCode >= 400 {
-		defer httpResp.Body.Close()
+		defer func() { _ = httpResp.Body.Close() }()
 		respData, _ := io.ReadAll(httpResp.Body)
 		return nil, 0, fmt.Errorf("download file: status %d, body: %s", httpResp.StatusCode, string(respData))
 	}

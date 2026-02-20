@@ -145,7 +145,7 @@ func readCPUInfo() (*CPUInfo, error) {
 	if err != nil {
 		return info, nil
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -188,7 +188,7 @@ func readMemInfo() (*MemInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	info := &MemInfo{}
 	scanner := bufio.NewScanner(file)

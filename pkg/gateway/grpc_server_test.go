@@ -28,7 +28,7 @@ func TestGRPCServer_Execute(t *testing.T) {
 			}, nil
 		},
 	}
-	registry.RegisterCommand(testCmd)
+	_ = registry.RegisterCommand(testCmd)
 
 	// Create gateway and gRPC server
 	gateway := NewGateway(registry)
@@ -91,7 +91,7 @@ func TestGRPCServer_Execute(t *testing.T) {
 				return map[string]any{"query_result": "data"}, nil
 			},
 		}
-		registry.RegisterQuery(testQuery)
+		_ = registry.RegisterQuery(testQuery)
 
 		req := &pb.Request{
 			Type: TypeQuery,

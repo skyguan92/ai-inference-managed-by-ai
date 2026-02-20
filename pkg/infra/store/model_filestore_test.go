@@ -22,7 +22,7 @@ func TestNewFileStore_InvalidDir(t *testing.T) {
 	// Use a file as the parent (impossible to create a dir inside a file)
 	f, err := os.CreateTemp("", "not-a-dir-*")
 	require.NoError(t, err)
-	f.Close()
+	_ = f.Close()
 	defer os.Remove(f.Name())
 
 	// Try to use the file as a directory

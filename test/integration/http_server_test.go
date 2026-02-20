@@ -33,7 +33,7 @@ func TestHTTPServerIntegrationHealth(t *testing.T) {
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"healthy"}`))
+		_, _ = w.Write([]byte(`{"status":"healthy"}`))
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
@@ -383,7 +383,7 @@ func TestHTTPServerIntegrationOpenAPI(t *testing.T) {
 	mux.HandleFunc("/openapi.json", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"openapi": "3.0.0"}`))
+		_, _ = w.Write([]byte(`{"openapi": "3.0.0"}`))
 	})
 	mux.ServeHTTP(rec, req)
 

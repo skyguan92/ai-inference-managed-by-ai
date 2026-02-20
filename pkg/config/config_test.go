@@ -47,7 +47,7 @@ default_source = "huggingface"
 	if _, err := tmpFile.WriteString(content); err != nil {
 		t.Fatalf("write temp file: %v", err)
 	}
-	tmpFile.Close()
+	_ = tmpFile.Close()
 
 	cfg, err := LoadFromFile(tmpFile.Name())
 	if err != nil {
@@ -83,7 +83,7 @@ storage_dir = "~/test-models"
 	if _, err := tmpFile.WriteString(content); err != nil {
 		t.Fatalf("write temp file: %v", err)
 	}
-	tmpFile.Close()
+	_ = tmpFile.Close()
 
 	cfg, err := LoadFromFile(tmpFile.Name())
 	if err != nil {
@@ -193,15 +193,15 @@ func TestValidate(t *testing.T) {
 func TestApplyEnvOverrides(t *testing.T) {
 	cfg := Default()
 
-	os.Setenv("AIMA_DATA_DIR", "/env-data")
-	os.Setenv("AIMA_API_LISTEN", "0.0.0.0:3000")
-	os.Setenv("AIMA_LOG_LEVEL", "debug")
-	os.Setenv("AIMA_REMOTE_ENABLED", "true")
+	_ = os.Setenv("AIMA_DATA_DIR", "/env-data")
+	_ = os.Setenv("AIMA_API_LISTEN", "0.0.0.0:3000")
+	_ = os.Setenv("AIMA_LOG_LEVEL", "debug")
+	_ = os.Setenv("AIMA_REMOTE_ENABLED", "true")
 	defer func() {
-		os.Unsetenv("AIMA_DATA_DIR")
-		os.Unsetenv("AIMA_API_LISTEN")
-		os.Unsetenv("AIMA_LOG_LEVEL")
-		os.Unsetenv("AIMA_REMOTE_ENABLED")
+		_ = os.Unsetenv("AIMA_DATA_DIR")
+		_ = os.Unsetenv("AIMA_API_LISTEN")
+		_ = os.Unsetenv("AIMA_LOG_LEVEL")
+		_ = os.Unsetenv("AIMA_REMOTE_ENABLED")
 	}()
 
 	ApplyEnvOverrides(cfg)
@@ -238,8 +238,8 @@ func TestApplyEnvOverrides_BooleanValues(t *testing.T) {
 			cfg := Default()
 			cfg.Remote.Enabled = false
 
-			os.Setenv("AIMA_REMOTE_ENABLED", tt.value)
-			defer os.Unsetenv("AIMA_REMOTE_ENABLED")
+			_ = os.Setenv("AIMA_REMOTE_ENABLED", tt.value)
+			defer func() { _ = os.Unsetenv("AIMA_REMOTE_ENABLED") }()
 
 			ApplyEnvOverrides(cfg)
 
@@ -295,7 +295,7 @@ default_source = "modelscope"
 		if _, err := tmpFile.WriteString(content); err != nil {
 			t.Fatalf("write temp file: %v", err)
 		}
-		tmpFile.Close()
+		_ = tmpFile.Close()
 
 		cfg, err := Load(tmpFile.Name())
 		if err != nil {
@@ -322,8 +322,8 @@ default_source = "modelscope"
 	})
 
 	t.Run("with env overrides", func(t *testing.T) {
-		os.Setenv("AIMA_OLLAMA_ADDR", "remote:11434")
-		defer os.Unsetenv("AIMA_OLLAMA_ADDR")
+		_ = os.Setenv("AIMA_OLLAMA_ADDR", "remote:11434")
+		defer func() { _ = os.Unsetenv("AIMA_OLLAMA_ADDR") }()
 
 		cfg, err := Load("")
 		if err != nil {
@@ -356,7 +356,7 @@ check_interval = "30s"
 	if _, err := tmpFile.WriteString(content); err != nil {
 		t.Fatalf("write temp file: %v", err)
 	}
-	tmpFile.Close()
+	_ = tmpFile.Close()
 
 	cfg, err := LoadFromFile(tmpFile.Name())
 	if err != nil {

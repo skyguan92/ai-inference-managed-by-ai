@@ -44,7 +44,7 @@ func TestModelService_NewModelService(t *testing.T) {
 	store := model.NewMemoryStore()
 	provider := &model.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	tests := []struct {
 		name     string
@@ -90,10 +90,10 @@ func TestModelService_PullAndVerify_Success(t *testing.T) {
 	store := model.NewMemoryStore()
 	provider := &model.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "model.pull",
 		execute: func(ctx context.Context, input any) (any, error) {
 			m := &model.Model{
@@ -110,11 +110,11 @@ func TestModelService_PullAndVerify_Success(t *testing.T) {
 					MemoryRecommended: 16000000000,
 				},
 			}
-			store.Create(ctx, m)
+			_ = store.Create(ctx, m)
 			return map[string]any{"model_id": m.ID, "status": "ready"}, nil
 		},
 	})
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "model.verify",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{"valid": true, "issues": []string{}}, nil
@@ -146,10 +146,10 @@ func TestModelService_PullAndVerify_PullFails(t *testing.T) {
 	store := model.NewMemoryStore()
 	provider := &model.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "model.pull",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return nil, errors.New("pull failed")
@@ -171,7 +171,7 @@ func TestModelService_PullAndVerify_PullCommandNotFound(t *testing.T) {
 	store := model.NewMemoryStore()
 	provider := &model.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
 	svc := NewModelService(registry, store, provider, bus)
@@ -189,10 +189,10 @@ func TestModelService_PullAndVerify_VerifyFails(t *testing.T) {
 	store := model.NewMemoryStore()
 	provider := &model.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "model.pull",
 		execute: func(ctx context.Context, input any) (any, error) {
 			m := &model.Model{
@@ -205,21 +205,21 @@ func TestModelService_PullAndVerify_VerifyFails(t *testing.T) {
 				CreatedAt: 1000,
 				UpdatedAt: 1000,
 			}
-			store.Create(ctx, m)
+			_ = store.Create(ctx, m)
 			return map[string]any{"model_id": m.ID, "status": "ready"}, nil
 		},
 	})
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "model.verify",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return nil, errors.New("verify failed")
 		},
 	})
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "model.delete",
 		execute: func(ctx context.Context, input any) (any, error) {
 			inputMap := input.(map[string]any)
-			store.Delete(ctx, inputMap["model_id"].(string))
+			_ = store.Delete(ctx, inputMap["model_id"].(string))
 			return map[string]any{"success": true}, nil
 		},
 	})
@@ -244,10 +244,10 @@ func TestModelService_PullAndVerify_VerifyInvalidModel(t *testing.T) {
 	store := model.NewMemoryStore()
 	provider := &model.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "model.pull",
 		execute: func(ctx context.Context, input any) (any, error) {
 			m := &model.Model{
@@ -260,21 +260,21 @@ func TestModelService_PullAndVerify_VerifyInvalidModel(t *testing.T) {
 				CreatedAt: 1000,
 				UpdatedAt: 1000,
 			}
-			store.Create(ctx, m)
+			_ = store.Create(ctx, m)
 			return map[string]any{"model_id": m.ID, "status": "ready"}, nil
 		},
 	})
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "model.verify",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{"valid": false, "issues": []string{"checksum mismatch"}}, nil
 		},
 	})
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "model.delete",
 		execute: func(ctx context.Context, input any) (any, error) {
 			inputMap := input.(map[string]any)
-			store.Delete(ctx, inputMap["model_id"].(string))
+			_ = store.Delete(ctx, inputMap["model_id"].(string))
 			return map[string]any{"success": true}, nil
 		},
 	})
@@ -299,10 +299,10 @@ func TestModelService_ImportAndVerify_Success(t *testing.T) {
 	store := model.NewMemoryStore()
 	provider := &model.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "model.import",
 		execute: func(ctx context.Context, input any) (any, error) {
 			m := &model.Model{
@@ -320,11 +320,11 @@ func TestModelService_ImportAndVerify_Success(t *testing.T) {
 					MemoryRecommended: 12000000000,
 				},
 			}
-			store.Create(ctx, m)
+			_ = store.Create(ctx, m)
 			return map[string]any{"model_id": m.ID}, nil
 		},
 	})
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "model.verify",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{"valid": true, "issues": []string{}}, nil
@@ -353,10 +353,10 @@ func TestModelService_ImportAndVerify_ImportFails(t *testing.T) {
 	store := model.NewMemoryStore()
 	provider := &model.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "model.import",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return nil, errors.New("import failed")
@@ -378,7 +378,7 @@ func TestModelService_ImportAndVerify_ImportCommandNotFound(t *testing.T) {
 	store := model.NewMemoryStore()
 	provider := &model.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
 	svc := NewModelService(registry, store, provider, bus)
@@ -396,10 +396,10 @@ func TestModelService_ImportAndVerify_VerifyFails(t *testing.T) {
 	store := model.NewMemoryStore()
 	provider := &model.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "model.import",
 		execute: func(ctx context.Context, input any) (any, error) {
 			m := &model.Model{
@@ -412,21 +412,21 @@ func TestModelService_ImportAndVerify_VerifyFails(t *testing.T) {
 				CreatedAt: 1000,
 				UpdatedAt: 1000,
 			}
-			store.Create(ctx, m)
+			_ = store.Create(ctx, m)
 			return map[string]any{"model_id": m.ID}, nil
 		},
 	})
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "model.verify",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return nil, errors.New("verify failed")
 		},
 	})
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "model.delete",
 		execute: func(ctx context.Context, input any) (any, error) {
 			inputMap := input.(map[string]any)
-			store.Delete(ctx, inputMap["model_id"].(string))
+			_ = store.Delete(ctx, inputMap["model_id"].(string))
 			return map[string]any{"success": true}, nil
 		},
 	})
@@ -446,11 +446,11 @@ func TestModelService_ImportAndVerify_WithOptions(t *testing.T) {
 	store := model.NewMemoryStore()
 	provider := &model.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
 	var receivedInput map[string]any
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "model.import",
 		execute: func(ctx context.Context, input any) (any, error) {
 			receivedInput = input.(map[string]any)
@@ -463,11 +463,11 @@ func TestModelService_ImportAndVerify_WithOptions(t *testing.T) {
 				CreatedAt: 1000,
 				UpdatedAt: 1000,
 			}
-			store.Create(ctx, m)
+			_ = store.Create(ctx, m)
 			return map[string]any{"model_id": m.ID}, nil
 		},
 	})
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "model.verify",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{"valid": true, "issues": []string{}}, nil
@@ -504,7 +504,7 @@ func TestModelService_GetWithRequirements(t *testing.T) {
 		{
 			name: "success with requirements",
 			setupRegistry: func(r *unit.Registry) {
-				r.RegisterQuery(&mockQuery{
+				_ = r.RegisterQuery(&mockQuery{
 					name: "model.get",
 					execute: func(ctx context.Context, input any) (any, error) {
 						return map[string]any{
@@ -531,7 +531,7 @@ func TestModelService_GetWithRequirements(t *testing.T) {
 		{
 			name: "success without requirements",
 			setupRegistry: func(r *unit.Registry) {
-				r.RegisterQuery(&mockQuery{
+				_ = r.RegisterQuery(&mockQuery{
 					name: "model.get",
 					execute: func(ctx context.Context, input any) (any, error) {
 						return map[string]any{
@@ -544,7 +544,7 @@ func TestModelService_GetWithRequirements(t *testing.T) {
 						}, nil
 					},
 				})
-				r.RegisterQuery(&mockQuery{
+				_ = r.RegisterQuery(&mockQuery{
 					name: "model.estimate_resources",
 					execute: func(ctx context.Context, input any) (any, error) {
 						return map[string]any{
@@ -570,7 +570,7 @@ func TestModelService_GetWithRequirements(t *testing.T) {
 		{
 			name: "query error",
 			setupRegistry: func(r *unit.Registry) {
-				r.RegisterQuery(&mockQuery{
+				_ = r.RegisterQuery(&mockQuery{
 					name: "model.get",
 					execute: func(ctx context.Context, input any) (any, error) {
 						return nil, errors.New("model not found")
@@ -587,7 +587,7 @@ func TestModelService_GetWithRequirements(t *testing.T) {
 			store := model.NewMemoryStore()
 			provider := &model.MockProvider{}
 			bus := eventbus.NewInMemoryEventBus()
-			defer bus.Close()
+			defer func() { _ = bus.Close() }()
 
 			registry := unit.NewRegistry()
 			tt.setupRegistry(registry)
@@ -631,7 +631,7 @@ func TestModelService_DeleteWithCleanup(t *testing.T) {
 		{
 			name: "successful delete",
 			setupStore: func(s model.ModelStore) {
-				s.Create(context.Background(), &model.Model{
+				_ = s.Create(context.Background(), &model.Model{
 					ID:        "model-123",
 					Name:      "llama3",
 					Type:      model.ModelTypeLLM,
@@ -644,7 +644,7 @@ func TestModelService_DeleteWithCleanup(t *testing.T) {
 				})
 			},
 			setupRegistry: func(r *unit.Registry) {
-				r.RegisterCommand(&mockCommand{
+				_ = r.RegisterCommand(&mockCommand{
 					name: "model.delete",
 					execute: func(ctx context.Context, input any) (any, error) {
 						return map[string]any{"success": true}, nil
@@ -659,7 +659,7 @@ func TestModelService_DeleteWithCleanup(t *testing.T) {
 		{
 			name: "delete with force",
 			setupStore: func(s model.ModelStore) {
-				s.Create(context.Background(), &model.Model{
+				_ = s.Create(context.Background(), &model.Model{
 					ID:        "model-456",
 					Name:      "test",
 					Type:      model.ModelTypeLLM,
@@ -671,7 +671,7 @@ func TestModelService_DeleteWithCleanup(t *testing.T) {
 				})
 			},
 			setupRegistry: func(r *unit.Registry) {
-				r.RegisterCommand(&mockCommand{
+				_ = r.RegisterCommand(&mockCommand{
 					name: "model.delete",
 					execute: func(ctx context.Context, input any) (any, error) {
 						return map[string]any{"success": true}, nil
@@ -688,7 +688,7 @@ func TestModelService_DeleteWithCleanup(t *testing.T) {
 			setupStore: func(s model.ModelStore) {
 			},
 			setupRegistry: func(r *unit.Registry) {
-				r.RegisterCommand(&mockCommand{
+				_ = r.RegisterCommand(&mockCommand{
 					name: "model.delete",
 					execute: func(ctx context.Context, input any) (any, error) {
 						return map[string]any{"success": true}, nil
@@ -701,7 +701,7 @@ func TestModelService_DeleteWithCleanup(t *testing.T) {
 		{
 			name: "delete command not found",
 			setupStore: func(s model.ModelStore) {
-				s.Create(context.Background(), &model.Model{
+				_ = s.Create(context.Background(), &model.Model{
 					ID:        "model-789",
 					Name:      "test",
 					Type:      model.ModelTypeLLM,
@@ -719,7 +719,7 @@ func TestModelService_DeleteWithCleanup(t *testing.T) {
 		{
 			name: "delete command fails",
 			setupStore: func(s model.ModelStore) {
-				s.Create(context.Background(), &model.Model{
+				_ = s.Create(context.Background(), &model.Model{
 					ID:        "model-999",
 					Name:      "test",
 					Type:      model.ModelTypeLLM,
@@ -730,7 +730,7 @@ func TestModelService_DeleteWithCleanup(t *testing.T) {
 				})
 			},
 			setupRegistry: func(r *unit.Registry) {
-				r.RegisterCommand(&mockCommand{
+				_ = r.RegisterCommand(&mockCommand{
 					name: "model.delete",
 					execute: func(ctx context.Context, input any) (any, error) {
 						return nil, errors.New("delete failed")
@@ -749,7 +749,7 @@ func TestModelService_DeleteWithCleanup(t *testing.T) {
 
 			provider := &model.MockProvider{}
 			bus := eventbus.NewInMemoryEventBus()
-			defer bus.Close()
+			defer func() { _ = bus.Close() }()
 
 			registry := unit.NewRegistry()
 			tt.setupRegistry(registry)
@@ -790,7 +790,7 @@ func TestModelService_SearchAndEstimate(t *testing.T) {
 		{
 			name: "successful search",
 			setupRegistry: func(r *unit.Registry) {
-				r.RegisterQuery(&mockQuery{
+				_ = r.RegisterQuery(&mockQuery{
 					name: "model.search",
 					execute: func(ctx context.Context, input any) (any, error) {
 						return map[string]any{
@@ -812,7 +812,7 @@ func TestModelService_SearchAndEstimate(t *testing.T) {
 		{
 			name: "search with empty results",
 			setupRegistry: func(r *unit.Registry) {
-				r.RegisterQuery(&mockQuery{
+				_ = r.RegisterQuery(&mockQuery{
 					name: "model.search",
 					execute: func(ctx context.Context, input any) (any, error) {
 						return map[string]any{
@@ -838,7 +838,7 @@ func TestModelService_SearchAndEstimate(t *testing.T) {
 		{
 			name: "search error",
 			setupRegistry: func(r *unit.Registry) {
-				r.RegisterQuery(&mockQuery{
+				_ = r.RegisterQuery(&mockQuery{
 					name: "model.search",
 					execute: func(ctx context.Context, input any) (any, error) {
 						return nil, errors.New("search failed")
@@ -851,7 +851,7 @@ func TestModelService_SearchAndEstimate(t *testing.T) {
 		{
 			name: "search with slice of any results",
 			setupRegistry: func(r *unit.Registry) {
-				r.RegisterQuery(&mockQuery{
+				_ = r.RegisterQuery(&mockQuery{
 					name: "model.search",
 					execute: func(ctx context.Context, input any) (any, error) {
 						return map[string]any{
@@ -876,7 +876,7 @@ func TestModelService_SearchAndEstimate(t *testing.T) {
 			store := model.NewMemoryStore()
 			provider := &model.MockProvider{}
 			bus := eventbus.NewInMemoryEventBus()
-			defer bus.Close()
+			defer func() { _ = bus.Close() }()
 
 			registry := unit.NewRegistry()
 			tt.setupRegistry(registry)
@@ -919,9 +919,9 @@ func TestModelService_List(t *testing.T) {
 		{
 			name: "list all models",
 			setupStore: func(s model.ModelStore) {
-				s.Create(context.Background(), &model.Model{ID: "m1", Name: "model1", Type: model.ModelTypeLLM, Status: model.StatusReady, CreatedAt: 1000, UpdatedAt: 1000})
-				s.Create(context.Background(), &model.Model{ID: "m2", Name: "model2", Type: model.ModelTypeVLM, Status: model.StatusReady, CreatedAt: 1000, UpdatedAt: 1000})
-				s.Create(context.Background(), &model.Model{ID: "m3", Name: "model3", Type: model.ModelTypeLLM, Status: model.StatusPending, CreatedAt: 1000, UpdatedAt: 1000})
+				_ = s.Create(context.Background(), &model.Model{ID: "m1", Name: "model1", Type: model.ModelTypeLLM, Status: model.StatusReady, CreatedAt: 1000, UpdatedAt: 1000})
+				_ = s.Create(context.Background(), &model.Model{ID: "m2", Name: "model2", Type: model.ModelTypeVLM, Status: model.StatusReady, CreatedAt: 1000, UpdatedAt: 1000})
+				_ = s.Create(context.Background(), &model.Model{ID: "m3", Name: "model3", Type: model.ModelTypeLLM, Status: model.StatusPending, CreatedAt: 1000, UpdatedAt: 1000})
 			},
 			filter:    model.ModelFilter{},
 			wantCount: 3,
@@ -931,9 +931,9 @@ func TestModelService_List(t *testing.T) {
 		{
 			name: "filter by type",
 			setupStore: func(s model.ModelStore) {
-				s.Create(context.Background(), &model.Model{ID: "m1", Name: "model1", Type: model.ModelTypeLLM, Status: model.StatusReady, CreatedAt: 1000, UpdatedAt: 1000})
-				s.Create(context.Background(), &model.Model{ID: "m2", Name: "model2", Type: model.ModelTypeVLM, Status: model.StatusReady, CreatedAt: 1000, UpdatedAt: 1000})
-				s.Create(context.Background(), &model.Model{ID: "m3", Name: "model3", Type: model.ModelTypeLLM, Status: model.StatusReady, CreatedAt: 1000, UpdatedAt: 1000})
+				_ = s.Create(context.Background(), &model.Model{ID: "m1", Name: "model1", Type: model.ModelTypeLLM, Status: model.StatusReady, CreatedAt: 1000, UpdatedAt: 1000})
+				_ = s.Create(context.Background(), &model.Model{ID: "m2", Name: "model2", Type: model.ModelTypeVLM, Status: model.StatusReady, CreatedAt: 1000, UpdatedAt: 1000})
+				_ = s.Create(context.Background(), &model.Model{ID: "m3", Name: "model3", Type: model.ModelTypeLLM, Status: model.StatusReady, CreatedAt: 1000, UpdatedAt: 1000})
 			},
 			filter:    model.ModelFilter{Type: model.ModelTypeLLM},
 			wantCount: 2,
@@ -943,8 +943,8 @@ func TestModelService_List(t *testing.T) {
 		{
 			name: "filter by status",
 			setupStore: func(s model.ModelStore) {
-				s.Create(context.Background(), &model.Model{ID: "m1", Name: "model1", Type: model.ModelTypeLLM, Status: model.StatusReady, CreatedAt: 1000, UpdatedAt: 1000})
-				s.Create(context.Background(), &model.Model{ID: "m2", Name: "model2", Type: model.ModelTypeLLM, Status: model.StatusPending, CreatedAt: 1000, UpdatedAt: 1000})
+				_ = s.Create(context.Background(), &model.Model{ID: "m1", Name: "model1", Type: model.ModelTypeLLM, Status: model.StatusReady, CreatedAt: 1000, UpdatedAt: 1000})
+				_ = s.Create(context.Background(), &model.Model{ID: "m2", Name: "model2", Type: model.ModelTypeLLM, Status: model.StatusPending, CreatedAt: 1000, UpdatedAt: 1000})
 			},
 			filter:    model.ModelFilter{Status: model.StatusReady},
 			wantCount: 1,
@@ -954,9 +954,9 @@ func TestModelService_List(t *testing.T) {
 		{
 			name: "with limit and offset",
 			setupStore: func(s model.ModelStore) {
-				s.Create(context.Background(), &model.Model{ID: "m1", Name: "model1", Type: model.ModelTypeLLM, Status: model.StatusReady, CreatedAt: 1000, UpdatedAt: 1000})
-				s.Create(context.Background(), &model.Model{ID: "m2", Name: "model2", Type: model.ModelTypeLLM, Status: model.StatusReady, CreatedAt: 1000, UpdatedAt: 1000})
-				s.Create(context.Background(), &model.Model{ID: "m3", Name: "model3", Type: model.ModelTypeLLM, Status: model.StatusReady, CreatedAt: 1000, UpdatedAt: 1000})
+				_ = s.Create(context.Background(), &model.Model{ID: "m1", Name: "model1", Type: model.ModelTypeLLM, Status: model.StatusReady, CreatedAt: 1000, UpdatedAt: 1000})
+				_ = s.Create(context.Background(), &model.Model{ID: "m2", Name: "model2", Type: model.ModelTypeLLM, Status: model.StatusReady, CreatedAt: 1000, UpdatedAt: 1000})
+				_ = s.Create(context.Background(), &model.Model{ID: "m3", Name: "model3", Type: model.ModelTypeLLM, Status: model.StatusReady, CreatedAt: 1000, UpdatedAt: 1000})
 			},
 			filter:    model.ModelFilter{Limit: 2, Offset: 1},
 			wantCount: 2,
@@ -980,7 +980,7 @@ func TestModelService_List(t *testing.T) {
 
 			provider := &model.MockProvider{}
 			bus := eventbus.NewInMemoryEventBus()
-			defer bus.Close()
+			defer func() { _ = bus.Close() }()
 
 			registry := unit.NewRegistry()
 			svc := NewModelService(registry, store, provider, bus)
@@ -1013,10 +1013,10 @@ func TestModelService_PullAndVerify_UnexpectedResultType(t *testing.T) {
 	store := model.NewMemoryStore()
 	provider := &model.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "model.pull",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return "invalid result type", nil
@@ -1038,10 +1038,10 @@ func TestModelService_PullAndVerify_MissingModelID(t *testing.T) {
 	store := model.NewMemoryStore()
 	provider := &model.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "model.pull",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{"status": "ready"}, nil
@@ -1061,7 +1061,7 @@ func TestModelService_PullAndVerify_MissingModelID(t *testing.T) {
 
 func TestModelService_DeleteWithCleanup_WithNilPath(t *testing.T) {
 	store := model.NewMemoryStore()
-	store.Create(context.Background(), &model.Model{
+	_ = store.Create(context.Background(), &model.Model{
 		ID:        "model-123",
 		Name:      "llama3",
 		Type:      model.ModelTypeLLM,
@@ -1075,10 +1075,10 @@ func TestModelService_DeleteWithCleanup_WithNilPath(t *testing.T) {
 
 	provider := &model.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "model.delete",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{"success": true}, nil
@@ -1107,10 +1107,10 @@ func TestModelService_GetWithRequirements_UnexpectedResultType(t *testing.T) {
 	store := model.NewMemoryStore()
 	provider := &model.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterQuery(&mockQuery{
+	_ = registry.RegisterQuery(&mockQuery{
 		name: "model.get",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return "invalid type", nil
@@ -1132,10 +1132,10 @@ func TestModelService_SearchAndEstimate_UnexpectedResultType(t *testing.T) {
 	store := model.NewMemoryStore()
 	provider := &model.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterQuery(&mockQuery{
+	_ = registry.RegisterQuery(&mockQuery{
 		name: "model.search",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return "invalid type", nil
@@ -1157,10 +1157,10 @@ func TestModelService_SearchAndEstimate_MissingResultsKey(t *testing.T) {
 	store := model.NewMemoryStore()
 	provider := &model.MockProvider{}
 	bus := eventbus.NewInMemoryEventBus()
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	registry := unit.NewRegistry()
-	registry.RegisterQuery(&mockQuery{
+	_ = registry.RegisterQuery(&mockQuery{
 		name: "model.search",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{"data": "something"}, nil
@@ -1184,7 +1184,7 @@ func TestModelService_PublishEvent_WithNilBus(t *testing.T) {
 	provider := &model.MockProvider{}
 
 	registry := unit.NewRegistry()
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "model.pull",
 		execute: func(ctx context.Context, input any) (any, error) {
 			m := &model.Model{
@@ -1196,11 +1196,11 @@ func TestModelService_PublishEvent_WithNilBus(t *testing.T) {
 				CreatedAt: 1000,
 				UpdatedAt: 1000,
 			}
-			store.Create(ctx, m)
+			_ = store.Create(ctx, m)
 			return map[string]any{"model_id": m.ID, "status": "ready"}, nil
 		},
 	})
-	registry.RegisterCommand(&mockCommand{
+	_ = registry.RegisterCommand(&mockCommand{
 		name: "model.verify",
 		execute: func(ctx context.Context, input any) (any, error) {
 			return map[string]any{"valid": true, "issues": []string{}}, nil
