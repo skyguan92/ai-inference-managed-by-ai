@@ -118,7 +118,7 @@ func TestEngineResource_Get(t *testing.T) {
 
 func TestEngineResource_Watch(t *testing.T) {
 	store := NewMemoryStore()
-	store.Create(context.Background(), createTestEngine("ollama", EngineTypeOllama))
+	_ = store.Create(context.Background(), createTestEngine("ollama", EngineTypeOllama))
 
 	r := NewEngineResource("ollama", store)
 

@@ -512,6 +512,6 @@ func createStoreWithEngine(name string, engineType EngineType, status EngineStat
 	store := NewMemoryStore()
 	engine := createTestEngine(name, engineType)
 	engine.Status = status
-	store.Create(context.Background(), engine)
+	_ = store.Create(context.Background(), engine)
 	return store
 }

@@ -52,7 +52,7 @@ func TestGetQuery_Execute(t *testing.T) {
 			name: "successful get",
 			store: func() EngineStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestEngine("ollama", EngineTypeOllama))
+				_ = s.Create(context.Background(), createTestEngine("ollama", EngineTypeOllama))
 				return s
 			}(),
 			input:      map[string]any{"name": "ollama"},
@@ -142,8 +142,8 @@ func TestListQuery_Execute(t *testing.T) {
 			name: "list all engines",
 			store: func() EngineStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestEngine("ollama", EngineTypeOllama))
-				s.Create(context.Background(), createTestEngine("vllm", EngineTypeVLLM))
+				_ = s.Create(context.Background(), createTestEngine("ollama", EngineTypeOllama))
+				_ = s.Create(context.Background(), createTestEngine("vllm", EngineTypeVLLM))
 				return s
 			}(),
 			input:     map[string]any{},

@@ -95,8 +95,8 @@ func TestAllow(t *testing.T) {
 
 	t.Run("exhausted bucket denies", func(t *testing.T) {
 		limiter := New(1.0, 2)
-		limiter.Allow("key2")
-		limiter.Allow("key2")
+		_, _ = limiter.Allow("key2")
+		_, _ = limiter.Allow("key2")
 		allowed, err := limiter.Allow("key2")
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
@@ -119,8 +119,8 @@ func TestAllow(t *testing.T) {
 func TestReset(t *testing.T) {
 	t.Run("reset removes key", func(t *testing.T) {
 		limiter := New(10.0, 10)
-		limiter.Allow("key1")
-		limiter.Allow("key1")
+		_, _ = limiter.Allow("key1")
+		_, _ = limiter.Allow("key1")
 		limiter.Reset("key1")
 		allowed, err := limiter.Allow("key1")
 		if err != nil {

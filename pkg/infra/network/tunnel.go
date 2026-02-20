@@ -89,7 +89,7 @@ func (t *FRPTunnel) Enable(ctx context.Context, config map[string]any) (string, 
 
 	select {
 	case <-ctx.Done():
-		cmd.Process.Kill()
+		_ = cmd.Process.Kill()
 		return "", "", ctx.Err()
 	default:
 	}
@@ -122,7 +122,7 @@ func (t *FRPTunnel) Disable(ctx context.Context) error {
 	}
 
 	cmd := exec.CommandContext(ctx, frpcBin, "stop", "tunnel")
-	cmd.Run()
+	_ = cmd.Run()
 
 	t.enabled = false
 	t.tunnelID = ""
