@@ -121,38 +121,22 @@ func (s *MemoryStore) CreateRun(ctx context.Context, run *PipelineRun) error {
 		return ErrRunNotFound
 	}
 
-	s.runs[run.ID] = run
+	// Store a deep copy to decouple from the caller's pointer.
+	// This prevents races when the executor goroutine mutates its local run
+	// while store readers access the stored copy.
+	s.runs[run.ID] = copyRun(run)
 	return nil
 }
 
 func (s *MemoryStore) GetRun(ctx context.Context, id string) (*PipelineRun, error) {
 	s.mu.RLock()
-	run, exists := s.runs[id]
-	s.mu.RUnlock()
+	defer s.mu.RUnlock()
 
+	run, exists := s.runs[id]
 	if !exists {
 		return nil, ErrRunNotFound
 	}
-
-	// Return a snapshot to avoid races with concurrent executor goroutine writes
-	run.mu.RLock()
-	stepResults := make(map[string]any, len(run.StepResults))
-	for k, v := range run.StepResults {
-		stepResults[k] = v
-	}
-	snapshot := &PipelineRun{
-		ID:          run.ID,
-		PipelineID:  run.PipelineID,
-		Status:      run.Status,
-		Input:       run.Input,
-		StepResults: stepResults,
-		Error:       run.Error,
-		StartedAt:   run.StartedAt,
-		CompletedAt: run.CompletedAt,
-	}
-	run.mu.RUnlock()
-
-	return snapshot, nil
+	return run, nil
 }
 
 func (s *MemoryStore) ListRuns(ctx context.Context, pipelineID string) ([]PipelineRun, error) {
@@ -164,23 +148,7 @@ func (s *MemoryStore) ListRuns(ctx context.Context, pipelineID string) ([]Pipeli
 		if pipelineID != "" && r.PipelineID != pipelineID {
 			continue
 		}
-		r.mu.RLock()
-		stepResults := make(map[string]any, len(r.StepResults))
-		for k, v := range r.StepResults {
-			stepResults[k] = v
-		}
-		snapshot := PipelineRun{
-			ID:          r.ID,
-			PipelineID:  r.PipelineID,
-			Status:      r.Status,
-			Input:       r.Input,
-			StepResults: stepResults,
-			Error:       r.Error,
-			StartedAt:   r.StartedAt,
-			CompletedAt: r.CompletedAt,
-		}
-		r.mu.RUnlock()
-		result = append(result, snapshot)
+		result = append(result, *r)
 	}
 	return result, nil
 }
@@ -193,8 +161,30 @@ func (s *MemoryStore) UpdateRun(ctx context.Context, run *PipelineRun) error {
 		return ErrRunNotFound
 	}
 
-	s.runs[run.ID] = run
+	// Store a deep copy to decouple from the caller's pointer
+	s.runs[run.ID] = copyRun(run)
 	return nil
+}
+
+// copyRun creates a deep copy of a PipelineRun, including its StepResults map.
+// Used by CreateRun/UpdateRun to decouple stored state from the caller's pointer,
+// preventing data races when the executor goroutine mutates its local run instance.
+func copyRun(run *PipelineRun) *PipelineRun {
+	stepResults := make(map[string]any, len(run.StepResults))
+	for k, v := range run.StepResults {
+		stepResults[k] = v
+	}
+	c := &PipelineRun{
+		ID:          run.ID,
+		PipelineID:  run.PipelineID,
+		Status:      run.Status,
+		Input:       run.Input,
+		StepResults: stepResults,
+		Error:       run.Error,
+		StartedAt:   run.StartedAt,
+		CompletedAt: run.CompletedAt,
+	}
+	return c
 }
 
 func generateID(prefix string) string {

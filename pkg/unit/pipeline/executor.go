@@ -51,11 +51,9 @@ func (e *Executor) Execute(ctx context.Context, pipeline *Pipeline, run *Pipelin
 		for _, step := range pipeline.Steps {
 			select {
 			case <-runCtx.Done():
-				run.mu.Lock()
 				run.Status = RunStatusCancelled
 				now := time.Now()
 				run.CompletedAt = &now
-				run.mu.Unlock()
 				_ = e.store.UpdateRun(context.Background(), run)
 				return
 			default:
@@ -63,12 +61,10 @@ func (e *Executor) Execute(ctx context.Context, pipeline *Pipeline, run *Pipelin
 
 			for _, dep := range step.DependsOn {
 				if _, ok := executedSteps[dep]; !ok {
-					run.mu.Lock()
 					run.Status = RunStatusFailed
 					run.Error = "dependency not satisfied: " + dep
 					now := time.Now()
 					run.CompletedAt = &now
-					run.mu.Unlock()
 					_ = e.store.UpdateRun(context.Background(), run)
 					return
 				}
@@ -92,27 +88,21 @@ func (e *Executor) Execute(ctx context.Context, pipeline *Pipeline, run *Pipelin
 			}
 
 			if err != nil {
-				run.mu.Lock()
 				run.Status = RunStatusFailed
 				run.Error = "step " + step.ID + " failed: " + err.Error()
 				now := time.Now()
 				run.CompletedAt = &now
-				run.mu.Unlock()
 				_ = e.store.UpdateRun(context.Background(), run)
 				return
 			}
 
 			executedSteps[step.ID] = output
-			run.mu.Lock()
 			run.StepResults[step.ID] = output
-			run.mu.Unlock()
 		}
 
-		run.mu.Lock()
 		run.Status = RunStatusCompleted
 		now := time.Now()
 		run.CompletedAt = &now
-		run.mu.Unlock()
 		_ = e.store.UpdateRun(context.Background(), run)
 	}()
 
