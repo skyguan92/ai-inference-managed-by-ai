@@ -16,11 +16,11 @@ import (
 
 // MultiEngineProvider implements a service provider that supports multiple inference engines
 type MultiEngineProvider struct {
-	modelStore    model.ModelStore
-	vllmProvider  *vllm.ServiceProvider
-	processes     map[string]*exec.Cmd
-	serviceInfo   map[string]*ServiceRuntimeInfo
-	mu            sync.RWMutex
+	modelStore   model.ModelStore
+	vllmProvider *vllm.ServiceProvider
+	processes    map[string]*exec.Cmd
+	serviceInfo  map[string]*ServiceRuntimeInfo
+	mu           sync.RWMutex
 }
 
 // ServiceRuntimeInfo holds runtime information for a service
@@ -70,15 +70,15 @@ func (p *MultiEngineProvider) Create(ctx context.Context, modelID string, resour
 	case model.ModelTypeLLM, model.ModelTypeVLM:
 		// Use vLLM for LLM and VLM models
 		return p.vllmProvider.Create(ctx, modelID, resourceClass, replicas, persistent)
-	
+
 	case model.ModelTypeASR:
 		// TODO: Use ASR provider
 		return nil, fmt.Errorf("ASR provider not yet implemented")
-	
+
 	case model.ModelTypeTTS:
 		// TODO: Use TTS provider
 		return nil, fmt.Errorf("TTS provider not yet implemented")
-	
+
 	default:
 		// Default to vLLM
 		return p.vllmProvider.Create(ctx, modelID, resourceClass, replicas, persistent)
@@ -179,7 +179,7 @@ func (p *MultiEngineProvider) GetRecommendation(ctx context.Context, modelID str
 		rec.DeviceType = "gpu"
 		rec.Reason = fmt.Sprintf("%s model '%s' recommended for GPU acceleration with vLLM for high-performance inference", m.Type, m.Name)
 		return rec, nil
-	
+
 	case model.ModelTypeASR:
 		return &service.Recommendation{
 			ResourceClass:      service.ResourceClassSmall,
@@ -189,7 +189,7 @@ func (p *MultiEngineProvider) GetRecommendation(ctx context.Context, modelID str
 			DeviceType:         "cpu",
 			Reason:             fmt.Sprintf("ASR model '%s' runs efficiently on CPU with Whisper engine", m.Name),
 		}, nil
-	
+
 	case model.ModelTypeTTS:
 		return &service.Recommendation{
 			ResourceClass:      service.ResourceClassSmall,
@@ -199,7 +199,7 @@ func (p *MultiEngineProvider) GetRecommendation(ctx context.Context, modelID str
 			DeviceType:         "cpu",
 			Reason:             fmt.Sprintf("TTS model '%s' runs efficiently on CPU with dedicated TTS engine", m.Name),
 		}, nil
-	
+
 	case model.ModelTypeEmbedding:
 		return &service.Recommendation{
 			ResourceClass:      service.ResourceClassMedium,
@@ -209,7 +209,7 @@ func (p *MultiEngineProvider) GetRecommendation(ctx context.Context, modelID str
 			DeviceType:         "cpu",
 			Reason:             fmt.Sprintf("Embedding model '%s' recommended for CPU inference with Transformers", m.Name),
 		}, nil
-	
+
 	default:
 		// Default to vLLM on GPU for unknown types
 		return &service.Recommendation{
@@ -221,6 +221,11 @@ func (p *MultiEngineProvider) GetRecommendation(ctx context.Context, modelID str
 			Reason:             fmt.Sprintf("Model '%s' of type '%s' defaults to vLLM on GPU", m.Name, m.Type),
 		}, nil
 	}
+}
+
+// IsRunning checks if the service is actually running
+func (p *MultiEngineProvider) IsRunning(ctx context.Context, serviceID string) bool {
+	return p.vllmProvider.IsRunning(ctx, serviceID)
 }
 
 // Ensure MultiEngineProvider implements the interface

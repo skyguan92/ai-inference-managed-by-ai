@@ -63,5 +63,10 @@ func (s *ServiceProvider) GetServiceInfo(serviceID string) (*ServiceInfo, error)
 	return s.provider.GetServiceInfo(serviceID)
 }
 
+// IsRunning checks if the service is actually running
+func (s *ServiceProvider) IsRunning(ctx context.Context, serviceID string) bool {
+	return s.provider.isRunning(serviceID)
+}
+
 // Ensure ServiceProvider implements the interface
 var _ service.ServiceProvider = (*ServiceProvider)(nil)

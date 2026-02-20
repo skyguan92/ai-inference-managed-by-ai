@@ -1,0 +1,126 @@
+# Qwen3-TTS-0.6B 模型资产
+
+## 基本信息
+name: Qwen3-TTS-0.6B
+vendor: Alibaba (阿里巴巴)
+version: "0.6B"
+type: tts
+release_date: "2025-01"
+
+## 模型规格
+spec:
+  parameters: "0.6B"
+  format: safetensors
+  size_gb: 1.8
+  sample_rate: 24000
+  features:
+    - voice_cloning
+    - multilingual
+    - streaming
+
+## 文件清单
+files:
+  - name: model.safetensors
+    size: "1.8GB"
+  - name: config.json
+  - name: generation_config.json
+  - name: tokenizer.json
+  - name: vocab.json
+  - name: merges.txt
+  - name: reference.wav  # 用于语音克隆的参考音频
+  - name: speech_tokenizer/
+    type: directory
+    size: "650MB"
+
+## 硬件需求
+requirements:
+  cpu:
+    memory_min: "4GB"
+    memory_recommended: "6GB"
+    cores_min: 2
+  gpu:
+    optional: true
+    memory_min: "2GB"
+
+## 推理性能
+performance:
+  cpu:
+    generation_speed: "2-3 chars/min"
+    latency_10chars: "~60s"
+  gpu:
+    generation_speed: "50-100 chars/min"
+    latency_10chars: "~5s"
+
+## 依赖包
+dependencies:
+  python:
+    - qwen-tts>=0.1.1
+    - torch>=2.1.0
+    - torchaudio>=2.1.0
+    - transformers>=4.51.0
+    - soundfile
+    - scipy
+
+## 兼容的引擎
+engines:
+  - name: qwen-tts
+    version_min: "0.1.1"
+    recommended: "qujing-qwen3-tts-real:latest"
+
+## 验证状态
+validation:
+  nvidia_gb10_cpu:
+    status: verified
+    date: "2026-02-20"
+    engine: qujing-qwen3-tts-real:latest
+    memory_usage: "378MB"
+    notes: "CPU 推理较慢，建议 GPU 加速"
+
+## 模型来源
+source:
+  type: huggingface
+  repo: "Qwen/Qwen3-TTS-0.6B"
+  download_command: |
+    # 使用 huggingface-cli 下载
+    huggingface-cli download Qwen/Qwen3-TTS-0.6B --local-dir ./Qwen3-TTS-0.6B
+
+## 标签
+tags:
+  - chinese
+  - multilingual
+  - voice-cloning
+  - speech-synthesis
+  - cpu-compatible
+
+## 示例用法
+usage:
+  aima:
+    create_model: |
+      aima model create qwen3-tts \
+        --type tts \
+        --format safetensors \
+        --path /mnt/data/models/Qwen3-TTS-0.6B
+    
+    create_service: |
+      aima service create tts-qwen3 \
+        --model model-xxx \
+        --device cpu \
+        --port 8002
+    
+    start_service: |
+      aima service start svc-tts-model-xxx --wait --timeout 300
+  
+  curl:
+    synthesize: |
+      curl -X POST http://localhost:8002/v1/tts \
+        -H "Content-Type: application/json" \
+        -d '{"text": "你好，这是语音合成测试", "voice": "default"}'
+    
+    health: |
+      curl http://localhost:8002/health
+
+## 注意事项
+notes:
+  - CPU 推理速度较慢，适合低频调用
+  - 支持语音克隆，需提供 reference.wav
+  - 建议使用 GPU 加速以获得更好性能

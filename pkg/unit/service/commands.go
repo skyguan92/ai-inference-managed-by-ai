@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
@@ -497,9 +498,16 @@ func (c *StartCommand) Execute(ctx context.Context, input any) (any, error) {
 		return nil, fmt.Errorf("get service %s: %w", serviceID, err)
 	}
 
+	// Check if service is already running and container actually exists
 	if service.Status == ServiceStatusRunning {
-		ec.PublishFailed(ErrServiceAlreadyRunning)
-		return nil, ErrServiceAlreadyRunning
+		// Verify the container/process is actually running (Bug #2 fix)
+		if c.provider.IsRunning(ctx, serviceID) {
+			ec.PublishFailed(ErrServiceAlreadyRunning)
+			return nil, ErrServiceAlreadyRunning
+		}
+		// Container not running but status says running - sync status
+		slog.Warn("service status out of sync, container not running", "service_id", serviceID)
+		service.Status = ServiceStatusStopped
 	}
 
 	// Extract async flag from input (for backward compatibility)

@@ -1,0 +1,112 @@
+# GLM-4.7-Flash 模型资产
+
+## 基本信息
+name: GLM-4.7-Flash
+vendor: Zhipu AI (智谱)
+version: "4.7"
+type: llm
+release_date: "2025-01"
+
+## 模型规格
+spec:
+  parameters: "62B"  # 约 620 亿参数
+  format: safetensors
+  shards: 48
+  size_gb: 60
+  context_length: 8192
+  architecture: GLM
+
+## 文件清单
+files:
+  - name: model.safetensors
+    count: 48
+    pattern: "model-*.safetensors"
+  - name: config.json
+  - name: tokenizer.json
+  - name: tokenizer.model
+  - name: special_tokens_map.json
+
+## 硬件需求
+requirements:
+  gpu:
+    memory_min: "48GB"
+    memory_recommended: "60GB"
+    architectures:
+      - nvidia GB10
+      - nvidia Ampere
+      - nvidia Hopper
+  cpu:
+    memory_min: "128GB"  # CPU offload 时
+    cores_min: 16
+
+## 推理性能
+performance:
+  throughput:
+    nvidia_gb10: "20-25 tokens/s"
+    nvidia_a100: "40-50 tokens/s"
+  latency:
+    first_token: "1-2s"
+    per_token: "40-50ms"
+
+## 兼容的引擎
+engines:
+  - name: vllm
+    version_min: "0.14.0"
+    recommended: "vllm-0.14.0-cu131-gb10"
+    image: "zhiwen-vllm:0128"
+  - name: sglang
+    version_min: "0.3.0"
+
+## 验证状态
+validation:
+  nvidia_gb10:
+    status: verified
+    date: "2026-02-20"
+    engine: vllm-0.14.0-cu131-gb10
+    engine_image: "zhiwen-vllm:0128"
+    tested_by: AIMA CLI
+    notes: "GB10 GPU 上稳定运行，吞吐量 20.6 tokens/s"
+
+## 模型来源
+source:
+  type: huggingface
+  repo: "THUDM/glm-4-9b-chat"  # 参考仓库
+  download_command: |
+    # 使用 huggingface-cli 下载
+    huggingface-cli download THUDM/GLM-4.7-Flash --local-dir ./GLM-4.7-Flash
+
+## 标签
+tags:
+  - chinese
+  - bilingual
+  - chat
+  - instruction-following
+  - production-ready
+
+## 示例用法
+usage:
+  aima:
+    create_model: |
+      aima model create glm-4.7-flash \
+        --type llm \
+        --format safetensors \
+        --path /mnt/data/models/GLM-4.7-Flash
+    
+    create_service: |
+      aima service create glm-flash \
+        --model model-xxx \
+        --device gpu \
+        --port 8000
+    
+    start_service: |
+      aima service start svc-vllm-model-xxx --wait --timeout 600
+  
+  curl:
+    chat: |
+      curl http://localhost:8000/v1/chat/completions \
+        -H "Content-Type: application/json" \
+        -d '{
+          "model": "/models",
+          "messages": [{"role": "user", "content": "你好"}],
+          "max_tokens": 100
+        }'

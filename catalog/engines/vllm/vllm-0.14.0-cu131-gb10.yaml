@@ -1,0 +1,163 @@
+# vLLM 0.14.0 (CUDA 13.1, GB10 适配) 引擎资产
+
+## 基本信息
+name: vllm-0.14.0-cu131-gb10
+type: vllm
+vendor: scitrera.ai (基于 vLLM 社区版)
+version: "0.14.0"
+vllm_commit: "63227ac"
+build_date: "2026-01-22"
+
+## 镜像信息
+image:
+  name: zhiwen-vllm
+  tag: "0128"
+  full_name: "zhiwen-vllm:0128"
+  alternative_names:
+    - "docker.1ms.run/scitrera/dgx-spark-vllm:0.14.0-t5"
+  size_gb: 25
+  registry: local
+  source: scitrera.ai
+
+## 版本详情
+versions:
+  vllm: "0.14.0+git-63227ac"
+  cuda: "13.1.0"
+  pytorch: "2.10.0"
+  flashinfer: "0.6.1"
+  transformers: "5.0.0+git-0dfb28e1"
+  triton: "3.5.1"
+  nccl: "2.29.2-1"
+
+## 支持的平台
+platforms:
+  - linux/arm64
+  - NVIDIA GB10 (Blackwell)
+
+## 支持的模型类型
+supported_models:
+  - type: llm
+    architectures:
+      - LlamaForCausalLM
+      - Qwen2ForCausalLM
+      - Qwen3ForCausalLM
+      - GLMForCausalLM
+      - MistralForCausalLM
+      - DeepseekForCausalLM
+  - type: vlm
+    architectures:
+      - LlavaForConditionalGeneration
+      - Qwen2VLForConditionalGeneration
+
+## 验证的模型
+verified_models:
+  - name: GLM-4.7-Flash
+    status: verified
+    date: "2026-02-20"
+    throughput: "20.6 tokens/s"
+    memory: "4.17GB GPU"
+    notes: "GB10 GPU 上稳定运行"
+  - name: Qwen3-Coder-Next-FP8
+    status: verified
+    notes: "GB10 GPU 上运行"
+
+## 硬件需求
+requirements:
+  gpu:
+    required: true
+    memory_min: "16GB"
+    architectures:
+      - NVIDIA GB10 (Blackwell)
+      - NVIDIA Ampere (RTX 30系列)
+      - NVIDIA Hopper (H100)
+  cpu:
+    cores_min: 8
+    memory_min: "32GB"
+
+## 特性
+features:
+  - paged_attention
+  - continuous_batching
+  - tensor_parallelism
+  - flashinfer_backend
+  - gpu_memory_optimization
+  - streaming_output
+
+## 环境变量
+environment:
+  - name: CUDA_VISIBLE_DEVICES
+    description: 指定 GPU 设备
+  - name: VLLM_ATTENTION_BACKEND
+    default: "FLASHINFER"
+    description: 注意力机制后端 (flashinfer)
+
+## API 端点
+endpoints:
+  - path: /v1/models
+    method: GET
+    description: 列出可用模型
+  - path: /v1/chat/completions
+    method: POST
+    description: 对话补全 (OpenAI 兼容)
+  - path: /v1/completions
+    method: POST
+    description: 文本补全 (OpenAI 兼容)
+  - path: /health
+    method: GET
+    description: 健康检查
+
+## 启动参数
+startup:
+  default_args:
+    - "--gpu-memory-utilization"
+    - "0.9"
+    - "--max-model-len"
+    - "8192"
+    - "--trust-remote-code"
+  health_check:
+    path: /health
+    timeout: "5m"
+
+## 构建信息
+build:
+  maintainer: "scitrera.ai <open-source-team@scitrera.com>"
+  base_image: "ubuntu:24.04"
+  source: "https://github.com/vllm-project/vllm"
+
+## 使用示例
+usage:
+  docker_run: |
+    docker run -d --gpus all \
+      --name vllm-server \
+      -p 8000:8000 \
+      -v /mnt/data/models:/models \
+      zhiwen-vllm:0128 \
+      --model /models/GLM-4.7-Flash \
+      --port 8000 \
+      --gpu-memory-utilization 0.9
+  
+  aima: |
+    aima model create glm-4.7-flash --type llm --path /mnt/data/models/GLM-4.7-Flash
+    aima service create glm-flash --model <model-id> --device gpu --port 8000
+    aima service start svc-vllm-<id> --wait --timeout 600
+
+## 性能基准
+benchmarks:
+  glm-4.7-flash:
+    throughput: "20.6 tokens/s"
+    first_token_latency: "1-2s"
+    memory_usage: "4.17GB GPU"
+
+## 标签
+tags:
+  - gpu-required
+  - production-ready
+  - gb10-compatible
+  - cuda-13.1
+  - flashinfer
+
+## 维护信息
+maintenance:
+  last_updated: "2026-01-22"
+  maintainer: "scitrera.ai"
+  community_version: "vLLM 0.14.0"

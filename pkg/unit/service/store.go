@@ -129,6 +129,8 @@ type ServiceProvider interface {
 	Scale(ctx context.Context, serviceID string, replicas int) error
 	GetMetrics(ctx context.Context, serviceID string) (*ServiceMetrics, error)
 	GetRecommendation(ctx context.Context, modelID string, hint string) (*Recommendation, error)
+	// IsRunning checks if the service container/process is actually running
+	IsRunning(ctx context.Context, serviceID string) bool
 }
 
 type MockProvider struct {
@@ -199,6 +201,10 @@ func (m *MockProvider) GetRecommendation(ctx context.Context, modelID string, hi
 		Replicas:           2,
 		ExpectedThroughput: 100.0,
 	}, nil
+}
+
+func (m *MockProvider) IsRunning(ctx context.Context, serviceID string) bool {
+	return true
 }
 
 func createTestService(id string, modelID string, status ServiceStatus) *ModelService {

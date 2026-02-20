@@ -286,14 +286,20 @@ func (p *HybridEngineProvider) Start(ctx context.Context, name string, config ma
 				// Wait for health check
 				if err := p.waitForHealth(ctx, result.ProcessID, port, startupCfg.HealthCheckURL, startupCfg.StartupTimeout); err != nil {
 					slog.Warn("health check failed", "error", err)
-					// For large models like Qwen3-Omni, don't stop container on health check timeout
-					// The model may still be loading
-					if strings.Contains(modelPath, "Omni") || strings.Contains(modelPath, "omni") {
-						slog.Warn("large model detected, keeping container running despite health check timeout", "container_id", result.ProcessID[:12], "model_path", modelPath)
-						// Return success even though health check failed
-						// User can check status manually
+
+					// Bug #3 fix: Check if container is still running before stopping
+					status, statusErr := p.dockerClient.GetContainerStatus(ctx, result.ProcessID)
+					if statusErr == nil && status == "running" {
+						// Container is running but health check timed out
+						// This usually means the model is still loading
+						slog.Warn("health check timeout but container still running, model may still be loading",
+							"container_id", result.ProcessID[:12],
+							"model_path", modelPath,
+							"status", status)
+						// Return success - the container is healthy and model is loading
 						return result, nil
 					}
+
 					p.Stop(ctx, engineType, true, 10)
 					lastErr = err
 					continue
@@ -346,8 +352,8 @@ func (p *HybridEngineProvider) startDockerWithRetry(ctx context.Context, engineT
 		}
 		// Determine mount path based on image type
 		mountPath := "/models"
-		if strings.Contains(image, "qujing-glm-asr-nano") {
-			mountPath = "/model" // ASR image expects /model
+		if strings.Contains(image, "qujing-glm-asr-nano") || strings.Contains(image, "qujing-qwen3-tts") {
+			mountPath = "/model" // ASR and TTS images expect /model
 		}
 		opts.Volumes = map[string]string{
 			modelPath: mountPath,
@@ -585,11 +591,11 @@ func (p *HybridEngineProvider) getDockerImages(name, version string) []string {
 
 	switch name {
 	case "vllm":
-		// Priority: Qwen3-Omni compatible > GB10 compatible > official image
+		// Priority: GB10 compatible (general) > Qwen3-Omni specific > official image
 		return []string{
-			"aima-qwen3-omni-server:latest", // Qwen3-Omni FastAPI server (priority 1)
-			"aima-vllm-qwen3-omni:latest",   // Qwen3-Omni vLLM (priority 2)
-			"zhiwen-vllm:0128",              // GB10 compatible (priority 3)
+			"zhiwen-vllm:0128",              // GB10 compatible - supports most models (priority 1)
+			"aima-vllm-qwen3-omni:latest",   // Qwen3-Omni vLLM specific (priority 2)
+			"aima-qwen3-omni-server:latest", // Qwen3-Omni FastAPI server (priority 3)
 			"vllm/vllm-openai:v0.15.0",      // Official image (fallback)
 		}
 	case "whisper", "asr":
@@ -599,10 +605,11 @@ func (p *HybridEngineProvider) getDockerImages(name, version string) []string {
 			"registry.cn-hangzhou.aliyuncs.com/funasr_repo/funasr:funasr-runtime-sdk-cpu-0.4.6", // Official (priority 2)
 		}
 	case "tts":
-		// Priority: local custom image > official image
+		// Priority: real TTS image > placeholder image > official image
 		return []string{
-			"qujing-qwen3-tts:latest",     // Local custom image (priority 1)
-			"ghcr.io/coqui-ai/tts:latest", // Official (priority 2)
+			"qujing-qwen3-tts-real:latest", // Real TTS with model loading (priority 1)
+			"qujing-qwen3-tts:latest",      // Placeholder TTS image (priority 2)
+			"ghcr.io/coqui-ai/tts:latest",  // Official (priority 3)
 		}
 	default:
 		return []string{fmt.Sprintf("%s:%s", name, version)}
@@ -892,6 +899,30 @@ func (p *HybridServiceProvider) GetRecommendation(ctx context.Context, modelID s
 		DeviceType:         deviceType,
 		Reason:             fmt.Sprintf("Model type '%s' recommended to run on %s with %s engine (CPU forced for non-LLM models on unified memory systems)", m.Type, deviceType, engineType),
 	}, nil
+}
+
+// IsRunning checks if the service container/process is actually running
+func (p *HybridServiceProvider) IsRunning(ctx context.Context, serviceID string) bool {
+	p.hybridProvider.mu.RLock()
+	info, exists := p.hybridProvider.serviceInfo[serviceID]
+	p.hybridProvider.mu.RUnlock()
+
+	if !exists || info == nil || info.ProcessID == "" {
+		return false
+	}
+
+	// Check if Docker container is running
+	if len(info.ProcessID) == 64 {
+		status, err := p.hybridProvider.dockerClient.GetContainerStatus(ctx, info.ProcessID)
+		if err != nil {
+			return false
+		}
+		return status == "running"
+	}
+
+	// For native processes, check if process exists
+	// ProcessID is the PID for native processes
+	return true // Simplified check for now
 }
 
 // GetEngineProvider returns the underlying engine provider

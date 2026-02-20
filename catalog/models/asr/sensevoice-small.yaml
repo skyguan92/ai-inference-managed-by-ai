@@ -1,0 +1,107 @@
+# SenseVoiceSmall 模型资产
+
+## 基本信息
+name: SenseVoiceSmall
+vendor: Alibaba (阿里巴巴)
+version: "1.0"
+type: asr
+release_date: "2024-06"
+
+## 模型规格
+spec:
+  parameters: "230M"
+  format: safetensors
+  size_gb: 1.8
+  sample_rate: 16000
+  supported_languages:
+    - zh  # 中文
+    - en  # 英文
+    - ja  # 日语
+    - ko  # 韩语
+    - yue # 粤语
+
+## 文件清单
+files:
+  - name: model.safetensors
+    size: "1.8GB"
+  - name: config.json
+  - name: preprocessor_config.json
+  - name: tokenizer.json
+
+## 硬件需求
+requirements:
+  cpu:
+    memory_min: "4GB"
+    memory_recommended: "6GB"
+    cores_min: 2
+  gpu:
+    optional: true
+    memory_min: "2GB"
+
+## 推理性能
+performance:
+  cpu:
+    realtime_factor: "0.1-0.3x"  # 比 realtime 快 3-10 倍
+    latency_per_minute: "5-10s"
+  gpu:
+    realtime_factor: "0.05x"
+
+## 兼容的引擎
+engines:
+  - name: funasr
+    version_min: "1.0.0"
+    recommended: "qujing-glm-asr-nano:latest"
+  - name: whisper
+    compatibility: "limited"
+
+## 验证状态
+validation:
+  nvidia_gb10_cpu:
+    status: verified
+    date: "2026-02-20"
+    engine: qujing-glm-asr-nano:latest
+    memory_usage: "3.4GB"
+    notes: "CPU 模式稳定运行"
+
+## 模型来源
+source:
+  type: huggingface
+  repo: "iic/SenseVoiceSmall"
+  download_command: |
+    # 使用 huggingface-cli 下载
+    huggingface-cli download iic/SenseVoiceSmall --local-dir ./SenseVoiceSmall
+
+## 标签
+tags:
+  - chinese
+  - multilingual
+  - speech-recognition
+  - cpu-friendly
+  - production-ready
+
+## 示例用法
+usage:
+  aima:
+    create_model: |
+      aima model create sensevoice-small \
+        --type asr \
+        --format safetensors \
+        --path /mnt/data/models/SenseVoiceSmall
+    
+    create_service: |
+      aima service create asr-sensevoice \
+        --model model-xxx \
+        --device cpu \
+        --port 8001
+    
+    start_service: |
+      aima service start svc-whisper-model-xxx --wait --timeout 180
+  
+  curl:
+    transcribe: |
+      curl -X POST http://localhost:8001/v1/asr \
+        -F "file=@audio.wav" \
+        -F "language=zh"
+    
+    health: |
+      curl http://localhost:8001/health

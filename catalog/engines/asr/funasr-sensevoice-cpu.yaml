@@ -1,0 +1,113 @@
+# FunASR SenseVoice CPU 引擎资产
+
+## 基本信息
+name: funasr-sensevoice-cpu
+type: asr
+vendor: Alibaba (基于 FunASR)
+version: "1.0"
+funasr_version: "1.0.0"
+build_date: "2025-01-31"
+
+## 镜像信息
+image:
+  name: qujing-glm-asr-nano
+  tag: "latest"
+  full_name: "qujing-glm-asr-nano:latest"
+  size_gb: 2.2
+  registry: local
+
+## 支持的平台
+platforms:
+  - linux/arm64
+  - linux/amd64
+
+## 支持的模型
+supported_models:
+  - name: SenseVoiceSmall
+    languages:
+      - zh
+      - en
+      - ja
+      - ko
+      - yue
+  - name: Paraformer
+    status: supported
+
+## 验证的模型
+verified_models:
+  - name: SenseVoiceSmall
+    status: verified
+    date: "2026-02-20"
+    memory_usage: "3.4GB"
+    notes: "CPU 模式稳定运行"
+
+## 硬件需求
+requirements:
+  gpu:
+    optional: true
+    memory_min: "2GB"
+  cpu:
+    cores_min: 2
+    memory_min: "4GB"
+    memory_recommended: "6GB"
+
+## 特性
+features:
+  - voice_activity_detection
+  - punctuation
+  - multilingual
+  - hotwords
+
+## 依赖
+dependencies:
+  python:
+    - funasr>=1.0.0
+    - torch>=2.0.0
+    - torchaudio
+
+## API 端点
+endpoints:
+  - path: /health
+    method: GET
+    description: 健康检查
+  - path: /v1/asr
+    method: POST
+    description: 语音识别
+  - path: /v1/audio/transcriptions
+    method: POST
+    description: OpenAI 兼容端点
+
+## 启动参数
+startup:
+  default_args:
+    - "--model"
+    - "/model"
+    - "--device"
+    - "cpu"
+  health_check:
+    path: /health
+    timeout: "60s"
+
+## 使用示例
+usage:
+  docker_run: |
+    docker run -d \
+      --name asr-server \
+      -p 8001:8000 \
+      --memory 4g \
+      --cpus 2 \
+      -v /mnt/data/models/SenseVoiceSmall:/model \
+      qujing-glm-asr-nano:latest
+  
+  aima: |
+    aima service create asr-sensevoice \
+      --model model-xxx \
+      --device cpu \
+      --port 8001
+    aima service start svc-whisper-model-xxx
+
+## 标签
+tags:
+  - cpu-friendly
+  - production-ready
+  - multilingual

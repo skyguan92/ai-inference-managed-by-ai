@@ -1,0 +1,140 @@
+# Qwen-TTS CPU 引擎资产
+
+## 基本信息
+name: qwen-tts-cpu
+type: tts
+vendor: Alibaba (基于 qwen-tts)
+version: "0.1.1"
+qwen_tts_version: "0.1.1"
+build_date: "2025-02-20"
+
+## 镜像信息
+image:
+  name: qujing-qwen3-tts-real
+  tag: "latest"
+  full_name: "qujing-qwen3-tts-real:latest"
+  size_gb: 2.0
+  registry: local
+  base_image: "qujing-qwen3-tts:latest"
+
+## 支持的平台
+platforms:
+  - linux/arm64
+  - linux/amd64
+
+## 支持的模型
+supported_models:
+  - name: Qwen3-TTS-0.6B
+    features:
+      - voice_cloning
+      - multilingual
+
+## 验证的模型
+verified_models:
+  - name: Qwen3-TTS-0.6B
+    status: verified
+    date: "2026-02-20"
+    memory_usage: "378MB"
+    notes: "CPU 推理较慢，GPU 推荐用于生产"
+
+## 硬件需求
+requirements:
+  gpu:
+    optional: true
+    memory_min: "2GB"
+  cpu:
+    cores_min: 2
+    memory_min: "4GB"
+
+## 特性
+features:
+  - voice_cloning
+  - multilingual
+  - reference_audio
+  - streaming
+
+## 依赖
+dependencies:
+  python:
+    - qwen-tts>=0.1.1
+    - torch>=2.1.0
+    - torchaudio>=2.1.0
+    - transformers>=4.51.0
+    - soundfile
+    - scipy
+    - fastapi
+    - uvicorn
+
+## API 端点
+endpoints:
+  - path: /health
+    method: GET
+    description: 健康检查
+  - path: /v1/tts
+    method: POST
+    description: 文字转语音
+  - path: /v1/audio/speech
+    method: POST
+    description: OpenAI 兼容端点
+
+## 启动参数
+startup:
+  default_args:
+    - "--model"
+    - "/model"
+    - "--device"
+    - "cpu"
+    - "--port"
+    - "8002"
+  health_check:
+    path: /health
+    timeout: "60s"
+
+## 性能参考
+performance:
+  cpu:
+    text_2chars: "~60s"
+    text_25chars: "~180s"
+    note: "CPU 推理较慢"
+  gpu:
+    text_2chars: "~5s"
+    text_25chars: "~15s"
+    note: "GPU 推理快得多"
+
+## 构建说明
+build:
+  base_image: "qujing-qwen3-tts:latest"
+  steps:
+    - "pip install qwen-tts>=0.1.1"
+    - "copy main.py to /app/main.py"
+  dockerfile_location: "docker/tts/Dockerfile"
+
+## 使用示例
+usage:
+  docker_run: |
+    docker run -d \
+      --name tts-server \
+      -p 8002:8002 \
+      --memory 4g \
+      --cpus 2 \
+      -v /mnt/data/models/Qwen3-TTS-0.6B:/model \
+      qujing-qwen3-tts-real:latest
+  
+  aima: |
+    aima service create tts-qwen3 \
+      --model model-xxx \
+      --device cpu \
+      --port 8002
+    aima service start svc-tts-model-xxx
+
+## 标签
+tags:
+  - cpu-compatible
+  - voice-cloning
+  - multilingual
+
+## 注意事项
+notes:
+  - CPU 推理速度较慢，建议 GPU 加速
+  - 需要参考音频进行语音克隆
+  - 默认参考音频在模型目录中

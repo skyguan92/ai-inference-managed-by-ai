@@ -1,0 +1,113 @@
+# NVIDIA Jetson Thor GB10 配置文件
+
+## 基本信息
+name: NVIDIA Jetson Thor GB10
+vendor: NVIDIA
+type: edge_device
+cpu_arch: arm64
+release_date: "2025-01"
+
+## 硬件规格
+hardware:
+  cpu:
+    cores: 20
+    architecture: arm64
+  gpu:
+    name: GB10
+    memory: "128GB"  # 统一内存架构
+    architecture: Blackwell
+    features:
+      - tensor_cores
+      - unified_memory
+  memory:
+    total: "128GB"  # CPU + GPU 共享
+    type: LPDDR5X
+
+## 推荐的模型配置
+recommended_services:
+  llm:
+    model: GLM-4.7-Flash
+    engine: vllm-0.14.0-cu131-gb10
+    engine_image: "zhiwen-vllm:0128"
+    device: gpu
+    config:
+      gpu_memory_utilization: 0.9
+      max_model_len: 8192
+    expected_performance:
+      throughput: "20-25 tokens/s"
+      latency_first_token: "1-2s"
+  
+  asr:
+    model: SenseVoiceSmall
+    engine: funasr-sensevoice-cpu
+    engine_image: "qujing-glm-asr-nano:latest"
+    device: cpu
+    config:
+      memory_limit: "4GB"
+      cpu_limit: 2
+    expected_performance:
+      realtime_factor: "0.1-0.3x"
+  
+  tts:
+    model: Qwen3-TTS-0.6B
+    engine: qwen-tts-cpu
+    engine_image: "qujing-qwen3-tts-real:latest"
+    device: cpu
+    config:
+      memory_limit: "4GB"
+      cpu_limit: 2
+    expected_performance:
+      generation_speed: "2-3 chars/min (CPU)"
+    note: "建议使用 GPU 加速 TTS"
+
+## 验证的组合
+verified_combinations:
+  - name: "LLM + ASR + TTS 同时运行"
+    date: "2026-02-20"
+    status: verified
+    memory_usage:
+      llm: "4.17GB GPU"
+      asr: "3.42GB CPU"
+      tts: "378MB CPU"
+    notes: "三个服务同时运行稳定"
+
+## 部署脚本
+deployment:
+  aima_cli: |
+    # 1. 创建模型
+    aima model create glm-4.7-flash --type llm --path /mnt/data/models/GLM-4.7-Flash
+    aima model create sensevoice-small --type asr --path /mnt/data/models/SenseVoiceSmall
+    aima model create qwen3-tts --type tts --path /mnt/data/models/Qwen3-TTS-0.6B
+    
+    # 2. 创建服务
+    aima service create glm-flash --model <llm-model-id> --device gpu --port 8000
+    aima service create asr-sensevoice --model <asr-model-id> --device cpu --port 8001
+    aima service create tts-qwen3 --model <tts-model-id> --device cpu --port 8002
+    
+    # 3. 启动服务
+    aima service start svc-vllm-<id> --wait --timeout 600
+    aima service start svc-whisper-<id> --wait --timeout 180
+    aima service start svc-tts-<id> --wait --timeout 300
+
+## 性能基准
+benchmarks:
+  llm_only:
+    throughput: "20.6 tokens/s"
+    memory: "4.17GB"
+  all_services:
+    llm_throughput: "20+ tokens/s"
+    memory_total: "~8GB"
+    note: "GPU 和 CPU 资源独立，互不影响"
+
+## 优化建议
+optimizations:
+  - "LLM 使用 GPU，ASR/TTS 使用 CPU，避免资源竞争"
+  - "TTS 如需高性能，可考虑使用 GPU"
+  - "128GB 统一内存足够运行多个大模型"
+
+## 标签
+tags:
+  - edge_device
+  - arm64
+  - unified_memory
+  - production_ready

@@ -15,7 +15,7 @@ import (
 
 // DockerEngineProvider implements EngineProvider using Docker containers
 type DockerEngineProvider struct {
-	client    *docker.SimpleClient
+	client     *docker.SimpleClient
 	containers map[string]string // engine name -> container ID
 }
 
@@ -34,7 +34,7 @@ func NewDockerEngineProvider() (*DockerEngineProvider, error) {
 // Install pulls the required Docker image for an engine
 func (p *DockerEngineProvider) Install(ctx context.Context, name string, version string) (*engine.InstallResult, error) {
 	image := p.getImageForEngine(name, version)
-	
+
 	slog.Info("pulling Docker image", "engine", name, "image", image)
 	if err := p.client.PullImage(ctx, image); err != nil {
 		// Image might not exist or network issue, try to continue
@@ -95,7 +95,7 @@ func (p *DockerEngineProvider) Start(ctx context.Context, name string, config ma
 
 	// Create unique container name
 	containerName := fmt.Sprintf("aima-%s-%d", name, time.Now().Unix())
-	
+
 	slog.Info("starting engine in Docker container", "engine", name, "image", image, "port", port, "gpu", useGPU)
 
 	containerID, err := p.client.CreateAndStartContainer(ctx, containerName, image, opts)
@@ -144,7 +144,7 @@ func (p *DockerEngineProvider) Stop(ctx context.Context, name string, force bool
 
 	delete(p.containers, name)
 	slog.Info("engine stopped", "engine", name)
-	
+
 	return &engine.StopResult{Success: true}, nil
 }
 
@@ -248,7 +248,7 @@ func (p *DockerEngineProvider) shouldUseGPU(config map[string]any, engineName st
 	if device, ok := config["device"].(string); ok {
 		return device == "gpu"
 	}
-	
+
 	// Default: LLM uses GPU, others use CPU
 	switch engineName {
 	case "vllm":
@@ -267,40 +267,40 @@ func (p *DockerEngineProvider) buildCommand(name string, config map[string]any, 
 			"--model", "/models",
 			"--port", strconv.Itoa(port),
 		}
-		
+
 		// GPU memory utilization
 		gpuUtil := 0.9
 		if v, ok := config["gpu_memory_utilization"].(float64); ok {
 			gpuUtil = v
 		}
 		cmd = append(cmd, "--gpu-memory-utilization", fmt.Sprintf("%.2f", gpuUtil))
-		
+
 		// Tensor parallel size
 		if tp, ok := config["tensor_parallel_size"].(int); ok && tp > 1 {
 			cmd = append(cmd, "--tensor-parallel-size", strconv.Itoa(tp))
 		}
-		
+
 		// Quantization
 		if q, ok := config["quantization"].(string); ok && q != "" {
 			cmd = append(cmd, "--quantization", q)
 		}
-		
+
 		return cmd
-		
+
 	case "whisper", "asr":
 		// FunASR or similar ASR server
 		return []string{
 			"--model-dir", "/models",
 			"--port", strconv.Itoa(port),
 		}
-		
+
 	case "tts":
 		// TTS server
 		return []string{
 			"--model", "/models",
 			"--port", strconv.Itoa(port),
 		}
-		
+
 	default:
 		return nil
 	}
@@ -313,7 +313,7 @@ func (p *DockerEngineProvider) waitForReady(ctx context.Context, containerID, na
 		if err != nil {
 			return fmt.Errorf("check container status: %w", err)
 		}
-		
+
 		if status == "running" {
 			// For simple check, we just verify container is running
 			// In production, should check health endpoint
@@ -321,14 +321,14 @@ func (p *DockerEngineProvider) waitForReady(ctx context.Context, containerID, na
 				return nil
 			}
 		}
-		
+
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(2 * time.Second):
 		}
 	}
-	
+
 	return fmt.Errorf("timeout waiting for container to be ready")
 }
 
@@ -370,7 +370,7 @@ func (p *DockerServiceProvider) Create(ctx context.Context, modelID string, reso
 
 	// Determine engine type from model type
 	engineType := p.getEngineTypeForModel(m.Type)
-	
+
 	// Allocate port
 	port := p.portCounter
 	p.portCounter++
@@ -453,6 +453,22 @@ func (p *DockerServiceProvider) getEngineTypeForModel(modelType model.ModelType)
 	default:
 		return "vllm"
 	}
+}
+
+// IsRunning checks if the service container is actually running
+func (p *DockerServiceProvider) IsRunning(ctx context.Context, serviceID string) bool {
+	// For DockerServiceProvider, check if the service is running via the provider
+	// This is a simplified implementation
+	containerID, exists := p.dockerProvider.containers[serviceID]
+	if !exists || containerID == "" {
+		return false
+	}
+
+	status, err := p.dockerProvider.client.GetContainerStatus(ctx, containerID)
+	if err != nil {
+		return false
+	}
+	return status == "running"
 }
 
 // Ensure DockerServiceProvider implements ServiceProvider interface
