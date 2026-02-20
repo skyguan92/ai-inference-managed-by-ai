@@ -18,7 +18,7 @@ func TestLogging(t *testing.T) {
 
 		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"success":true}`))
+			_, _ = w.Write([]byte(`{"success":true}`))
 		})
 
 		wrappedHandler := Logging(logger)(handler)
@@ -117,7 +117,7 @@ func TestLogging(t *testing.T) {
 		logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
 		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Write([]byte("ok"))
+			_, _ = w.Write([]byte("ok"))
 		})
 
 		wrappedHandler := Logging(logger)(handler)

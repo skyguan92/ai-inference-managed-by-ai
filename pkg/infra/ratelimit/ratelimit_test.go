@@ -171,10 +171,10 @@ func TestTokenRefill(t *testing.T) {
 
 	t.Run("tokens do not exceed capacity", func(t *testing.T) {
 		limiter := New(1000.0, 5)
-		limiter.Allow("key1")
+		_, _ = limiter.Allow("key1")
 		time.Sleep(50 * time.Millisecond)
 		for i := 0; i < 10; i++ {
-			limiter.Allow("key1")
+			_, _ = limiter.Allow("key1")
 		}
 		allowed, _ := limiter.Allow("key1")
 		if allowed {

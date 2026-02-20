@@ -186,7 +186,7 @@ func (p *Provider) Start(ctx context.Context, serviceID string) error {
 
 	// Wait for service to be ready
 	if err := p.waitForReady(ctx, svcInfo); err != nil {
-		p.Stop(ctx, serviceID, true)
+		_ = p.Stop(ctx, serviceID, true)
 		return fmt.Errorf("service failed to start: %w", err)
 	}
 
@@ -228,7 +228,7 @@ func (p *Provider) Stop(ctx context.Context, serviceID string, force bool) error
 
 		select {
 		case <-time.After(30 * time.Second):
-			cmd.Process.Kill()
+			_ = cmd.Process.Kill()
 		case <-done:
 		}
 	}

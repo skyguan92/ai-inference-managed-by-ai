@@ -256,8 +256,7 @@ func (p *Provider) Verify(ctx context.Context, modelID string, checksum string) 
 
 	issues := []string{}
 
-	if checksum != "" && resp.Details.ParameterSize != "" {
-	}
+	// TODO: implement checksum verification using resp.Details.ParameterSize
 
 	if len(issues) == 0 {
 		return &model.VerificationResult{Valid: true}, nil

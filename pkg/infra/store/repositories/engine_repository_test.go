@@ -73,13 +73,13 @@ func TestEngineRepository_List(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("list with type filter", func(t *testing.T) {
-		repo.Create(ctx, &engine.Engine{
+		_ = repo.Create(ctx, &engine.Engine{
 			ID:     "engine-3",
 			Name:   "test-ollama-2",
 			Type:   engine.EngineTypeOllama,
 			Status: engine.EngineStatusRunning,
 		})
-		repo.Create(ctx, &engine.Engine{
+		_ = repo.Create(ctx, &engine.Engine{
 			ID:     "engine-4",
 			Name:   "test-vllm",
 			Type:   engine.EngineTypeVLLM,
@@ -115,22 +115,22 @@ func TestEngineRepository_List(t *testing.T) {
 
 	t.Run("list with pagination", func(t *testing.T) {
 		// Clear previous data and create exactly 3 engines for pagination test
-		repo.Delete(ctx, "test-ollama-2")
-		repo.Delete(ctx, "test-vllm")
+		_ = repo.Delete(ctx, "test-ollama-2")
+		_ = repo.Delete(ctx, "test-vllm")
 
-		repo.Create(ctx, &engine.Engine{
+		_ = repo.Create(ctx, &engine.Engine{
 			ID:     "engine-page-1",
 			Name:   "engine-page-1",
 			Type:   engine.EngineTypeOllama,
 			Status: engine.EngineStatusRunning,
 		})
-		repo.Create(ctx, &engine.Engine{
+		_ = repo.Create(ctx, &engine.Engine{
 			ID:     "engine-page-2",
 			Name:   "engine-page-2",
 			Type:   engine.EngineTypeVLLM,
 			Status: engine.EngineStatusStopped,
 		})
-		repo.Create(ctx, &engine.Engine{
+		_ = repo.Create(ctx, &engine.Engine{
 			ID:     "engine-page-3",
 			Name:   "engine-page-3",
 			Type:   engine.EngineTypeOllama,
@@ -162,7 +162,7 @@ func TestEngineRepository_Update_Delete(t *testing.T) {
 			Status:  engine.EngineStatusStopped,
 			Version: "1.0.0",
 		}
-		repo.Create(ctx, e)
+		_ = repo.Create(ctx, e)
 
 		e.Status = engine.EngineStatusRunning
 		err := repo.Update(ctx, e)
@@ -198,7 +198,7 @@ func TestEngineRepository_Update_Delete(t *testing.T) {
 			Status:  engine.EngineStatusStopped,
 			Version: "1.0.0",
 		}
-		repo.Create(ctx, e)
+		_ = repo.Create(ctx, e)
 
 		err := repo.Delete(ctx, "delete-test")
 		if err != nil {

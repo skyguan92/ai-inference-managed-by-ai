@@ -310,7 +310,7 @@ func TestMockProvider_ChatStream_ContextCancel(t *testing.T) {
 
 	go func() {
 		defer close(stream)
-		provider.ChatStream(ctx, "llama3", messages, opts, stream)
+		_ = provider.ChatStream(ctx, "llama3", messages, opts, stream)
 	}()
 
 	// Cancel context immediately

@@ -69,7 +69,7 @@ func TestProvider_Chat(t *testing.T) {
 			EvalCount:       20,
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
@@ -122,7 +122,7 @@ func TestProvider_ChatWithOptions(t *testing.T) {
 			EvalCount: 5,
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
@@ -157,7 +157,7 @@ func TestProvider_Complete(t *testing.T) {
 			EvalCount:       10,
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
@@ -192,7 +192,7 @@ func TestProvider_Embed(t *testing.T) {
 			Embedding: []float64{0.1, 0.2, 0.3, 0.4, 0.5},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
@@ -227,7 +227,7 @@ func TestProvider_ListModels(t *testing.T) {
 			},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
@@ -278,7 +278,7 @@ func TestProvider_ListModelsFiltered(t *testing.T) {
 				{Name: "nomic-embed-text:latest"},
 			},
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
@@ -318,8 +318,8 @@ func TestProvider_Pull(t *testing.T) {
 		w.Header().Set("Content-Type", "application/x-ndjson")
 		for _, resp := range responses {
 			data, _ := json.Marshal(resp)
-			w.Write(data)
-			w.Write([]byte("\n"))
+			_, _ = w.Write(data)
+			_, _ = w.Write([]byte("\n"))
 		}
 		callCount++
 	}))
@@ -360,7 +360,7 @@ func TestProvider_PullWithoutProgress(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := PullResponse{Status: "success", Digest: "sha256:abc123"}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
@@ -544,7 +544,7 @@ func TestClient_ShowModel(t *testing.T) {
 			},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
@@ -612,7 +612,7 @@ func TestClient_ErrorHandling(t *testing.T) {
 	t.Run("server error", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(`{"error": "internal server error"}`))
+			_, _ = w.Write([]byte(`{"error": "internal server error"}`))
 		}))
 		defer server.Close()
 
@@ -631,7 +631,7 @@ func TestClient_ErrorHandling(t *testing.T) {
 	t.Run("server error without message", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(`{}`))
+			_, _ = w.Write([]byte(`{}`))
 		}))
 		defer server.Close()
 
@@ -647,7 +647,7 @@ func TestClient_ErrorHandling(t *testing.T) {
 	t.Run("invalid json response", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`invalid json`))
+			_, _ = w.Write([]byte(`invalid json`))
 		}))
 		defer server.Close()
 
@@ -665,7 +665,7 @@ func TestClient_StreamingError(t *testing.T) {
 	t.Run("server error in streaming", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(`{"error": "bad request"}`))
+			_, _ = w.Write([]byte(`{"error": "bad request"}`))
 		}))
 		defer server.Close()
 
@@ -683,7 +683,7 @@ func TestClient_StreamingError(t *testing.T) {
 	t.Run("handler error", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/x-ndjson")
-			w.Write([]byte(`{"status":"pulling"}` + "\n"))
+			_, _ = w.Write([]byte(`{"status":"pulling"}` + "\n"))
 		}))
 		defer server.Close()
 
@@ -702,7 +702,7 @@ func TestClient_StreamingError(t *testing.T) {
 	t.Run("invalid json in stream", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/x-ndjson")
-			w.Write([]byte(`invalid json` + "\n"))
+			_, _ = w.Write([]byte(`invalid json` + "\n"))
 		}))
 		defer server.Close()
 
@@ -743,7 +743,7 @@ func TestProvider_CompleteWithOptions(t *testing.T) {
 			EvalCount:       10,
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
@@ -794,7 +794,7 @@ func TestProvider_ChatWithAllOptions(t *testing.T) {
 			Done:    true,
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
@@ -821,7 +821,7 @@ func TestProvider_ChatWithAllOptions(t *testing.T) {
 func TestProvider_ChatError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error": "model not found"}`))
+		_, _ = w.Write([]byte(`{"error": "model not found"}`))
 	}))
 	defer server.Close()
 
@@ -838,7 +838,7 @@ func TestProvider_ChatError(t *testing.T) {
 func TestProvider_CompleteError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error": "model not found"}`))
+		_, _ = w.Write([]byte(`{"error": "model not found"}`))
 	}))
 	defer server.Close()
 
@@ -855,7 +855,7 @@ func TestProvider_CompleteError(t *testing.T) {
 func TestProvider_EmbedError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error": "model not found"}`))
+		_, _ = w.Write([]byte(`{"error": "model not found"}`))
 	}))
 	defer server.Close()
 
@@ -872,7 +872,7 @@ func TestProvider_EmbedError(t *testing.T) {
 func TestProvider_ListModelsError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error": "internal error"}`))
+		_, _ = w.Write([]byte(`{"error": "internal error"}`))
 	}))
 	defer server.Close()
 
@@ -901,7 +901,7 @@ func TestProvider_Verify(t *testing.T) {
 				},
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(resp)
+			_ = json.NewEncoder(w).Encode(resp)
 		}))
 		defer server.Close()
 
@@ -921,7 +921,7 @@ func TestProvider_Verify(t *testing.T) {
 	t.Run("model not found", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNotFound)
-			w.Write([]byte(`{"error": "model not found"}`))
+			_, _ = w.Write([]byte(`{"error": "model not found"}`))
 		}))
 		defer server.Close()
 
@@ -941,12 +941,12 @@ func TestProvider_Verify(t *testing.T) {
 	t.Run("with cached model ID", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var req ShowModelRequest
-			json.NewDecoder(r.Body).Decode(&req)
+			_ = json.NewDecoder(r.Body).Decode(&req)
 			if req.Name != "llama3:latest" {
 				t.Errorf("expected model name 'llama3:latest', got %s", req.Name)
 			}
 			resp := ShowModelResponse{}
-			json.NewEncoder(w).Encode(resp)
+			_ = json.NewEncoder(w).Encode(resp)
 		}))
 		defer server.Close()
 
@@ -998,7 +998,7 @@ func TestProvider_EstimateResources(t *testing.T) {
 					},
 				}
 				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(resp)
+				_ = json.NewEncoder(w).Encode(resp)
 			}))
 			defer server.Close()
 
@@ -1019,7 +1019,7 @@ func TestProvider_EstimateResources(t *testing.T) {
 	t.Run("with cached model ID", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var req ShowModelRequest
-			json.NewDecoder(r.Body).Decode(&req)
+			_ = json.NewDecoder(r.Body).Decode(&req)
 			if req.Name != "llama3:latest" {
 				t.Errorf("expected model name 'llama3:latest', got %s", req.Name)
 			}
@@ -1033,7 +1033,7 @@ func TestProvider_EstimateResources(t *testing.T) {
 					ParameterSize: "7B",
 				},
 			}
-			json.NewEncoder(w).Encode(resp)
+			_ = json.NewEncoder(w).Encode(resp)
 		}))
 		defer server.Close()
 
@@ -1096,7 +1096,7 @@ func TestProvider_PullWithModelName(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := PullResponse{Status: "success", Digest: "sha256:abc"}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
@@ -1116,7 +1116,7 @@ func TestProvider_PullWithModelName(t *testing.T) {
 func TestProvider_PullError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error": "pull failed"}`))
+		_, _ = w.Write([]byte(`{"error": "pull failed"}`))
 	}))
 	defer server.Close()
 

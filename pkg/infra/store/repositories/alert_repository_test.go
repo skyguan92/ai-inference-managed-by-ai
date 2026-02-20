@@ -65,13 +65,13 @@ func TestAlertRepository_ListRules(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("list rules", func(t *testing.T) {
-		repo.CreateRule(ctx, &alert.AlertRule{
+		_ = repo.CreateRule(ctx, &alert.AlertRule{
 			ID:       "rule-2",
 			Name:     "Rule 2",
 			Enabled:  true,
 			Severity: alert.AlertSeverityWarning,
 		})
-		repo.CreateRule(ctx, &alert.AlertRule{
+		_ = repo.CreateRule(ctx, &alert.AlertRule{
 			ID:       "rule-3",
 			Name:     "Rule 3",
 			Enabled:  false,
@@ -111,7 +111,7 @@ func TestAlertRepository_Update_DeleteRule(t *testing.T) {
 			Enabled:  true,
 			Severity: alert.AlertSeverityWarning,
 		}
-		repo.CreateRule(ctx, rule)
+		_ = repo.CreateRule(ctx, rule)
 
 		rule.Name = "Updated Name"
 		err := repo.UpdateRule(ctx, rule)
@@ -135,7 +135,7 @@ func TestAlertRepository_Update_DeleteRule(t *testing.T) {
 			Enabled:  true,
 			Severity: alert.AlertSeverityWarning,
 		}
-		repo.CreateRule(ctx, rule)
+		_ = repo.CreateRule(ctx, rule)
 
 		err := repo.DeleteRule(ctx, "rule-delete")
 		if err != nil {
@@ -178,13 +178,13 @@ func TestAlertRepository_CreateAlert(t *testing.T) {
 	})
 
 	t.Run("list alerts with filter", func(t *testing.T) {
-		repo.CreateAlert(ctx, &alert.Alert{
+		_ = repo.CreateAlert(ctx, &alert.Alert{
 			ID:       "alert-2",
 			RuleID:   "rule-1",
 			Severity: alert.AlertSeverityCritical,
 			Status:   alert.AlertStatusFiring,
 		})
-		repo.CreateAlert(ctx, &alert.Alert{
+		_ = repo.CreateAlert(ctx, &alert.Alert{
 			ID:       "alert-3",
 			RuleID:   "rule-2",
 			Severity: alert.AlertSeverityWarning,

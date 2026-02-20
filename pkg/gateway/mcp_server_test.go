@@ -414,7 +414,7 @@ func TestMCPSSEServer_handleMessage(t *testing.T) {
 	})
 
 	t.Run("buffer full", func(t *testing.T) {
-		eventsCh := make(chan []byte, 0)
+		eventsCh := make(chan []byte)
 		session := &sseSession{
 			id:      "test-session-3",
 			events:  eventsCh,

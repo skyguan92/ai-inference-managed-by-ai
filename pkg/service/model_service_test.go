@@ -40,11 +40,6 @@ func (m *mockQuery) Execute(ctx context.Context, input any) (any, error) {
 func (m *mockQuery) Description() string      { return "" }
 func (m *mockQuery) Examples() []unit.Example { return nil }
 
-func createTestModelService(store model.ModelStore, provider model.ModelProvider, bus *eventbus.InMemoryEventBus) *ModelService {
-	registry := unit.NewRegistry()
-	return NewModelService(registry, store, provider, bus)
-}
-
 func TestModelService_NewModelService(t *testing.T) {
 	store := model.NewMemoryStore()
 	provider := &model.MockProvider{}

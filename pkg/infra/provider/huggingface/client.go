@@ -278,11 +278,7 @@ func (c *Client) GetFileURL(repoID, filename, revision string) string {
 	return fmt.Sprintf("%s/%s/resolve/%s/%s", c.baseURL, repoID, revision, filename)
 }
 
-func (c *Client) GetLFSPointer(ctx context.Context, repoID, filename, revision string) (string, int64, error) {
-	if revision == "" {
-		revision = "main"
-	}
-
+func (c *Client) GetLFSPointer(ctx context.Context, repoID, filename, _ string) (string, int64, error) {
 	info, err := c.GetModelInfo(ctx, repoID)
 	if err != nil {
 		return "", 0, err

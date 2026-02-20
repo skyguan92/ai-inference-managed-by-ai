@@ -54,7 +54,7 @@ func (e *Executor) Execute(ctx context.Context, pipeline *Pipeline, run *Pipelin
 				run.Status = RunStatusCancelled
 				now := time.Now()
 				run.CompletedAt = &now
-				e.store.UpdateRun(context.Background(), run)
+				_ = e.store.UpdateRun(context.Background(), run)
 				return
 			default:
 			}
@@ -65,7 +65,7 @@ func (e *Executor) Execute(ctx context.Context, pipeline *Pipeline, run *Pipelin
 					run.Error = "dependency not satisfied: " + dep
 					now := time.Now()
 					run.CompletedAt = &now
-					e.store.UpdateRun(context.Background(), run)
+					_ = e.store.UpdateRun(context.Background(), run)
 					return
 				}
 			}
@@ -92,7 +92,7 @@ func (e *Executor) Execute(ctx context.Context, pipeline *Pipeline, run *Pipelin
 				run.Error = "step " + step.ID + " failed: " + err.Error()
 				now := time.Now()
 				run.CompletedAt = &now
-				e.store.UpdateRun(context.Background(), run)
+				_ = e.store.UpdateRun(context.Background(), run)
 				return
 			}
 
@@ -103,7 +103,7 @@ func (e *Executor) Execute(ctx context.Context, pipeline *Pipeline, run *Pipelin
 		run.Status = RunStatusCompleted
 		now := time.Now()
 		run.CompletedAt = &now
-		e.store.UpdateRun(context.Background(), run)
+		_ = e.store.UpdateRun(context.Background(), run)
 	}()
 
 	return nil

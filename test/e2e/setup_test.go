@@ -9,11 +9,8 @@ import (
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/gateway"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/registry"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
-	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/alert"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/engine"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/inference"
-	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/model"
-	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/pipeline"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/service"
 )
 
@@ -288,22 +285,6 @@ func getStringField(data any, field string) string {
 	return ""
 }
 
-func getFloatField(data any, field string) float64 {
-	if d, ok := data.(map[string]any); ok {
-		if v, ok := d[field]; ok {
-			switch val := v.(type) {
-			case float64:
-				return val
-			case int:
-				return float64(val)
-			case int64:
-				return float64(val)
-			}
-		}
-	}
-	return 0
-}
-
 func getIntField(data any, field string) int {
 	if d, ok := data.(map[string]any); ok {
 		if v, ok := d[field]; ok {
@@ -351,86 +332,3 @@ func getMapField(data any, field string) map[string]any {
 	return nil
 }
 
-func createTestAlert(t *testing.T, env *TestEnv, store alert.Store) string {
-	rule := &alert.AlertRule{
-		ID:        uuid.New().String(),
-		Name:      "test-alert-rule",
-		Condition: "memory > 90%",
-		Severity:  alert.AlertSeverityWarning,
-		Enabled:   true,
-	}
-	if err := store.CreateRule(env.Ctx, rule); err != nil {
-		t.Fatalf("failed to create test alert rule: %v", err)
-	}
-	return rule.ID
-}
-
-func createTestEngine(t *testing.T, env *TestEnv, store engine.EngineStore) string {
-	now := time.Now().Unix()
-	eng := &engine.Engine{
-		ID:           "engine-" + uuid.New().String()[:8],
-		Name:         "test-engine-" + uuid.New().String()[:4],
-		Type:         engine.EngineTypeOllama,
-		Status:       engine.EngineStatusStopped,
-		Version:      "1.0.0",
-		CreatedAt:    now,
-		UpdatedAt:    now,
-		Models:       []string{},
-		Capabilities: []string{"chat", "completion"},
-	}
-	if err := store.Create(env.Ctx, eng); err != nil {
-		t.Fatalf("failed to create test engine: %v", err)
-	}
-	return eng.Name
-}
-
-func createTestModel(t *testing.T, env *TestEnv, store model.ModelStore) string {
-	model := &model.Model{
-		ID:        "model-" + uuid.New().String()[:8],
-		Name:      "test-model-" + uuid.New().String()[:4],
-		Type:      model.ModelTypeLLM,
-		Format:    model.FormatGGUF,
-		Status:    model.StatusReady,
-		CreatedAt: time.Now().Unix(),
-		UpdatedAt: time.Now().Unix(),
-	}
-	if err := store.Create(env.Ctx, model); err != nil {
-		t.Fatalf("failed to create test model: %v", err)
-	}
-	return model.ID
-}
-
-func createTestService(t *testing.T, env *TestEnv, store service.ServiceStore) string {
-	svc := &service.ModelService{
-		ID:            "svc-" + uuid.New().String()[:8],
-		Name:          "test-service-" + uuid.New().String()[:4],
-		ModelID:       "test-model",
-		Status:        service.ServiceStatusStopped,
-		Replicas:      1,
-		ResourceClass: service.ResourceClassMedium,
-		Endpoints:     []string{},
-		CreatedAt:     time.Now().Unix(),
-		UpdatedAt:     time.Now().Unix(),
-	}
-	if err := store.Create(env.Ctx, svc); err != nil {
-		t.Fatalf("failed to create test service: %v", err)
-	}
-	return svc.ID
-}
-
-func createTestPipeline(t *testing.T, env *TestEnv, store pipeline.PipelineStore) string {
-	pipe := &pipeline.Pipeline{
-		ID:   "pipe-" + uuid.New().String()[:8],
-		Name: "test-pipeline-" + uuid.New().String()[:4],
-		Steps: []pipeline.PipelineStep{
-			{ID: "step1", Name: "Test Step", Type: "model.list", Input: map[string]any{}},
-		},
-		Status:    pipeline.PipelineStatusIdle,
-		CreatedAt: time.Now().Unix(),
-		UpdatedAt: time.Now().Unix(),
-	}
-	if err := store.CreatePipeline(env.Ctx, pipe); err != nil {
-		t.Fatalf("failed to create test pipeline: %v", err)
-	}
-	return pipe.ID
-}

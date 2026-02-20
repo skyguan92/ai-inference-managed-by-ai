@@ -129,7 +129,7 @@ func TestUpdateRuleCommand_Execute(t *testing.T) {
 		Severity:  AlertSeverityWarning,
 		Enabled:   true,
 	}
-	store.CreateRule(context.Background(), rule)
+	_ = store.CreateRule(context.Background(), rule)
 
 	cmd := NewUpdateRuleCommand(store)
 
@@ -202,7 +202,7 @@ func TestDeleteRuleCommand_Execute(t *testing.T) {
 		Severity:  AlertSeverityWarning,
 		Enabled:   true,
 	}
-	store.CreateRule(context.Background(), rule)
+	_ = store.CreateRule(context.Background(), rule)
 
 	cmd := NewDeleteRuleCommand(store)
 
@@ -269,7 +269,7 @@ func TestAcknowledgeCommand_Execute(t *testing.T) {
 		Message:     "Test alert",
 		TriggeredAt: currentTime(),
 	}
-	store.CreateAlert(context.Background(), alert)
+	_ = store.CreateAlert(context.Background(), alert)
 
 	cmd := NewAcknowledgeCommand(store)
 
@@ -310,7 +310,7 @@ func TestResolveCommand_Execute(t *testing.T) {
 		Message:     "Test alert",
 		TriggeredAt: currentTime(),
 	}
-	store.CreateAlert(context.Background(), alert)
+	_ = store.CreateAlert(context.Background(), alert)
 
 	cmd := NewResolveCommand(store)
 

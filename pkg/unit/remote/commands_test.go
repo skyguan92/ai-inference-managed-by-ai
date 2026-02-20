@@ -370,7 +370,7 @@ func TestCommandImplementsInterface(t *testing.T) {
 
 func createStoreWithTunnel() RemoteStore {
 	store := NewMemoryStore()
-	store.SetTunnel(context.Background(), &TunnelInfo{
+	_ = store.SetTunnel(context.Background(), &TunnelInfo{
 		ID:        "tunnel-test",
 		Status:    TunnelStatusConnected,
 		Provider:  TunnelProviderCloudflare,

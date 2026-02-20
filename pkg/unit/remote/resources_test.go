@@ -222,7 +222,7 @@ func TestResourceImplementsInterface(t *testing.T) {
 
 func TestStatusResource_GetWithConnectedTunnel(t *testing.T) {
 	store := NewMemoryStore()
-	store.SetTunnel(context.Background(), &TunnelInfo{
+	_ = store.SetTunnel(context.Background(), &TunnelInfo{
 		ID:        "tunnel-123",
 		Status:    TunnelStatusConnected,
 		Provider:  TunnelProviderCloudflare,
@@ -253,7 +253,7 @@ func TestStatusResource_GetWithConnectedTunnel(t *testing.T) {
 func TestAuditResource_GetWithMultipleRecords(t *testing.T) {
 	store := NewMemoryStore()
 	for i := 0; i < 5; i++ {
-		store.AddAuditRecord(context.Background(), &AuditRecord{
+		_ = store.AddAuditRecord(context.Background(), &AuditRecord{
 			ID:        "audit-" + string(rune('0'+i)),
 			Command:   "test command",
 			ExitCode:  0,
@@ -317,7 +317,7 @@ func TestAuditResource_WatchContextCancellation(t *testing.T) {
 
 func TestStatusResource_GetDisconnectedTunnel(t *testing.T) {
 	store := NewMemoryStore()
-	store.SetTunnel(context.Background(), &TunnelInfo{
+	_ = store.SetTunnel(context.Background(), &TunnelInfo{
 		ID:        "tunnel-test",
 		Status:    TunnelStatusDisconnected,
 		Provider:  TunnelProviderCloudflare,

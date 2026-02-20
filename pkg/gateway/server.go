@@ -158,7 +158,7 @@ func (s *Server) Stop(ctx context.Context) error {
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", ContentTypeJSON)
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status":"healthy"}`))
+	_, _ = w.Write([]byte(`{"status":"healthy"}`))
 }
 
 func (s *Server) handleOpenAPI(w http.ResponseWriter, r *http.Request) {
@@ -166,7 +166,7 @@ func (s *Server) handleOpenAPI(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(spec)
+	_, _ = w.Write(spec)
 }
 
 func (s *Server) Gateway() *Gateway {

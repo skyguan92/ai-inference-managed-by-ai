@@ -62,13 +62,13 @@ func TestAppRepository_List(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("list with status filter", func(t *testing.T) {
-		repo.Create(ctx, &app.App{
+		_ = repo.Create(ctx, &app.App{
 			ID:       "app-2",
 			Name:     "App 2",
 			Template: "open-webui",
 			Status:   app.AppStatusRunning,
 		})
-		repo.Create(ctx, &app.App{
+		_ = repo.Create(ctx, &app.App{
 			ID:       "app-3",
 			Name:     "App 3",
 			Template: "grafana",
@@ -91,7 +91,7 @@ func TestAppRepository_List(t *testing.T) {
 
 	t.Run("list with template filter", func(t *testing.T) {
 		// Create a second open-webui app for this test
-		repo.Create(ctx, &app.App{
+		_ = repo.Create(ctx, &app.App{
 			ID:       "app-webui-2",
 			Name:     "App WebUI 2",
 			Template: "open-webui",
@@ -114,23 +114,23 @@ func TestAppRepository_List(t *testing.T) {
 
 	t.Run("list with pagination", func(t *testing.T) {
 		// Clear and create exactly 3 apps for pagination test
-		repo.Delete(ctx, "app-2")
-		repo.Delete(ctx, "app-3")
-		repo.Delete(ctx, "app-webui-2")
+		_ = repo.Delete(ctx, "app-2")
+		_ = repo.Delete(ctx, "app-3")
+		_ = repo.Delete(ctx, "app-webui-2")
 
-		repo.Create(ctx, &app.App{
+		_ = repo.Create(ctx, &app.App{
 			ID:       "app-page-1",
 			Name:     "App Page 1",
 			Template: "open-webui",
 			Status:   app.AppStatusInstalled,
 		})
-		repo.Create(ctx, &app.App{
+		_ = repo.Create(ctx, &app.App{
 			ID:       "app-page-2",
 			Name:     "App Page 2",
 			Template: "grafana",
 			Status:   app.AppStatusRunning,
 		})
-		repo.Create(ctx, &app.App{
+		_ = repo.Create(ctx, &app.App{
 			ID:       "app-page-3",
 			Name:     "App Page 3",
 			Template: "open-webui",
@@ -169,7 +169,7 @@ func TestAppRepository_Update_Delete(t *testing.T) {
 			Template: "open-webui",
 			Status:   app.AppStatusInstalled,
 		}
-		repo.Create(ctx, a)
+		_ = repo.Create(ctx, a)
 
 		a.Name = "Updated Name"
 		a.Status = app.AppStatusRunning
@@ -207,7 +207,7 @@ func TestAppRepository_Update_Delete(t *testing.T) {
 			Template: "grafana",
 			Status:   app.AppStatusInstalled,
 		}
-		repo.Create(ctx, a)
+		_ = repo.Create(ctx, a)
 
 		err := repo.Delete(ctx, "app-delete")
 		if err != nil {

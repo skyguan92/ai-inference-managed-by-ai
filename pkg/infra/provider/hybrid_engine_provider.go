@@ -300,7 +300,7 @@ func (p *HybridEngineProvider) Start(ctx context.Context, name string, config ma
 						return result, nil
 					}
 
-					p.Stop(ctx, engineType, true, 10)
+					_, _ = p.Stop(ctx, engineType, true, 10)
 					lastErr = err
 					continue
 				}
@@ -516,16 +516,16 @@ func (p *HybridEngineProvider) Stop(ctx context.Context, name string, force bool
 	if exists {
 		slog.Info("stopping native process", "pid", cmd.Process.Pid)
 		if force {
-			cmd.Process.Kill()
+			_ = cmd.Process.Kill()
 		} else {
-			cmd.Process.Signal(os.Interrupt)
+			_ = cmd.Process.Signal(os.Interrupt)
 			// Wait for graceful shutdown
 			done := make(chan error, 1)
 			go func() { done <- cmd.Wait() }()
 			select {
 			case <-done:
 			case <-time.After(time.Duration(timeout) * time.Second):
-				cmd.Process.Kill()
+				_ = cmd.Process.Kill()
 			}
 		}
 		p.mu.Lock()
@@ -643,17 +643,6 @@ func (p *HybridEngineProvider) getDefaultPort(engineType string) int {
 	default:
 		return 8080
 	}
-}
-
-func (p *HybridEngineProvider) shouldUseGPU(config map[string]any, engineType string) bool {
-	if device, ok := config["device"].(string); ok {
-		return device == "gpu"
-	}
-	if gpu, ok := config["gpu"].(bool); ok {
-		return gpu
-	}
-	// Default: vllm uses GPU, others use CPU
-	return engineType == "vllm"
 }
 
 // validateModelPath checks if the model path is safe (no shell injection)

@@ -4,10 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
-	"path/filepath"
-	"runtime"
 	"strings"
-	"sync"
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/provider/vllm"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/model"
@@ -20,7 +17,6 @@ type MultiEngineProvider struct {
 	vllmProvider *vllm.ServiceProvider
 	processes    map[string]*exec.Cmd
 	serviceInfo  map[string]*ServiceRuntimeInfo
-	mu           sync.RWMutex
 }
 
 // ServiceRuntimeInfo holds runtime information for a service
@@ -32,19 +28,6 @@ type ServiceRuntimeInfo struct {
 	UseGPU    bool
 	ProcessID string
 	Endpoint  string
-}
-
-var (
-	// Script paths
-	scriptDir string
-)
-
-func init() {
-	// Get the directory of the current file
-	_, filename, _, _ := runtime.Caller(0)
-	pkgDir := filepath.Dir(filename)
-	projectRoot := filepath.Dir(filepath.Dir(pkgDir))
-	scriptDir = filepath.Join(projectRoot, "scripts")
 }
 
 // NewMultiEngineProvider creates a new multi-engine service provider

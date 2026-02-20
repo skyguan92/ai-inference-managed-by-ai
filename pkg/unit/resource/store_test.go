@@ -24,7 +24,7 @@ func TestMemoryStore_CreateSlot(t *testing.T) {
 func TestMemoryStore_GetSlot(t *testing.T) {
 	s := NewMemoryStore()
 	slot := createTestSlot("slot-1", "test-slot", SlotTypeInferenceNative)
-	s.CreateSlot(context.Background(), slot)
+	_ = s.CreateSlot(context.Background(), slot)
 
 	got, err := s.GetSlot(context.Background(), "slot-1")
 	if err != nil {
@@ -43,7 +43,7 @@ func TestMemoryStore_GetSlot(t *testing.T) {
 func TestMemoryStore_UpdateSlot(t *testing.T) {
 	s := NewMemoryStore()
 	slot := createTestSlot("slot-1", "test-slot", SlotTypeInferenceNative)
-	s.CreateSlot(context.Background(), slot)
+	_ = s.CreateSlot(context.Background(), slot)
 
 	slot.Status = SlotStatusIdle
 	err := s.UpdateSlot(context.Background(), slot)
@@ -67,7 +67,7 @@ func TestMemoryStore_UpdateSlot(t *testing.T) {
 func TestMemoryStore_DeleteSlot(t *testing.T) {
 	s := NewMemoryStore()
 	slot := createTestSlot("slot-1", "test-slot", SlotTypeInferenceNative)
-	s.CreateSlot(context.Background(), slot)
+	_ = s.CreateSlot(context.Background(), slot)
 
 	err := s.DeleteSlot(context.Background(), "slot-1")
 	if err != nil {
@@ -93,9 +93,9 @@ func TestMemoryStore_ListSlots_WithFilters(t *testing.T) {
 	s2 := createTestSlot("slot-2", "docker-slot", SlotTypeDockerContainer)
 	s3 := createTestSlot("slot-3", "system-slot", SlotTypeSystemService)
 
-	s.CreateSlot(context.Background(), s1)
-	s.CreateSlot(context.Background(), s2)
-	s.CreateSlot(context.Background(), s3)
+	_ = s.CreateSlot(context.Background(), s1)
+	_ = s.CreateSlot(context.Background(), s2)
+	_ = s.CreateSlot(context.Background(), s3)
 
 	// List all
 	results, total, err := s.ListSlots(context.Background(), SlotFilter{})

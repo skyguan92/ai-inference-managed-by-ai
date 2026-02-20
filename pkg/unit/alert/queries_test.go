@@ -25,10 +25,10 @@ func TestListRulesQuery_Domain(t *testing.T) {
 func TestListRulesQuery_Execute(t *testing.T) {
 	store := NewMemoryStore()
 
-	store.CreateRule(context.Background(), &AlertRule{
+	_ = store.CreateRule(context.Background(), &AlertRule{
 		ID: "rule-1", Name: "Rule 1", Condition: "cpu > 80", Severity: AlertSeverityWarning, Enabled: true,
 	})
-	store.CreateRule(context.Background(), &AlertRule{
+	_ = store.CreateRule(context.Background(), &AlertRule{
 		ID: "rule-2", Name: "Rule 2", Condition: "mem > 90", Severity: AlertSeverityCritical, Enabled: false,
 	})
 
@@ -67,15 +67,15 @@ func TestHistoryQuery_Execute(t *testing.T) {
 	store := NewMemoryStore()
 	now := time.Now()
 
-	store.CreateAlert(context.Background(), &Alert{
+	_ = store.CreateAlert(context.Background(), &Alert{
 		ID: "alert-1", RuleID: "rule-1", RuleName: "R1", Severity: AlertSeverityWarning,
 		Status: AlertStatusResolved, Message: "M1", TriggeredAt: now,
 	})
-	store.CreateAlert(context.Background(), &Alert{
+	_ = store.CreateAlert(context.Background(), &Alert{
 		ID: "alert-2", RuleID: "rule-1", RuleName: "R1", Severity: AlertSeverityCritical,
 		Status: AlertStatusFiring, Message: "M2", TriggeredAt: now,
 	})
-	store.CreateAlert(context.Background(), &Alert{
+	_ = store.CreateAlert(context.Background(), &Alert{
 		ID: "alert-3", RuleID: "rule-2", RuleName: "R2", Severity: AlertSeverityWarning,
 		Status: AlertStatusFiring, Message: "M3", TriggeredAt: now,
 	})
@@ -143,15 +143,15 @@ func TestActiveQuery_Execute(t *testing.T) {
 	store := NewMemoryStore()
 	now := time.Now()
 
-	store.CreateAlert(context.Background(), &Alert{
+	_ = store.CreateAlert(context.Background(), &Alert{
 		ID: "alert-1", RuleID: "rule-1", RuleName: "R1", Severity: AlertSeverityWarning,
 		Status: AlertStatusFiring, Message: "M1", TriggeredAt: now,
 	})
-	store.CreateAlert(context.Background(), &Alert{
+	_ = store.CreateAlert(context.Background(), &Alert{
 		ID: "alert-2", RuleID: "rule-1", RuleName: "R1", Severity: AlertSeverityCritical,
 		Status: AlertStatusAcknowledged, Message: "M2", TriggeredAt: now,
 	})
-	store.CreateAlert(context.Background(), &Alert{
+	_ = store.CreateAlert(context.Background(), &Alert{
 		ID: "alert-3", RuleID: "rule-2", RuleName: "R2", Severity: AlertSeverityWarning,
 		Status: AlertStatusResolved, Message: "M3", TriggeredAt: now,
 	})

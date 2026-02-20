@@ -73,7 +73,7 @@ func TestRecovery(t *testing.T) {
 
 		normalHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("ok"))
+			_, _ = w.Write([]byte("ok"))
 		})
 
 		wrappedHandler := Recovery(logger)(normalHandler)

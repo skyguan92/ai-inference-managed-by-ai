@@ -218,9 +218,9 @@ func TestStatusQuery_Execute(t *testing.T) {
 			input:   map[string]any{"run_id": "run-123"},
 			wantErr: false,
 			setup: func(store PipelineStore) {
-				store.CreatePipeline(context.Background(), createTestPipeline("pipe-123", "test", PipelineStatusIdle))
+				_ = store.CreatePipeline(context.Background(), createTestPipeline("pipe-123", "test", PipelineStatusIdle))
 				run := createTestRun("run-123", "pipe-123", RunStatusRunning)
-				store.CreateRun(context.Background(), run)
+				_ = store.CreateRun(context.Background(), run)
 			},
 		},
 		{
@@ -229,10 +229,10 @@ func TestStatusQuery_Execute(t *testing.T) {
 			input:   map[string]any{"run_id": "run-123"},
 			wantErr: false,
 			setup: func(store PipelineStore) {
-				store.CreatePipeline(context.Background(), createTestPipeline("pipe-123", "test", PipelineStatusIdle))
+				_ = store.CreatePipeline(context.Background(), createTestPipeline("pipe-123", "test", PipelineStatusIdle))
 				run := createTestRun("run-123", "pipe-123", RunStatusCompleted)
 				run.StepResults = map[string]any{"step1": map[string]any{"result": "ok"}}
-				store.CreateRun(context.Background(), run)
+				_ = store.CreateRun(context.Background(), run)
 			},
 		},
 		{
@@ -241,10 +241,10 @@ func TestStatusQuery_Execute(t *testing.T) {
 			input:   map[string]any{"run_id": "run-123"},
 			wantErr: false,
 			setup: func(store PipelineStore) {
-				store.CreatePipeline(context.Background(), createTestPipeline("pipe-123", "test", PipelineStatusIdle))
+				_ = store.CreatePipeline(context.Background(), createTestPipeline("pipe-123", "test", PipelineStatusIdle))
 				run := createTestRun("run-123", "pipe-123", RunStatusFailed)
 				run.Error = "step1 failed"
-				store.CreateRun(context.Background(), run)
+				_ = store.CreateRun(context.Background(), run)
 			},
 		},
 		{
@@ -452,8 +452,8 @@ func TestQueryImplementsInterface(t *testing.T) {
 
 func createStoreWithMultiplePipelines() PipelineStore {
 	store := NewMemoryStore()
-	store.CreatePipeline(context.Background(), createTestPipeline("pipe-1", "pipeline-1", PipelineStatusIdle))
-	store.CreatePipeline(context.Background(), createTestPipeline("pipe-2", "pipeline-2", PipelineStatusRunning))
-	store.CreatePipeline(context.Background(), createTestPipeline("pipe-3", "pipeline-3", PipelineStatusIdle))
+	_ = store.CreatePipeline(context.Background(), createTestPipeline("pipe-1", "pipeline-1", PipelineStatusIdle))
+	_ = store.CreatePipeline(context.Background(), createTestPipeline("pipe-2", "pipeline-2", PipelineStatusRunning))
+	_ = store.CreatePipeline(context.Background(), createTestPipeline("pipe-3", "pipeline-3", PipelineStatusIdle))
 	return store
 }

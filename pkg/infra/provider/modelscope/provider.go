@@ -335,15 +335,12 @@ func (p *Provider) ImportLocal(ctx context.Context, path string, autoDetect bool
 			case strings.HasSuffix(name, ".safetensors"):
 				modelName = strings.TrimSuffix(name, ".safetensors")
 				detectedFormat = model.FormatSafetensors
-				break
 			case strings.HasSuffix(name, ".gguf"):
 				modelName = strings.TrimSuffix(name, ".gguf")
 				detectedFormat = model.FormatGGUF
-				break
 			case strings.HasSuffix(name, ".onnx"):
 				modelName = strings.TrimSuffix(name, ".onnx")
 				detectedFormat = model.FormatONNX
-				break
 			}
 		}
 

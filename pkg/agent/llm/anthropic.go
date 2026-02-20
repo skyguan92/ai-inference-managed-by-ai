@@ -117,11 +117,7 @@ func (c *AnthropicClient) Chat(ctx context.Context, messages []Message, tools []
 	}
 
 	for _, t := range tools {
-		req.Tools = append(req.Tools, anthropicTool{
-			Name:        t.Name,
-			Description: t.Description,
-			InputSchema: t.InputSchema,
-		})
+		req.Tools = append(req.Tools, anthropicTool(t))
 	}
 
 	body, err := json.Marshal(req)

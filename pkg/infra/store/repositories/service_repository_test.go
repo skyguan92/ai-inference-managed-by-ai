@@ -76,7 +76,7 @@ func TestServiceRepository_List(t *testing.T) {
 
 	t.Run("list with status filter", func(t *testing.T) {
 		// Create 2 running services and 1 stopped service for this test
-		repo.Create(ctx, &service.ModelService{
+		_ = repo.Create(ctx, &service.ModelService{
 			ID:            "svc-running-1",
 			Name:          "service-running-1",
 			ModelID:       "model-1",
@@ -84,7 +84,7 @@ func TestServiceRepository_List(t *testing.T) {
 			Replicas:      1,
 			ResourceClass: service.ResourceClassSmall,
 		})
-		repo.Create(ctx, &service.ModelService{
+		_ = repo.Create(ctx, &service.ModelService{
 			ID:            "svc-running-2",
 			Name:          "service-running-2",
 			ModelID:       "model-2",
@@ -92,7 +92,7 @@ func TestServiceRepository_List(t *testing.T) {
 			Replicas:      1,
 			ResourceClass: service.ResourceClassSmall,
 		})
-		repo.Create(ctx, &service.ModelService{
+		_ = repo.Create(ctx, &service.ModelService{
 			ID:            "svc-stopped-1",
 			Name:          "service-stopped-1",
 			ModelID:       "model-3",
@@ -117,11 +117,11 @@ func TestServiceRepository_List(t *testing.T) {
 
 	t.Run("list with model filter", func(t *testing.T) {
 		// Clear previous data and create 2 services for model-1
-		repo.Delete(ctx, "svc-running-1")
-		repo.Delete(ctx, "svc-running-2")
-		repo.Delete(ctx, "svc-stopped-1")
+		_ = repo.Delete(ctx, "svc-running-1")
+		_ = repo.Delete(ctx, "svc-running-2")
+		_ = repo.Delete(ctx, "svc-stopped-1")
 
-		repo.Create(ctx, &service.ModelService{
+		_ = repo.Create(ctx, &service.ModelService{
 			ID:            "svc-model1-1",
 			Name:          "service-model1-1",
 			ModelID:       "model-1",
@@ -129,7 +129,7 @@ func TestServiceRepository_List(t *testing.T) {
 			Replicas:      1,
 			ResourceClass: service.ResourceClassSmall,
 		})
-		repo.Create(ctx, &service.ModelService{
+		_ = repo.Create(ctx, &service.ModelService{
 			ID:            "svc-model1-2",
 			Name:          "service-model1-2",
 			ModelID:       "model-1",
@@ -154,10 +154,10 @@ func TestServiceRepository_List(t *testing.T) {
 
 	t.Run("list with pagination", func(t *testing.T) {
 		// Clear previous data and create exactly 3 services for pagination test
-		repo.Delete(ctx, "svc-model1-1")
-		repo.Delete(ctx, "svc-model1-2")
+		_ = repo.Delete(ctx, "svc-model1-1")
+		_ = repo.Delete(ctx, "svc-model1-2")
 
-		repo.Create(ctx, &service.ModelService{
+		_ = repo.Create(ctx, &service.ModelService{
 			ID:            "svc-page-1",
 			Name:          "service-page-1",
 			ModelID:       "model-1",
@@ -165,7 +165,7 @@ func TestServiceRepository_List(t *testing.T) {
 			Replicas:      1,
 			ResourceClass: service.ResourceClassSmall,
 		})
-		repo.Create(ctx, &service.ModelService{
+		_ = repo.Create(ctx, &service.ModelService{
 			ID:            "svc-page-2",
 			Name:          "service-page-2",
 			ModelID:       "model-2",
@@ -173,7 +173,7 @@ func TestServiceRepository_List(t *testing.T) {
 			Replicas:      1,
 			ResourceClass: service.ResourceClassSmall,
 		})
-		repo.Create(ctx, &service.ModelService{
+		_ = repo.Create(ctx, &service.ModelService{
 			ID:            "svc-page-3",
 			Name:          "service-page-3",
 			ModelID:       "model-3",
@@ -216,7 +216,7 @@ func TestServiceRepository_Update_Delete(t *testing.T) {
 			Replicas:      1,
 			ResourceClass: service.ResourceClassSmall,
 		}
-		repo.Create(ctx, s)
+		_ = repo.Create(ctx, s)
 
 		s.Replicas = 5
 		err := repo.Update(ctx, s)
@@ -254,7 +254,7 @@ func TestServiceRepository_Update_Delete(t *testing.T) {
 			Replicas:      1,
 			ResourceClass: service.ResourceClassSmall,
 		}
-		repo.Create(ctx, s)
+		_ = repo.Create(ctx, s)
 
 		err := repo.Delete(ctx, "svc-delete")
 		if err != nil {

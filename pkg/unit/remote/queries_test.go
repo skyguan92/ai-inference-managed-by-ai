@@ -219,14 +219,14 @@ func TestQueryImplementsInterface(t *testing.T) {
 
 func createStoreWithAuditRecords() RemoteStore {
 	store := NewMemoryStore()
-	store.AddAuditRecord(context.Background(), &AuditRecord{
+	_ = store.AddAuditRecord(context.Background(), &AuditRecord{
 		ID:        "audit-1",
 		Command:   "ls -la",
 		ExitCode:  0,
 		Timestamp: time.Now().Add(-1 * time.Hour),
 		Duration:  50,
 	})
-	store.AddAuditRecord(context.Background(), &AuditRecord{
+	_ = store.AddAuditRecord(context.Background(), &AuditRecord{
 		ID:        "audit-2",
 		Command:   "cat /etc/hosts",
 		ExitCode:  0,
@@ -238,7 +238,7 @@ func createStoreWithAuditRecords() RemoteStore {
 
 func TestStatusQuery_ExecuteWithDisconnectedTunnel(t *testing.T) {
 	store := NewMemoryStore()
-	store.SetTunnel(context.Background(), &TunnelInfo{
+	_ = store.SetTunnel(context.Background(), &TunnelInfo{
 		ID:        "tunnel-test",
 		Status:    TunnelStatusDisconnected,
 		Provider:  TunnelProviderCloudflare,
@@ -263,7 +263,7 @@ func TestStatusQuery_ExecuteWithDisconnectedTunnel(t *testing.T) {
 func TestAuditQuery_ExecuteWithLimit(t *testing.T) {
 	store := NewMemoryStore()
 	for i := 0; i < 5; i++ {
-		store.AddAuditRecord(context.Background(), &AuditRecord{
+		_ = store.AddAuditRecord(context.Background(), &AuditRecord{
 			ID:        "audit-" + string(rune('0'+i)),
 			Command:   "test",
 			ExitCode:  0,

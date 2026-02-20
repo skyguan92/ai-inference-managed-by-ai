@@ -2,7 +2,6 @@ package gateway
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"testing"
 
@@ -411,10 +410,9 @@ func TestErrorCodeConstants(t *testing.T) {
 }
 
 func TestErrorInfoImplementsErrorInterface(t *testing.T) {
-	var err error = NewErrorInfo(ErrCodeInternalError, "test")
-	if err == nil {
-		t.Error("ErrorInfo should implement error interface")
-	}
+	// Verify that *ErrorInfo satisfies the error interface at compile time.
+	var _ error = NewErrorInfo(ErrCodeInternalError, "test")
 
-	_ = fmt.Sprintf("%s", err)
+	ei := NewErrorInfo(ErrCodeInternalError, "test")
+	_ = ei.Error()
 }

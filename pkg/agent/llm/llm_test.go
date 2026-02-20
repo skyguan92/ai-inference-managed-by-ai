@@ -46,10 +46,9 @@ func TestAnthropicClient_Chat_TextResponse(t *testing.T) {
 }
 
 func TestAnthropicClient_NoAPIKey(t *testing.T) {
-	c := NewAnthropicClient("claude-haiku-4-5-20251001", "")
 	// Unset env to ensure no key
 	t.Setenv("ANTHROPIC_API_KEY", "")
-	c = NewAnthropicClient("claude-haiku-4-5-20251001", "")
+	c := NewAnthropicClient("claude-haiku-4-5-20251001", "")
 	_, err := c.Chat(context.Background(), []Message{{Role: "user", Content: "hello"}}, nil, ChatOptions{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "ANTHROPIC_API_KEY")

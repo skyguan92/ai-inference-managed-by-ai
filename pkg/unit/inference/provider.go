@@ -174,13 +174,9 @@ func (m *MockProvider) Transcribe(ctx context.Context, model string, audio []byt
 	}, nil
 }
 
-func (m *MockProvider) Synthesize(ctx context.Context, model string, text string, voice string) (*AudioResponse, error) {
+func (m *MockProvider) Synthesize(ctx context.Context, model string, text string, _ string) (*AudioResponse, error) {
 	if m.synthesizeErr != nil {
 		return nil, m.synthesizeErr
-	}
-
-	if voice == "" {
-		voice = "default"
 	}
 
 	duration := float64(len(text)) * 0.05

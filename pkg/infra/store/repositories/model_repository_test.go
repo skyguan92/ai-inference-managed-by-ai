@@ -73,21 +73,21 @@ func TestModelRepository_List(t *testing.T) {
 	})
 
 	t.Run("list all models", func(t *testing.T) {
-		repo.Create(ctx, &model.Model{
+		_ = repo.Create(ctx, &model.Model{
 			ID:     "model-1",
 			Name:   "Model One",
 			Type:   model.ModelTypeLLM,
 			Format: model.FormatGGUF,
 			Status: model.StatusReady,
 		})
-		repo.Create(ctx, &model.Model{
+		_ = repo.Create(ctx, &model.Model{
 			ID:     "model-2",
 			Name:   "Model Two",
 			Type:   model.ModelTypeVLM,
 			Format: model.FormatSafetensors,
 			Status: model.StatusPending,
 		})
-		repo.Create(ctx, &model.Model{
+		_ = repo.Create(ctx, &model.Model{
 			ID:     "model-3",
 			Name:   "Model Three",
 			Type:   model.ModelTypeLLM,
@@ -199,7 +199,7 @@ func TestModelRepository_Update_Delete(t *testing.T) {
 			Format: model.FormatGGUF,
 			Status: model.StatusReady,
 		}
-		repo.Create(ctx, m)
+		_ = repo.Create(ctx, m)
 
 		m.Name = "Updated Name"
 		err := repo.Update(ctx, m)
@@ -235,7 +235,7 @@ func TestModelRepository_Update_Delete(t *testing.T) {
 			Format: model.FormatGGUF,
 			Status: model.StatusReady,
 		}
-		repo.Create(ctx, m)
+		_ = repo.Create(ctx, m)
 
 		err := repo.Delete(ctx, "model-delete")
 		if err != nil {

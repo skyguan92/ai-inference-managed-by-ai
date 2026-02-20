@@ -335,10 +335,9 @@ func TestCommonErrors(t *testing.T) {
 }
 
 func TestUnitErrorImplementsError(t *testing.T) {
-	var err error = NewError(ErrCodeInternalError, "test")
-	if err == nil {
-		t.Error("UnitError should implement error interface")
-	}
+	// Verify that *UnitError satisfies the error interface at compile time.
+	var _ error = NewError(ErrCodeInternalError, "test")
 
-	_ = fmt.Sprintf("%s", err)
+	ue := NewError(ErrCodeInternalError, "test")
+	_ = ue.Error()
 }

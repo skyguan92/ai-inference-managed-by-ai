@@ -165,7 +165,6 @@ func (p *Provider) Pull(ctx context.Context, source, repo, tag string, progressC
 		}
 
 		fileProgressCh := make(chan int64, 10)
-		var fileDownloaded int64
 		var fileTotal int64
 
 		go func() {
@@ -195,8 +194,7 @@ func (p *Provider) Pull(ctx context.Context, source, repo, tag string, progressC
 			return nil, fmt.Errorf("download file %s: %w", filename, err)
 		}
 
-		fileDownloaded = fileTotal
-		downloadedSize += fileDownloaded
+		downloadedSize += fileTotal
 		close(fileProgressCh)
 	}
 

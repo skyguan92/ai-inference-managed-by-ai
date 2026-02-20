@@ -64,13 +64,13 @@ func TestPipelineRepository_List(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("list with status filter", func(t *testing.T) {
-		repo.CreatePipeline(ctx, &pipeline.Pipeline{
+		_ = repo.CreatePipeline(ctx, &pipeline.Pipeline{
 			ID:     "pipe-2",
 			Name:   "pipeline-2",
 			Status: pipeline.PipelineStatusRunning,
 			Steps:  []pipeline.PipelineStep{},
 		})
-		repo.CreatePipeline(ctx, &pipeline.Pipeline{
+		_ = repo.CreatePipeline(ctx, &pipeline.Pipeline{
 			ID:     "pipe-3",
 			Name:   "pipeline-3",
 			Status: pipeline.PipelineStatusPaused,
@@ -93,7 +93,7 @@ func TestPipelineRepository_List(t *testing.T) {
 
 	t.Run("list with pagination", func(t *testing.T) {
 		// Create additional pipelines to have enough data for pagination test
-		repo.CreatePipeline(ctx, &pipeline.Pipeline{
+		_ = repo.CreatePipeline(ctx, &pipeline.Pipeline{
 			ID:     "pipe-4",
 			Name:   "pipeline-4",
 			Status: pipeline.PipelineStatusIdle,
@@ -124,7 +124,7 @@ func TestPipelineRepository_Update_Delete(t *testing.T) {
 			Status: pipeline.PipelineStatusIdle,
 			Steps:  []pipeline.PipelineStep{},
 		}
-		repo.CreatePipeline(ctx, p)
+		_ = repo.CreatePipeline(ctx, p)
 
 		p.Status = pipeline.PipelineStatusRunning
 		err := repo.UpdatePipeline(ctx, p)
@@ -145,7 +145,7 @@ func TestPipelineRepository_Update_Delete(t *testing.T) {
 			Status: pipeline.PipelineStatusIdle,
 			Steps:  []pipeline.PipelineStep{},
 		}
-		repo.CreatePipeline(ctx, p)
+		_ = repo.CreatePipeline(ctx, p)
 
 		err := repo.DeletePipeline(ctx, "pipe-delete")
 		if err != nil {
@@ -187,7 +187,7 @@ func TestPipelineRepository_Run(t *testing.T) {
 	})
 
 	t.Run("list runs", func(t *testing.T) {
-		repo.CreateRun(ctx, &pipeline.PipelineRun{
+		_ = repo.CreateRun(ctx, &pipeline.PipelineRun{
 			ID:          "run-2",
 			PipelineID:  "pipe-1",
 			Status:      pipeline.RunStatusRunning,
@@ -212,7 +212,7 @@ func TestPipelineRepository_Run(t *testing.T) {
 			StepResults: make(map[string]any),
 			StartedAt:   time.Now(),
 		}
-		repo.CreateRun(ctx, run)
+		_ = repo.CreateRun(ctx, run)
 
 		run.Status = pipeline.RunStatusCompleted
 		err := repo.UpdateRun(ctx, run)

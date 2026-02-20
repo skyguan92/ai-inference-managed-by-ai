@@ -11,7 +11,7 @@ import (
 // okHandler is a simple handler that always responds 200.
 var okHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("ok"))
+	_, _ = w.Write([]byte("ok"))
 })
 
 func withUnit(r *http.Request, unit string) *http.Request {

@@ -34,7 +34,7 @@ func TestCORS(t *testing.T) {
 		cfg := DefaultCORSConfig()
 		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("ok"))
+			_, _ = w.Write([]byte("ok"))
 		})
 
 		wrappedHandler := CORS(cfg)(handler)

@@ -239,19 +239,3 @@ func GetGitCommit() string {
 	return cliGitCommit
 }
 
-func initConfig() (*config.Config, *unit.Registry, *gateway.Gateway, error) {
-	cfg, err := config.Load(viper.GetString("config"))
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("load config: %w", err)
-	}
-
-	registry := unit.NewRegistry()
-	gw := gateway.NewGateway(registry, gateway.WithTimeout(cfg.Gateway.RequestTimeoutD))
-
-	return cfg, registry, gw, nil
-}
-
-// func setupEventBus() *eventbus.InMemoryEventBus {
-// 	bus := eventbus.NewInMemoryEventBus()
-// 	return bus
-// }

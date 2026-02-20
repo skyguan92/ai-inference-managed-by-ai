@@ -68,7 +68,7 @@ func TestResourceRepository_List(t *testing.T) {
 
 	t.Run("list with type filter", func(t *testing.T) {
 		// Create 2 native slots and 1 docker slot for this test
-		repo.CreateSlot(ctx, &resource.ResourceSlot{
+		_ = repo.CreateSlot(ctx, &resource.ResourceSlot{
 			ID:          "slot-native-1",
 			Name:        "Native Slot 1",
 			Type:        resource.SlotTypeInferenceNative,
@@ -76,7 +76,7 @@ func TestResourceRepository_List(t *testing.T) {
 			GPUFraction: 1.0,
 			Status:      resource.SlotStatusActive,
 		})
-		repo.CreateSlot(ctx, &resource.ResourceSlot{
+		_ = repo.CreateSlot(ctx, &resource.ResourceSlot{
 			ID:          "slot-native-2",
 			Name:        "Native Slot 2",
 			Type:        resource.SlotTypeInferenceNative,
@@ -84,7 +84,7 @@ func TestResourceRepository_List(t *testing.T) {
 			GPUFraction: 1.0,
 			Status:      resource.SlotStatusIdle,
 		})
-		repo.CreateSlot(ctx, &resource.ResourceSlot{
+		_ = repo.CreateSlot(ctx, &resource.ResourceSlot{
 			ID:          "slot-docker-1",
 			Name:        "Docker Slot 1",
 			Type:        resource.SlotTypeDockerContainer,
@@ -109,7 +109,7 @@ func TestResourceRepository_List(t *testing.T) {
 
 	t.Run("list with slot id filter", func(t *testing.T) {
 		// Create a unique slot for this test
-		repo.CreateSlot(ctx, &resource.ResourceSlot{
+		_ = repo.CreateSlot(ctx, &resource.ResourceSlot{
 			ID:          "slot-filter-test",
 			Name:        "Filter Test Slot",
 			Type:        resource.SlotTypeInferenceNative,
@@ -132,12 +132,12 @@ func TestResourceRepository_List(t *testing.T) {
 
 	t.Run("list all slots", func(t *testing.T) {
 		// Clear and create exactly 3 slots for this test
-		repo.DeleteSlot(ctx, "slot-native-1")
-		repo.DeleteSlot(ctx, "slot-native-2")
-		repo.DeleteSlot(ctx, "slot-docker-1")
-		repo.DeleteSlot(ctx, "slot-filter-test")
+		_ = repo.DeleteSlot(ctx, "slot-native-1")
+		_ = repo.DeleteSlot(ctx, "slot-native-2")
+		_ = repo.DeleteSlot(ctx, "slot-docker-1")
+		_ = repo.DeleteSlot(ctx, "slot-filter-test")
 
-		repo.CreateSlot(ctx, &resource.ResourceSlot{
+		_ = repo.CreateSlot(ctx, &resource.ResourceSlot{
 			ID:          "slot-all-1",
 			Name:        "Slot 1",
 			Type:        resource.SlotTypeInferenceNative,
@@ -145,7 +145,7 @@ func TestResourceRepository_List(t *testing.T) {
 			GPUFraction: 1.0,
 			Status:      resource.SlotStatusActive,
 		})
-		repo.CreateSlot(ctx, &resource.ResourceSlot{
+		_ = repo.CreateSlot(ctx, &resource.ResourceSlot{
 			ID:          "slot-all-2",
 			Name:        "Slot 2",
 			Type:        resource.SlotTypeDockerContainer,
@@ -153,7 +153,7 @@ func TestResourceRepository_List(t *testing.T) {
 			GPUFraction: 0.5,
 			Status:      resource.SlotStatusIdle,
 		})
-		repo.CreateSlot(ctx, &resource.ResourceSlot{
+		_ = repo.CreateSlot(ctx, &resource.ResourceSlot{
 			ID:          "slot-all-3",
 			Name:        "Slot 3",
 			Type:        resource.SlotTypeSystemService,
@@ -189,7 +189,7 @@ func TestResourceRepository_Update_Delete(t *testing.T) {
 			Priority:    5,
 			Status:      resource.SlotStatusActive,
 		}
-		repo.CreateSlot(ctx, slot)
+		_ = repo.CreateSlot(ctx, slot)
 
 		slot.Name = "Updated Name"
 		slot.Status = resource.SlotStatusPreempted
@@ -233,7 +233,7 @@ func TestResourceRepository_Update_Delete(t *testing.T) {
 			Priority:    3,
 			Status:      resource.SlotStatusIdle,
 		}
-		repo.CreateSlot(ctx, slot)
+		_ = repo.CreateSlot(ctx, slot)
 
 		err := repo.DeleteSlot(ctx, "slot-delete")
 		if err != nil {
