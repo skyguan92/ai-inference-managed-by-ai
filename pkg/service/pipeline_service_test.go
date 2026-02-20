@@ -74,7 +74,7 @@ func TestPipelineService_CreateWithValidation_Success(t *testing.T) {
 				CreatedAt: time.Now().Unix(),
 				UpdatedAt: time.Now().Unix(),
 			}
-			store.CreatePipeline(ctx, p)
+			_ = store.CreatePipeline(ctx, p)
 			return map[string]any{"pipeline_id": p.ID}, nil
 		},
 	})
@@ -199,7 +199,7 @@ func TestPipelineService_GetRunWithResults_Success(t *testing.T) {
 	defer func() { _ = bus.Close() }()
 
 	now := time.Now()
-	store.CreateRun(context.Background(), &pipeline.PipelineRun{
+	_ = store.CreateRun(context.Background(), &pipeline.PipelineRun{
 		ID:          "run-123",
 		PipelineID:  "pipeline-123",
 		Status:      pipeline.RunStatusCompleted,
@@ -239,7 +239,7 @@ func TestPipelineService_CancelRun_Success(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus()
 	defer func() { _ = bus.Close() }()
 
-	store.CreateRun(context.Background(), &pipeline.PipelineRun{
+	_ = store.CreateRun(context.Background(), &pipeline.PipelineRun{
 		ID:         "run-123",
 		PipelineID: "pipeline-123",
 		Status:     pipeline.RunStatusRunning,
@@ -273,7 +273,7 @@ func TestPipelineService_CancelRun_NotCancellable(t *testing.T) {
 	defer func() { _ = bus.Close() }()
 
 	now := time.Now()
-	store.CreateRun(context.Background(), &pipeline.PipelineRun{
+	_ = store.CreateRun(context.Background(), &pipeline.PipelineRun{
 		ID:          "run-123",
 		PipelineID:  "pipeline-123",
 		Status:      pipeline.RunStatusCompleted,
@@ -369,7 +369,7 @@ func TestPipelineService_DeleteWithCleanup_Success(t *testing.T) {
 	defer func() { _ = bus.Close() }()
 
 	now := time.Now().Unix()
-	store.CreatePipeline(context.Background(), &pipeline.Pipeline{
+	_ = store.CreatePipeline(context.Background(), &pipeline.Pipeline{
 		ID:        "pipeline-123",
 		Name:      "test-pipeline",
 		Status:    pipeline.PipelineStatusIdle,
@@ -406,14 +406,14 @@ func TestPipelineService_DeleteWithCleanup_ActiveRuns(t *testing.T) {
 	defer func() { _ = bus.Close() }()
 
 	now := time.Now().Unix()
-	store.CreatePipeline(context.Background(), &pipeline.Pipeline{
+	_ = store.CreatePipeline(context.Background(), &pipeline.Pipeline{
 		ID:        "pipeline-123",
 		Name:      "test-pipeline",
 		Status:    pipeline.PipelineStatusRunning,
 		CreatedAt: now,
 		UpdatedAt: now,
 	})
-	store.CreateRun(context.Background(), &pipeline.PipelineRun{
+	_ = store.CreateRun(context.Background(), &pipeline.PipelineRun{
 		ID:         "run-123",
 		PipelineID: "pipeline-123",
 		Status:     pipeline.RunStatusRunning,
@@ -439,14 +439,14 @@ func TestPipelineService_DeleteWithCleanup_Force(t *testing.T) {
 	defer func() { _ = bus.Close() }()
 
 	now := time.Now().Unix()
-	store.CreatePipeline(context.Background(), &pipeline.Pipeline{
+	_ = store.CreatePipeline(context.Background(), &pipeline.Pipeline{
 		ID:        "pipeline-123",
 		Name:      "test-pipeline",
 		Status:    pipeline.PipelineStatusRunning,
 		CreatedAt: now,
 		UpdatedAt: now,
 	})
-	store.CreateRun(context.Background(), &pipeline.PipelineRun{
+	_ = store.CreateRun(context.Background(), &pipeline.PipelineRun{
 		ID:         "run-123",
 		PipelineID: "pipeline-123",
 		Status:     pipeline.RunStatusRunning,
@@ -491,7 +491,7 @@ func TestPipelineService_GetPipeline(t *testing.T) {
 	defer func() { _ = bus.Close() }()
 
 	now := time.Now().Unix()
-	store.CreatePipeline(context.Background(), &pipeline.Pipeline{
+	_ = store.CreatePipeline(context.Background(), &pipeline.Pipeline{
 		ID:        "pipeline-123",
 		Name:      "test-pipeline",
 		Status:    pipeline.PipelineStatusIdle,
@@ -518,13 +518,13 @@ func TestPipelineService_ListRuns(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus()
 	defer func() { _ = bus.Close() }()
 
-	store.CreateRun(context.Background(), &pipeline.PipelineRun{
+	_ = store.CreateRun(context.Background(), &pipeline.PipelineRun{
 		ID:         "run-1",
 		PipelineID: "pipeline-123",
 		Status:     pipeline.RunStatusCompleted,
 		StartedAt:  time.Now(),
 	})
-	store.CreateRun(context.Background(), &pipeline.PipelineRun{
+	_ = store.CreateRun(context.Background(), &pipeline.PipelineRun{
 		ID:         "run-2",
 		PipelineID: "pipeline-123",
 		Status:     pipeline.RunStatusCompleted,

@@ -299,6 +299,6 @@ func (e *WorkflowEngine) DeleteWorkflow(ctx context.Context, name string) error 
 
 func generateRunID() string {
 	b := make([]byte, 8)
-	rand.Read(b)
+	_, _ = rand.Read(b)
 	return "run_" + hex.EncodeToString(b)
 }

@@ -120,7 +120,7 @@ func (c *AddCommand) Execute(ctx context.Context, input any) (any, error) {
 	}
 
 	if c.events != nil {
-		c.events.Publish(NewAddedEvent(sk))
+		_ = c.events.Publish(NewAddedEvent(sk))
 	}
 
 	output := map[string]any{"skill_id": sk.ID}
@@ -204,7 +204,7 @@ func (c *RemoveCommand) Execute(ctx context.Context, input any) (any, error) {
 	}
 
 	if c.events != nil {
-		c.events.Publish(NewRemovedEvent(skillID))
+		_ = c.events.Publish(NewRemovedEvent(skillID))
 	}
 
 	output := map[string]any{"success": true}
@@ -295,7 +295,7 @@ func (c *EnableCommand) Execute(ctx context.Context, input any) (any, error) {
 	}
 
 	if c.events != nil {
-		c.events.Publish(NewEnabledEvent(skillID))
+		_ = c.events.Publish(NewEnabledEvent(skillID))
 	}
 
 	output := map[string]any{"success": true}
@@ -386,7 +386,7 @@ func (c *DisableCommand) Execute(ctx context.Context, input any) (any, error) {
 	}
 
 	if c.events != nil {
-		c.events.Publish(NewDisabledEvent(skillID))
+		_ = c.events.Publish(NewDisabledEvent(skillID))
 	}
 
 	output := map[string]any{"success": true}
