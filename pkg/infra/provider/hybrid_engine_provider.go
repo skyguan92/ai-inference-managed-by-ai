@@ -534,6 +534,22 @@ func (p *HybridEngineProvider) Stop(ctx context.Context, name string, force bool
 		return &engine.StopResult{Success: true}, nil
 	}
 
+	// Fallback: query Docker by label to find containers from previous sessions.
+	// Containers are labeled aima.managed=true + aima.engine=<engineType> at creation time.
+	if docker.CheckDocker() == nil {
+		containerIDs, err := p.dockerClient.ListContainers(ctx, map[string]string{"aima.engine": name})
+		if err == nil && len(containerIDs) > 0 {
+			for _, cid := range containerIDs {
+				slog.Info("stopping orphaned container found by label", "container_id", cid, "engine", name)
+				if stopErr := p.dockerClient.StopContainer(ctx, cid, timeout); stopErr != nil {
+					slog.Warn("failed to stop orphaned container", "container_id", cid, "error", stopErr)
+				}
+			}
+			return &engine.StopResult{Success: true}, nil
+		}
+	}
+
+	slog.Debug("service not found, nothing to stop", "name", name)
 	return &engine.StopResult{Success: true}, nil
 }
 
@@ -853,7 +869,13 @@ func (p *HybridServiceProvider) StartAsync(ctx context.Context, serviceID string
 
 // Stop stops the service
 func (p *HybridServiceProvider) Stop(ctx context.Context, serviceID string, force bool) error {
-	_, err := p.hybridProvider.Stop(ctx, serviceID, force, 30)
+	// Parse engine type from service ID: svc-{engine_type}-{model_id}
+	// hybridProvider.Stop is keyed by engineType, not serviceID.
+	engineType := serviceID
+	if parts := strings.Split(serviceID, "-"); len(parts) >= 3 {
+		engineType = parts[1]
+	}
+	_, err := p.hybridProvider.Stop(ctx, engineType, force, 30)
 	return err
 }
 
