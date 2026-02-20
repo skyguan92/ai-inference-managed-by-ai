@@ -448,7 +448,7 @@ func (c *RunCommand) Execute(ctx context.Context, input any) (any, error) {
 		if err := c.executor.Execute(ctx, pipeline, run, runInput); err != nil {
 			run.Status = RunStatusFailed
 			run.Error = err.Error()
-			c.store.UpdateRun(ctx, run)
+			_ = c.store.UpdateRun(ctx, run)
 			ec.PublishFailed(err)
 			return nil, fmt.Errorf("execute pipeline: %w", err)
 		}
@@ -578,7 +578,7 @@ func (c *CancelCommand) Execute(ctx context.Context, input any) (any, error) {
 	if err == nil {
 		pipeline.Status = PipelineStatusIdle
 		pipeline.UpdatedAt = time.Now().Unix()
-		c.store.UpdatePipeline(ctx, pipeline)
+		_ = c.store.UpdatePipeline(ctx, pipeline)
 	}
 
 	output := map[string]any{"success": true}

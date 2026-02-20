@@ -138,8 +138,8 @@ func TestReset(t *testing.T) {
 
 	t.Run("reset one key does not affect others", func(t *testing.T) {
 		limiter := New(1.0, 1)
-		limiter.Allow("key1")
-		limiter.Allow("key2")
+		_, _ = limiter.Allow("key1")
+		_, _ = limiter.Allow("key2")
 		limiter.Reset("key1")
 		allowed, _ := limiter.Allow("key1")
 		if !allowed {
@@ -156,7 +156,7 @@ func TestTokenRefill(t *testing.T) {
 	t.Run("tokens refill over time", func(t *testing.T) {
 		limiter := New(100.0, 10)
 		for i := 0; i < 10; i++ {
-			limiter.Allow("key1")
+			_, _ = limiter.Allow("key1")
 		}
 		allowed, _ := limiter.Allow("key1")
 		if allowed {

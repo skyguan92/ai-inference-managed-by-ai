@@ -337,9 +337,9 @@ func TestCancelCommand_Execute(t *testing.T) {
 			input:    map[string]any{"run_id": "run-123"},
 			wantErr:  false,
 			setup: func(store PipelineStore) string {
-				store.CreatePipeline(context.Background(), createTestPipeline("pipe-123", "test", PipelineStatusIdle))
+				_ = store.CreatePipeline(context.Background(), createTestPipeline("pipe-123", "test", PipelineStatusIdle))
 				run := createTestRun("run-123", "pipe-123", RunStatusRunning)
-				store.CreateRun(context.Background(), run)
+				_ = store.CreateRun(context.Background(), run)
 				return ""
 			},
 		},
@@ -377,9 +377,9 @@ func TestCancelCommand_Execute(t *testing.T) {
 			input:    map[string]any{"run_id": "run-123"},
 			wantErr:  true,
 			setup: func(store PipelineStore) string {
-				store.CreatePipeline(context.Background(), createTestPipeline("pipe-123", "test", PipelineStatusIdle))
+				_ = store.CreatePipeline(context.Background(), createTestPipeline("pipe-123", "test", PipelineStatusIdle))
 				run := createTestRun("run-123", "pipe-123", RunStatusCompleted)
-				store.CreateRun(context.Background(), run)
+				_ = store.CreateRun(context.Background(), run)
 				return ""
 			},
 		},
@@ -459,6 +459,6 @@ func TestCommandImplementsInterface(t *testing.T) {
 func createStoreWithPipeline(id string, status PipelineStatus) PipelineStore {
 	store := NewMemoryStore()
 	pipeline := createTestPipeline(id, "test-pipeline", status)
-	store.CreatePipeline(context.Background(), pipeline)
+	_ = store.CreatePipeline(context.Background(), pipeline)
 	return store
 }
