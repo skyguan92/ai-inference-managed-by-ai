@@ -86,16 +86,16 @@ func defaultRoutes() []Route {
 	return []Route{
 		{Method: http.MethodPost, Path: "/api/v2/models/pull", Unit: "model.pull", Type: TypeCommand, InputMapper: bodyInputMapper},
 		{Method: http.MethodPost, Path: "/api/v2/models/create", Unit: "model.create", Type: TypeCommand, InputMapper: bodyInputMapper},
-		{Method: http.MethodDelete, Path: "/api/v2/models/{id}", Unit: "model.delete", Type: TypeCommand, InputMapper: idInputMapper},
+		{Method: http.MethodDelete, Path: "/api/v2/models/{id}", Unit: "model.delete", Type: TypeCommand, InputMapper: modelIDInputMapper},
 		{Method: http.MethodGet, Path: "/api/v2/models", Unit: "model.list", Type: TypeQuery, InputMapper: queryInputMapper},
-		{Method: http.MethodGet, Path: "/api/v2/models/{id}", Unit: "model.get", Type: TypeQuery, InputMapper: idInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/models/{id}", Unit: "model.get", Type: TypeQuery, InputMapper: modelIDInputMapper},
 
 		{Method: http.MethodPost, Path: "/api/v2/inference/chat", Unit: "inference.chat", Type: TypeCommand, InputMapper: bodyInputMapper},
 		{Method: http.MethodPost, Path: "/api/v2/inference/complete", Unit: "inference.complete", Type: TypeCommand, InputMapper: bodyInputMapper},
 		{Method: http.MethodPost, Path: "/api/v2/inference/embed", Unit: "inference.embed", Type: TypeCommand, InputMapper: bodyInputMapper},
 
 		{Method: http.MethodGet, Path: "/api/v2/devices", Unit: "device.detect", Type: TypeCommand, InputMapper: emptyInputMapper},
-		{Method: http.MethodGet, Path: "/api/v2/devices/{id}", Unit: "device.info", Type: TypeQuery, InputMapper: idInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/devices/{id}", Unit: "device.info", Type: TypeQuery, InputMapper: deviceIDInputMapper},
 
 		{Method: http.MethodGet, Path: "/api/v2/engines", Unit: "engine.list", Type: TypeQuery, InputMapper: queryInputMapper},
 		{Method: http.MethodGet, Path: "/api/v2/engines/{name}", Unit: "engine.get", Type: TypeQuery, InputMapper: nameInputMapper},
@@ -108,12 +108,12 @@ func defaultRoutes() []Route {
 
 		{Method: http.MethodGet, Path: "/api/v2/services", Unit: "service.list", Type: TypeQuery, InputMapper: queryInputMapper},
 		{Method: http.MethodPost, Path: "/api/v2/services", Unit: "service.create", Type: TypeCommand, InputMapper: bodyInputMapper},
-		{Method: http.MethodGet, Path: "/api/v2/services/{id}", Unit: "service.get", Type: TypeQuery, InputMapper: idInputMapper},
-		{Method: http.MethodDelete, Path: "/api/v2/services/{id}", Unit: "service.delete", Type: TypeCommand, InputMapper: idInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/services/{id}", Unit: "service.get", Type: TypeQuery, InputMapper: serviceIDInputMapper},
+		{Method: http.MethodDelete, Path: "/api/v2/services/{id}", Unit: "service.delete", Type: TypeCommand, InputMapper: serviceIDInputMapper},
 
 		{Method: http.MethodGet, Path: "/api/v2/apps", Unit: "app.list", Type: TypeQuery, InputMapper: queryInputMapper},
 		{Method: http.MethodPost, Path: "/api/v2/apps", Unit: "app.install", Type: TypeCommand, InputMapper: bodyInputMapper},
-		{Method: http.MethodGet, Path: "/api/v2/apps/{id}", Unit: "app.get", Type: TypeQuery, InputMapper: idInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/apps/{id}", Unit: "app.get", Type: TypeQuery, InputMapper: appIDInputMapper},
 
 		// Catalog domain
 		{Method: http.MethodPost, Path: "/api/v2/catalog/recipes", Unit: "catalog.create_recipe", Type: TypeCommand, InputMapper: bodyInputMapper},
@@ -142,22 +142,67 @@ func defaultRoutes() []Route {
 		// Alert domain
 		{Method: http.MethodPost, Path: "/api/v2/alerts/rules", Unit: "alert.create_rule", Type: TypeCommand, InputMapper: bodyInputMapper},
 		{Method: http.MethodPut, Path: "/api/v2/alerts/rules/{id}", Unit: "alert.update_rule", Type: TypeCommand, InputMapper: bodyWithIDMapper},
-		{Method: http.MethodDelete, Path: "/api/v2/alerts/rules/{id}", Unit: "alert.delete_rule", Type: TypeCommand, InputMapper: idInputMapper},
-		{Method: http.MethodPost, Path: "/api/v2/alerts/{id}/ack", Unit: "alert.acknowledge", Type: TypeCommand, InputMapper: idInputMapper},
-		{Method: http.MethodPost, Path: "/api/v2/alerts/{id}/resolve", Unit: "alert.resolve", Type: TypeCommand, InputMapper: idInputMapper},
+		{Method: http.MethodDelete, Path: "/api/v2/alerts/rules/{id}", Unit: "alert.delete_rule", Type: TypeCommand, InputMapper: ruleIDInputMapper},
+		{Method: http.MethodPost, Path: "/api/v2/alerts/{id}/ack", Unit: "alert.acknowledge", Type: TypeCommand, InputMapper: alertIDInputMapper},
+		{Method: http.MethodPost, Path: "/api/v2/alerts/{id}/resolve", Unit: "alert.resolve", Type: TypeCommand, InputMapper: alertIDInputMapper},
 		{Method: http.MethodGet, Path: "/api/v2/alerts/rules", Unit: "alert.list_rules", Type: TypeQuery, InputMapper: queryInputMapper},
 		{Method: http.MethodGet, Path: "/api/v2/alerts/history", Unit: "alert.history", Type: TypeQuery, InputMapper: queryInputMapper},
 		{Method: http.MethodGet, Path: "/api/v2/alerts/active", Unit: "alert.active", Type: TypeQuery, InputMapper: emptyInputMapper},
 
 		// Pipeline domain
 		{Method: http.MethodPost, Path: "/api/v2/pipelines", Unit: "pipeline.create", Type: TypeCommand, InputMapper: bodyInputMapper},
-		{Method: http.MethodDelete, Path: "/api/v2/pipelines/{id}", Unit: "pipeline.delete", Type: TypeCommand, InputMapper: idInputMapper},
-		{Method: http.MethodPost, Path: "/api/v2/pipelines/{id}/run", Unit: "pipeline.run", Type: TypeCommand, InputMapper: idInputMapper},
-		{Method: http.MethodPost, Path: "/api/v2/pipelines/{id}/cancel", Unit: "pipeline.cancel", Type: TypeCommand, InputMapper: idInputMapper},
+		{Method: http.MethodDelete, Path: "/api/v2/pipelines/{id}", Unit: "pipeline.delete", Type: TypeCommand, InputMapper: pipelineIDInputMapper},
+		{Method: http.MethodPost, Path: "/api/v2/pipelines/{id}/run", Unit: "pipeline.run", Type: TypeCommand, InputMapper: pipelineIDInputMapper},
+		{Method: http.MethodPost, Path: "/api/v2/pipelines/{id}/cancel", Unit: "pipeline.cancel", Type: TypeCommand, InputMapper: runIDInputMapper},
 		{Method: http.MethodGet, Path: "/api/v2/pipelines", Unit: "pipeline.list", Type: TypeQuery, InputMapper: queryInputMapper},
-		{Method: http.MethodGet, Path: "/api/v2/pipelines/{id}", Unit: "pipeline.get", Type: TypeQuery, InputMapper: idInputMapper},
-		{Method: http.MethodGet, Path: "/api/v2/pipelines/{id}/status", Unit: "pipeline.status", Type: TypeQuery, InputMapper: idInputMapper},
-		{Method: http.MethodPost, Path: "/api/v2/pipelines/validate", Unit: "pipeline.validate", Type: TypeCommand, InputMapper: bodyInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/pipelines/{id}", Unit: "pipeline.get", Type: TypeQuery, InputMapper: pipelineIDInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/pipelines/{id}/status", Unit: "pipeline.status", Type: TypeQuery, InputMapper: runIDInputMapper},
+		{Method: http.MethodPost, Path: "/api/v2/pipelines/validate", Unit: "pipeline.validate", Type: TypeQuery, InputMapper: bodyInputMapper},
+
+		// inference — additional modalities
+		{Method: http.MethodPost, Path: "/api/v2/inference/transcribe", Unit: "inference.transcribe", Type: TypeCommand, InputMapper: bodyInputMapper},
+		{Method: http.MethodPost, Path: "/api/v2/inference/synthesize", Unit: "inference.synthesize", Type: TypeCommand, InputMapper: bodyInputMapper},
+		{Method: http.MethodPost, Path: "/api/v2/inference/generate-image", Unit: "inference.generate_image", Type: TypeCommand, InputMapper: bodyInputMapper},
+		{Method: http.MethodPost, Path: "/api/v2/inference/generate-video", Unit: "inference.generate_video", Type: TypeCommand, InputMapper: bodyInputMapper},
+		{Method: http.MethodPost, Path: "/api/v2/inference/rerank", Unit: "inference.rerank", Type: TypeCommand, InputMapper: bodyInputMapper},
+		{Method: http.MethodPost, Path: "/api/v2/inference/detect", Unit: "inference.detect", Type: TypeCommand, InputMapper: bodyInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/inference/voices", Unit: "inference.voices", Type: TypeQuery, InputMapper: emptyInputMapper},
+
+		// model — additional operations
+		{Method: http.MethodPost, Path: "/api/v2/models/import", Unit: "model.import", Type: TypeCommand, InputMapper: bodyInputMapper},
+		{Method: http.MethodPost, Path: "/api/v2/models/{id}/verify", Unit: "model.verify", Type: TypeCommand, InputMapper: modelIDInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/models/search", Unit: "model.search", Type: TypeQuery, InputMapper: queryInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/models/{id}/estimate-resources", Unit: "model.estimate_resources", Type: TypeQuery, InputMapper: modelIDInputMapper},
+
+		// engine — additional operations
+		{Method: http.MethodPost, Path: "/api/v2/engines/install", Unit: "engine.install", Type: TypeCommand, InputMapper: bodyInputMapper},
+		{Method: http.MethodPost, Path: "/api/v2/engines/{name}/restart", Unit: "engine.restart", Type: TypeCommand, InputMapper: nameInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/engines/{name}/features", Unit: "engine.features", Type: TypeQuery, InputMapper: nameInputMapper},
+
+		// resource — additional queries and update
+		{Method: http.MethodGet, Path: "/api/v2/resource/budget", Unit: "resource.budget", Type: TypeQuery, InputMapper: emptyInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/resource/allocations", Unit: "resource.allocations", Type: TypeQuery, InputMapper: emptyInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/resource/can-allocate", Unit: "resource.can_allocate", Type: TypeQuery, InputMapper: queryInputMapper},
+		{Method: http.MethodPut, Path: "/api/v2/resource/slots/{id}", Unit: "resource.update_slot", Type: TypeCommand, InputMapper: slotIDInputMapper},
+
+		// device — metrics, health, power limit
+		{Method: http.MethodGet, Path: "/api/v2/devices/{id}/metrics", Unit: "device.metrics", Type: TypeQuery, InputMapper: deviceIDInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/devices/{id}/health", Unit: "device.health", Type: TypeQuery, InputMapper: deviceIDInputMapper},
+		{Method: http.MethodPost, Path: "/api/v2/devices/{id}/power-limit", Unit: "device.set_power_limit", Type: TypeCommand, InputMapper: deviceIDBodyMapper},
+
+		// service — lifecycle and status
+		{Method: http.MethodPost, Path: "/api/v2/services/{id}/scale", Unit: "service.scale", Type: TypeCommand, InputMapper: serviceIDBodyMapper},
+		{Method: http.MethodPost, Path: "/api/v2/services/{id}/start", Unit: "service.start", Type: TypeCommand, InputMapper: serviceIDInputMapper},
+		{Method: http.MethodPost, Path: "/api/v2/services/{id}/stop", Unit: "service.stop", Type: TypeCommand, InputMapper: serviceIDBodyMapper},
+		{Method: http.MethodGet, Path: "/api/v2/services/{id}/recommend", Unit: "service.recommend", Type: TypeQuery, InputMapper: serviceIDInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/services/{id}/status", Unit: "service.status", Type: TypeQuery, InputMapper: serviceIDInputMapper},
+
+		// app — lifecycle, logs and templates
+		{Method: http.MethodDelete, Path: "/api/v2/apps/{id}", Unit: "app.uninstall", Type: TypeCommand, InputMapper: appIDInputMapper},
+		{Method: http.MethodPost, Path: "/api/v2/apps/{id}/start", Unit: "app.start", Type: TypeCommand, InputMapper: appIDInputMapper},
+		{Method: http.MethodPost, Path: "/api/v2/apps/{id}/stop", Unit: "app.stop", Type: TypeCommand, InputMapper: appIDBodyMapper},
+		{Method: http.MethodGet, Path: "/api/v2/apps/{id}/logs", Unit: "app.logs", Type: TypeQuery, InputMapper: appIDInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/apps/templates", Unit: "app.templates", Type: TypeQuery, InputMapper: emptyInputMapper},
 
 		// Remote domain
 		{Method: http.MethodPost, Path: "/api/v2/remote/enable", Unit: "remote.enable", Type: TypeCommand, InputMapper: bodyInputMapper},
@@ -223,6 +268,84 @@ func recipeIDInputMapper(_ *http.Request, pathParams map[string]string) map[stri
 func skillIDInputMapper(_ *http.Request, pathParams map[string]string) map[string]any {
 	return map[string]any{
 		"skill_id": pathParams["id"],
+	}
+}
+
+func modelIDInputMapper(_ *http.Request, pathParams map[string]string) map[string]any {
+	return map[string]any{
+		"model_id": pathParams["id"],
+	}
+}
+
+func pipelineIDInputMapper(_ *http.Request, pathParams map[string]string) map[string]any {
+	return map[string]any{
+		"pipeline_id": pathParams["id"],
+	}
+}
+
+func runIDInputMapper(_ *http.Request, pathParams map[string]string) map[string]any {
+	return map[string]any{
+		"run_id": pathParams["id"],
+	}
+}
+
+func ruleIDInputMapper(_ *http.Request, pathParams map[string]string) map[string]any {
+	return map[string]any{
+		"rule_id": pathParams["id"],
+	}
+}
+
+func alertIDInputMapper(_ *http.Request, pathParams map[string]string) map[string]any {
+	return map[string]any{
+		"alert_id": pathParams["id"],
+	}
+}
+
+func deviceIDInputMapper(_ *http.Request, pathParams map[string]string) map[string]any {
+	return map[string]any{
+		"device_id": pathParams["id"],
+	}
+}
+
+func deviceIDBodyMapper(r *http.Request, pathParams map[string]string) map[string]any {
+	input := bodyInputMapper(r, pathParams)
+	if id, ok := pathParams["id"]; ok {
+		input["device_id"] = id
+	}
+	return input
+}
+
+func serviceIDInputMapper(_ *http.Request, pathParams map[string]string) map[string]any {
+	return map[string]any{
+		"service_id": pathParams["id"],
+	}
+}
+
+func serviceIDBodyMapper(r *http.Request, pathParams map[string]string) map[string]any {
+	input := bodyInputMapper(r, pathParams)
+	if id, ok := pathParams["id"]; ok {
+		input["service_id"] = id
+	}
+	return input
+}
+
+func appIDInputMapper(_ *http.Request, pathParams map[string]string) map[string]any {
+	return map[string]any{
+		"app_id": pathParams["id"],
+	}
+}
+
+func appIDBodyMapper(r *http.Request, pathParams map[string]string) map[string]any {
+	input := bodyInputMapper(r, pathParams)
+	if id, ok := pathParams["id"]; ok {
+		input["app_id"] = id
+	}
+	return input
+}
+
+func slotIDInputMapper(_ *http.Request, pathParams map[string]string) map[string]any {
+	return map[string]any{
+		"slot_id": pathParams["id"],
 	}
 }
 

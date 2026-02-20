@@ -174,7 +174,7 @@ func getIntConfig(config map[string]any, key string, defaultValue int) int {
 }
 
 func generateFRPCConfig(serverAddr, serverPort, subdomain, protocol string, localPort, remotePort int) string {
-	config := `[common]
+	config := fmt.Sprintf(`[common]
 server_addr = %s
 server_port = %s
 protocol = %s
@@ -184,12 +184,12 @@ type = %s
 local_ip = 127.0.0.1
 local_port = %d
 remote_port = %d
-`
-	if subdomain != "" {
-		config += `subdomain = %s`
-	}
+`, serverAddr, serverPort, protocol, protocol, localPort, remotePort)
 
-	return fmt.Sprintf(config, serverAddr, serverPort, protocol, protocol, localPort, remotePort, subdomain)
+	if subdomain != "" {
+		config += fmt.Sprintf("subdomain = %s\n", subdomain)
+	}
+	return config
 }
 
 func findFRPCBin() (string, error) {

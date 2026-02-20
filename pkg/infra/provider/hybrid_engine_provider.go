@@ -741,6 +741,7 @@ var _ engine.EngineProvider = (*HybridEngineProvider)(nil)
 
 // HybridServiceProvider wraps the hybrid engine provider for service management
 type HybridServiceProvider struct {
+	mu             sync.Mutex
 	hybridProvider *HybridEngineProvider
 	modelStore     model.ModelStore
 	portCounter    int
@@ -765,8 +766,10 @@ func (p *HybridServiceProvider) Create(ctx context.Context, modelID string, reso
 	}
 
 	engineType := p.hybridProvider.getEngineTypeForModel(m.Type)
+	p.mu.Lock()
 	port := p.portCounter
 	p.portCounter++
+	p.mu.Unlock()
 
 	// Determine device based on engine type and resource limits
 	device := "cpu"

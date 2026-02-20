@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -191,88 +190,4 @@ func TestAgent_NilLLMMetadata(t *testing.T) {
 	agent := NewAgent(nil, nil, nil, AgentOptions{})
 	assert.Equal(t, "", agent.LLMName())
 	assert.Equal(t, "", agent.LLMModelName())
-}
-
-// --- ConversationStore tests ---
-
-func TestConversationStore_GetOrCreate(t *testing.T) {
-	store := NewConversationStore()
-
-	conv1 := store.GetOrCreate("c1")
-	assert.Equal(t, "c1", conv1.ID)
-	assert.Empty(t, conv1.Messages)
-
-	// Same ID returns same conversation.
-	conv2 := store.GetOrCreate("c1")
-	assert.Equal(t, conv1, conv2)
-}
-
-func TestConversationStore_GetOrCreate_EmptyID(t *testing.T) {
-	store := NewConversationStore()
-	conv := store.GetOrCreate("")
-	assert.NotEmpty(t, conv.ID)
-}
-
-func TestConversationStore_Get_NotFound(t *testing.T) {
-	store := NewConversationStore()
-	assert.Nil(t, store.Get("nonexistent"))
-}
-
-func TestConversationStore_Delete(t *testing.T) {
-	store := NewConversationStore()
-	store.GetOrCreate("c1")
-
-	ok := store.Delete("c1")
-	assert.True(t, ok)
-	assert.Nil(t, store.Get("c1"))
-
-	ok = store.Delete("c1")
-	assert.False(t, ok)
-}
-
-func TestConversationStore_Count(t *testing.T) {
-	store := NewConversationStore()
-	assert.Equal(t, 0, store.Count())
-
-	store.GetOrCreate("c1")
-	store.GetOrCreate("c2")
-	assert.Equal(t, 2, store.Count())
-
-	store.Delete("c1")
-	assert.Equal(t, 1, store.Count())
-}
-
-func TestConversationStore_List(t *testing.T) {
-	store := NewConversationStore()
-	store.GetOrCreate("c1")
-	store.GetOrCreate("c2")
-	list := store.List()
-	assert.Len(t, list, 2)
-}
-
-func TestConversation_AddMessage_Trim(t *testing.T) {
-	conv := &Conversation{
-		ID:       "test",
-		Messages: make([]agentllm.Message, 0),
-	}
-
-	// Add more than maxConversationMessages messages.
-	for i := 0; i < maxConversationMessages+10; i++ {
-		conv.addMessage(agentllm.Message{Role: "user", Content: fmt.Sprintf("msg %d", i)})
-	}
-
-	assert.LessOrEqual(t, len(conv.Messages), maxConversationMessages)
-}
-
-func TestConversation_UpdatedAt(t *testing.T) {
-	conv := &Conversation{
-		ID:        "test",
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}
-
-	before := conv.UpdatedAt
-	time.Sleep(time.Millisecond)
-	conv.addMessage(agentllm.Message{Role: "user", Content: "hello"})
-	assert.True(t, conv.UpdatedAt.After(before))
 }

@@ -674,9 +674,9 @@ git commit -m "feat(model): implement model.pull command"
 | Phase 3 | 适配器（HTTP, MCP, gRPC, CLI） | ✅ 完成 |
 | Phase 4 | 其他领域 (resource, service, app, alert, remote) | ✅ 完成 |
 | Phase 5 | 编排层 (Workflow DSL + Templates) | ✅ 完成 |
-| Phase 6 | Catalog 领域 (硬件最佳实践 + 一键部署) | 待开始 |
-| Phase 7 | Skill 领域 (AI Agent 技能知识库) | 待开始 |
-| Phase 8 | Agent 领域 (AI Agent Operator) | 待开始 |
+| Phase 6 | Catalog 领域 (硬件最佳实践 + 一键部署) | ✅ 完成 |
+| Phase 7 | Skill 领域 (AI Agent 技能知识库) | ✅ 完成 |
+| Phase 8 | Agent 领域 (AI Agent Operator) | ✅ 完成 |
 
 详细计划见: `docs/ARCHITECTURE.md`
 
@@ -706,4 +706,4 @@ Agent Operator 是 AIMA 的核心创新 — 一个可配置 LLM 后端的 AI 代
 ---
 
 *本文档由 AI Agent 遵循，确保开发一致性和质量。*
-*最后更新: 2026-02-20*
+*最后更新: 2026-02-20 (Phase 6/7/8 全部完成)*
