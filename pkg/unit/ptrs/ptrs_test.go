@@ -97,6 +97,7 @@ func TestPointersAreIndependent(t *testing.T) {
 	v := 10
 	p := Int(v)
 	v = 20
+	_ = v // intentional: v is reassigned to prove pointer independence
 	if *p != 10 {
 		t.Errorf("expected pointer to be independent: *p = %d, want 10", *p)
 	}

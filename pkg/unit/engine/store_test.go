@@ -130,7 +130,7 @@ func TestMemoryStore_List_WithFilters(t *testing.T) {
 	}
 
 	// Filter by status
-	results, total, err = s.List(context.Background(), EngineFilter{Status: EngineStatusRunning})
+	_, total, err = s.List(context.Background(), EngineFilter{Status: EngineStatusRunning})
 	if err != nil {
 		t.Errorf("List() failed: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestMemoryStore_List_WithFilters(t *testing.T) {
 	}
 
 	// Offset beyond end
-	results, total, err = s.List(context.Background(), EngineFilter{Offset: 100})
+	results, _, err = s.List(context.Background(), EngineFilter{Offset: 100})
 	if err != nil {
 		t.Errorf("List() failed: %v", err)
 	}

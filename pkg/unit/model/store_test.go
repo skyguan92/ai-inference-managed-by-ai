@@ -112,7 +112,7 @@ func TestMemoryStore_List_WithFilters(t *testing.T) {
 	}
 
 	// Filter by status
-	results, total, err = s.List(context.Background(), ModelFilter{Status: StatusPulling})
+	_, total, err = s.List(context.Background(), ModelFilter{Status: StatusPulling})
 	if err != nil {
 		t.Errorf("List() failed: %v", err)
 	}
@@ -121,7 +121,7 @@ func TestMemoryStore_List_WithFilters(t *testing.T) {
 	}
 
 	// Filter by format
-	results, total, err = s.List(context.Background(), ModelFilter{Format: FormatSafetensors})
+	_, total, err = s.List(context.Background(), ModelFilter{Format: FormatSafetensors})
 	if err != nil {
 		t.Errorf("List() failed: %v", err)
 	}
@@ -142,7 +142,7 @@ func TestMemoryStore_List_WithFilters(t *testing.T) {
 	}
 
 	// Offset beyond end
-	results, total, err = s.List(context.Background(), ModelFilter{Offset: 100})
+	results, _, err = s.List(context.Background(), ModelFilter{Offset: 100})
 	if err != nil {
 		t.Errorf("List() failed: %v", err)
 	}

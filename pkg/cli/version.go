@@ -27,7 +27,7 @@ func printVersion(opts *OutputOptions) {
 	}
 
 	if opts.Format == OutputJSON || opts.Format == OutputYAML {
-		PrintOutput(versionInfo, opts)
+		_ = PrintOutput(versionInfo, opts)
 	} else {
 		fmt.Fprintf(opts.Writer, "AIMA version %s\n", cliVersion)
 		fmt.Fprintf(opts.Writer, "  Commit: %s\n", cliGitCommit)

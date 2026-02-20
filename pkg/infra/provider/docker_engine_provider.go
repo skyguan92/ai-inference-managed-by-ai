@@ -218,7 +218,7 @@ func (p *DockerEngineProvider) getImageForEngine(name, version string) string {
 		return fmt.Sprintf("vllm/vllm-openai:%s", version)
 	case "whisper", "asr":
 		// Use a generic ASR image or funasr
-		return fmt.Sprintf("registry.cn-hangzhou.aliyuncs.com/funasr/funasr:funasr-runtime-sdk-cpu-0.4.5")
+		return "registry.cn-hangzhou.aliyuncs.com/funasr/funasr:funasr-runtime-sdk-cpu-0.4.5"
 	case "tts":
 		// Use Coqui TTS or similar
 		return fmt.Sprintf("ghcr.io/coqui-ai/tts:%s", version)

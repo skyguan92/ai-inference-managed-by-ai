@@ -338,7 +338,7 @@ func TestWrapError(t *testing.T) {
 		wrapped := WrapError(original, "wrapped")
 
 		if wrapped == nil {
-			t.Error("WrapError should not return nil for non-nil error")
+			t.Fatal("WrapError should not return nil for non-nil error")
 		}
 		if wrapped.Code != ErrCodeInternalError {
 			t.Errorf("Code = %q, want %q", wrapped.Code, ErrCodeInternalError)
