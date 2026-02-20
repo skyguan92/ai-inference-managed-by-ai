@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/workflow"
@@ -135,8 +136,9 @@ func runWorkflowRun(ctx context.Context, root *RootCommand, workflowName, inputJ
 	// Parse input
 	input := make(map[string]any)
 	if inputJSON != "" {
-		// For now, just use empty input
-		// In production, would parse JSON
+		if err := json.Unmarshal([]byte(inputJSON), &input); err != nil {
+			return fmt.Errorf("parse input JSON: %w", err)
+		}
 	}
 
 	// For demonstration, create a simple workflow definition

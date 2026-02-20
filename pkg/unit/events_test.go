@@ -54,7 +54,7 @@ func TestNewExecutionContext(t *testing.T) {
 func TestNewExecutionContext_NilPublisher(t *testing.T) {
 	ec := NewExecutionContext(nil, "engine", "engine.start")
 	if ec == nil {
-		t.Error("NewExecutionContext should return non-nil even with nil publisher")
+		t.Fatal("NewExecutionContext should return non-nil even with nil publisher")
 	}
 	if ec.Publisher != nil {
 		t.Error("Publisher should be nil")
