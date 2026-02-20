@@ -784,7 +784,7 @@ func TestHybridEngineProvider_ConcurrentMapAccess(t *testing.T) {
 			p.mu.Unlock()
 
 			p.mu.RLock()
-			_, _ = p.nativeProcesses["engine-test"]
+			_ = p.nativeProcesses["engine-test"]
 			p.mu.RUnlock()
 		}(i)
 	}
