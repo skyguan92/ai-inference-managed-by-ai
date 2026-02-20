@@ -1,6 +1,9 @@
 package pipeline
 
-import "time"
+import (
+	"sync"
+	"time"
+)
 
 type PipelineStatus string
 
@@ -40,6 +43,7 @@ type Pipeline struct {
 }
 
 type PipelineRun struct {
+	mu          sync.RWMutex   `json:"-"`
 	ID          string         `json:"id"`
 	PipelineID  string         `json:"pipeline_id"`
 	Status      RunStatus      `json:"status"`

@@ -230,20 +230,28 @@ func (e *WorkflowEngine) ExecuteAsync(ctx context.Context, def *WorkflowDef, inp
 			cancel()
 		}()
 
+		// Use a separate result to avoid racing with the caller's returned result
+		finalResult := &ExecutionResult{
+			WorkflowID:  def.Name,
+			RunID:       runID,
+			StepResults: make(map[string]StepResult),
+			StartedAt:   startTime,
+		}
+
 		execResult, err := e.Execute(asyncCtx, def, input)
 		if err != nil {
-			result.Status = ExecutionStatusFailed
-			result.Error = err.Error()
+			finalResult.Status = ExecutionStatusFailed
+			finalResult.Error = err.Error()
 		} else {
-			result.Status = execResult.Status
-			result.Output = execResult.Output
-			result.StepResults = execResult.StepResults
+			finalResult.Status = execResult.Status
+			finalResult.Output = execResult.Output
+			finalResult.StepResults = execResult.StepResults
 		}
 
 		now := time.Now()
-		result.CompletedAt = &now
-		result.Duration = time.Since(startTime)
-		_ = e.store.SaveExecution(context.Background(), result)
+		finalResult.CompletedAt = &now
+		finalResult.Duration = time.Since(startTime)
+		_ = e.store.SaveExecution(context.Background(), finalResult)
 	}()
 
 	return result, nil

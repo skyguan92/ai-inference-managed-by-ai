@@ -127,13 +127,32 @@ func (s *MemoryStore) CreateRun(ctx context.Context, run *PipelineRun) error {
 
 func (s *MemoryStore) GetRun(ctx context.Context, id string) (*PipelineRun, error) {
 	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	run, exists := s.runs[id]
+	s.mu.RUnlock()
+
 	if !exists {
 		return nil, ErrRunNotFound
 	}
-	return run, nil
+
+	// Return a snapshot to avoid races with concurrent executor goroutine writes
+	run.mu.RLock()
+	stepResults := make(map[string]any, len(run.StepResults))
+	for k, v := range run.StepResults {
+		stepResults[k] = v
+	}
+	snapshot := &PipelineRun{
+		ID:          run.ID,
+		PipelineID:  run.PipelineID,
+		Status:      run.Status,
+		Input:       run.Input,
+		StepResults: stepResults,
+		Error:       run.Error,
+		StartedAt:   run.StartedAt,
+		CompletedAt: run.CompletedAt,
+	}
+	run.mu.RUnlock()
+
+	return snapshot, nil
 }
 
 func (s *MemoryStore) ListRuns(ctx context.Context, pipelineID string) ([]PipelineRun, error) {
@@ -145,7 +164,23 @@ func (s *MemoryStore) ListRuns(ctx context.Context, pipelineID string) ([]Pipeli
 		if pipelineID != "" && r.PipelineID != pipelineID {
 			continue
 		}
-		result = append(result, *r)
+		r.mu.RLock()
+		stepResults := make(map[string]any, len(r.StepResults))
+		for k, v := range r.StepResults {
+			stepResults[k] = v
+		}
+		snapshot := PipelineRun{
+			ID:          r.ID,
+			PipelineID:  r.PipelineID,
+			Status:      r.Status,
+			Input:       r.Input,
+			StepResults: stepResults,
+			Error:       r.Error,
+			StartedAt:   r.StartedAt,
+			CompletedAt: r.CompletedAt,
+		}
+		r.mu.RUnlock()
+		result = append(result, snapshot)
 	}
 	return result, nil
 }

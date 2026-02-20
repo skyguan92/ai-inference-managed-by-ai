@@ -454,7 +454,7 @@ func (c *RunCommand) Execute(ctx context.Context, input any) (any, error) {
 		}
 	}
 
-	output := map[string]any{"run_id": run.ID, "status": run.Status}
+	output := map[string]any{"run_id": run.ID, "status": string(RunStatusRunning)}
 	ec.PublishCompleted(output)
 	return output, nil
 }
