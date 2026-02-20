@@ -65,32 +65,33 @@ func NewServer(gateway *Gateway, config ServerConfig) *Server {
 
 	router := NewRouter(gateway)
 
-	return &Server{
+	s := &Server{
 		gateway: gateway,
 		config:  config,
 		router:  router,
 		logger:  config.Logger,
 	}
-}
 
-func (s *Server) Start() error {
+	// Build the http.Server eagerly so that Start() and Stop() never race
+	// on s.http initialization when called from different goroutines.
 	mux := http.NewServeMux()
-
 	handler := s.buildHandler()
-
 	mux.Handle("/api/v2/", http.StripPrefix("/api/v2", handler))
-
 	mux.HandleFunc("/openapi.json", s.handleOpenAPI)
 	mux.HandleFunc("/health", s.handleHealth)
 
 	s.http = &http.Server{
-		Addr:         s.config.Addr,
+		Addr:         config.Addr,
 		Handler:      mux,
-		ReadTimeout:  s.config.ReadTimeout,
-		WriteTimeout: s.config.WriteTimeout,
-		IdleTimeout:  s.config.IdleTimeout,
+		ReadTimeout:  config.ReadTimeout,
+		WriteTimeout: config.WriteTimeout,
+		IdleTimeout:  config.IdleTimeout,
 	}
 
+	return s
+}
+
+func (s *Server) Start() error {
 	if s.logger != nil {
 		s.logger.Info("starting HTTP server", slog.String("addr", s.config.Addr))
 	}
