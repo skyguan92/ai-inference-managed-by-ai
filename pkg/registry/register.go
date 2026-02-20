@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 
+	coreagent "github.com/jguan/ai-inference-managed-by-ai/pkg/agent"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
+	unitagent "github.com/jguan/ai-inference-managed-by-ai/pkg/unit/agent"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/alert"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/app"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/catalog"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/device"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/engine"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/inference"
@@ -15,6 +18,7 @@ import (
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/remote"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/resource"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/service"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/skill"
 )
 
 type Stores struct {
@@ -26,6 +30,8 @@ type Stores struct {
 	PipelineStore pipeline.PipelineStore
 	AlertStore    alert.Store
 	RemoteStore   remote.RemoteStore
+	CatalogStore  catalog.RecipeStore
+	SkillStore    skill.SkillStore
 }
 
 type Providers struct {
@@ -43,6 +49,7 @@ type Options struct {
 	Stores    Stores
 	Providers Providers
 	EventBus  unit.EventPublisher
+	Agent     *coreagent.Agent
 }
 
 type Option func(*Options)
@@ -110,6 +117,24 @@ func WithAlertStore(s alert.Store) Option {
 func WithRemoteStore(s remote.RemoteStore) Option {
 	return func(o *Options) {
 		o.Stores.RemoteStore = s
+	}
+}
+
+func WithCatalogStore(s catalog.RecipeStore) Option {
+	return func(o *Options) {
+		o.Stores.CatalogStore = s
+	}
+}
+
+func WithSkillStore(s skill.SkillStore) Option {
+	return func(o *Options) {
+		o.Stores.SkillStore = s
+	}
+}
+
+func WithAgent(a *coreagent.Agent) Option {
+	return func(o *Options) {
+		o.Agent = a
 	}
 }
 
@@ -205,6 +230,18 @@ func RegisterAll(registry *unit.Registry, opts ...Option) error {
 
 	if err := registerRemoteDomain(registry, options); err != nil {
 		return fmt.Errorf("register remote domain: %w", err)
+	}
+
+	if err := registerCatalogDomain(registry, options); err != nil {
+		return fmt.Errorf("register catalog domain: %w", err)
+	}
+
+	if err := registerSkillDomain(registry, options); err != nil {
+		return fmt.Errorf("register skill domain: %w", err)
+	}
+
+	if err := registerAgentDomain(registry, options); err != nil {
+		return fmt.Errorf("register agent domain: %w", err)
 	}
 
 	return nil
@@ -655,6 +692,119 @@ func registerRemoteDomain(registry *unit.Registry, options *Options) error {
 
 	// Register ResourceFactory for dynamic resource creation
 	if err := registry.RegisterResourceFactory(remote.NewRemoteResourceFactory(store)); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func registerCatalogDomain(registry *unit.Registry, options *Options) error {
+	store := options.Stores.CatalogStore
+	events := options.EventBus
+
+	if store == nil {
+		store = catalog.NewMemoryStore()
+	}
+
+	if err := registry.RegisterCommand(catalog.NewCreateRecipeCommandWithEvents(store, events)); err != nil {
+		return err
+	}
+	if err := registry.RegisterCommand(catalog.NewValidateRecipeCommand()); err != nil {
+		return err
+	}
+	if err := registry.RegisterCommand(catalog.NewApplyRecipeCommandWithEvents(store, events)); err != nil {
+		return err
+	}
+
+	if err := registry.RegisterQuery(catalog.NewMatchQueryWithEvents(store, events)); err != nil {
+		return err
+	}
+	if err := registry.RegisterQuery(catalog.NewGetQueryWithEvents(store, events)); err != nil {
+		return err
+	}
+	if err := registry.RegisterQuery(catalog.NewListQueryWithEvents(store, events)); err != nil {
+		return err
+	}
+	if err := registry.RegisterQuery(catalog.NewCheckStatusQueryWithEvents(store, events)); err != nil {
+		return err
+	}
+
+	if err := registry.RegisterResource(catalog.NewRecipesResource(store)); err != nil {
+		return err
+	}
+	if err := registry.RegisterResourceFactory(catalog.NewRecipeResourceFactory(store)); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func registerSkillDomain(registry *unit.Registry, options *Options) error {
+	store := options.Stores.SkillStore
+	events := options.EventBus
+
+	if store == nil {
+		store = skill.NewMemoryStore()
+	}
+
+	if err := registry.RegisterCommand(skill.NewAddCommandWithEvents(store, events)); err != nil {
+		return err
+	}
+	if err := registry.RegisterCommand(skill.NewRemoveCommandWithEvents(store, events)); err != nil {
+		return err
+	}
+	if err := registry.RegisterCommand(skill.NewEnableCommandWithEvents(store, events)); err != nil {
+		return err
+	}
+	if err := registry.RegisterCommand(skill.NewDisableCommandWithEvents(store, events)); err != nil {
+		return err
+	}
+
+	if err := registry.RegisterQuery(skill.NewListQueryWithEvents(store, events)); err != nil {
+		return err
+	}
+	if err := registry.RegisterQuery(skill.NewGetQueryWithEvents(store, events)); err != nil {
+		return err
+	}
+	if err := registry.RegisterQuery(skill.NewSearchQueryWithEvents(store, events)); err != nil {
+		return err
+	}
+
+	if err := registry.RegisterResource(skill.NewSkillsResource(store)); err != nil {
+		return err
+	}
+	if err := registry.RegisterResourceFactory(skill.NewSkillResourceFactory(store)); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func registerAgentDomain(registry *unit.Registry, options *Options) error {
+	a := options.Agent
+	events := options.EventBus
+
+	// Commands
+	if err := registry.RegisterCommand(unitagent.NewChatCommandWithEvents(a, events)); err != nil {
+		return err
+	}
+	if err := registry.RegisterCommand(unitagent.NewResetCommandWithEvents(a, events)); err != nil {
+		return err
+	}
+
+	// Queries
+	if err := registry.RegisterQuery(unitagent.NewStatusQuery(a)); err != nil {
+		return err
+	}
+	if err := registry.RegisterQuery(unitagent.NewHistoryQuery(a)); err != nil {
+		return err
+	}
+
+	// Resources
+	if err := registry.RegisterResource(unitagent.NewAgentStatusResource(a)); err != nil {
+		return err
+	}
+	if err := registry.RegisterResource(unitagent.NewAgentConversationsResource(a)); err != nil {
 		return err
 	}
 

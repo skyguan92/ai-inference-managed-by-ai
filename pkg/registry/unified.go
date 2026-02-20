@@ -47,6 +47,15 @@ func (r *UnifiedRegistry) RegisterAll() error {
 	if err := r.RegisterRemoteDomain(); err != nil {
 		return err
 	}
+	if err := r.RegisterCatalogDomain(); err != nil {
+		return err
+	}
+	if err := r.RegisterSkillDomain(); err != nil {
+		return err
+	}
+	if err := r.RegisterAgentDomain(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -88,6 +97,18 @@ func (r *UnifiedRegistry) RegisterAlertDomain() error {
 
 func (r *UnifiedRegistry) RegisterRemoteDomain() error {
 	return registerRemoteDomain(r.registry, r.options)
+}
+
+func (r *UnifiedRegistry) RegisterCatalogDomain() error {
+	return registerCatalogDomain(r.registry, r.options)
+}
+
+func (r *UnifiedRegistry) RegisterSkillDomain() error {
+	return registerSkillDomain(r.registry, r.options)
+}
+
+func (r *UnifiedRegistry) RegisterAgentDomain() error {
+	return registerAgentDomain(r.registry, r.options)
 }
 
 func (r *UnifiedRegistry) Registry() *unit.Registry {

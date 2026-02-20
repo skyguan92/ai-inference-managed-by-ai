@@ -114,6 +114,57 @@ func defaultRoutes() []Route {
 		{Method: http.MethodGet, Path: "/api/v2/apps", Unit: "app.list", Type: TypeQuery, InputMapper: queryInputMapper},
 		{Method: http.MethodPost, Path: "/api/v2/apps", Unit: "app.install", Type: TypeCommand, InputMapper: bodyInputMapper},
 		{Method: http.MethodGet, Path: "/api/v2/apps/{id}", Unit: "app.get", Type: TypeQuery, InputMapper: idInputMapper},
+
+		// Catalog domain
+		{Method: http.MethodPost, Path: "/api/v2/catalog/recipes", Unit: "catalog.create_recipe", Type: TypeCommand, InputMapper: bodyInputMapper},
+		{Method: http.MethodPost, Path: "/api/v2/catalog/recipes/validate", Unit: "catalog.validate_recipe", Type: TypeCommand, InputMapper: bodyInputMapper},
+		{Method: http.MethodPost, Path: "/api/v2/catalog/recipes/{id}/apply", Unit: "catalog.apply_recipe", Type: TypeCommand, InputMapper: recipeIDInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/catalog/recipes/match", Unit: "catalog.match", Type: TypeQuery, InputMapper: queryInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/catalog/recipes", Unit: "catalog.list", Type: TypeQuery, InputMapper: queryInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/catalog/recipes/{id}/status", Unit: "catalog.check_status", Type: TypeQuery, InputMapper: recipeIDInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/catalog/recipes/{id}", Unit: "catalog.get", Type: TypeQuery, InputMapper: recipeIDInputMapper},
+
+		// Skill domain
+		{Method: http.MethodPost, Path: "/api/v2/skills", Unit: "skill.add", Type: TypeCommand, InputMapper: bodyInputMapper},
+		{Method: http.MethodDelete, Path: "/api/v2/skills/{id}", Unit: "skill.remove", Type: TypeCommand, InputMapper: skillIDInputMapper},
+		{Method: http.MethodPost, Path: "/api/v2/skills/{id}/enable", Unit: "skill.enable", Type: TypeCommand, InputMapper: skillIDInputMapper},
+		{Method: http.MethodPost, Path: "/api/v2/skills/{id}/disable", Unit: "skill.disable", Type: TypeCommand, InputMapper: skillIDInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/skills", Unit: "skill.list", Type: TypeQuery, InputMapper: queryInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/skills/search", Unit: "skill.search", Type: TypeQuery, InputMapper: queryInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/skills/{id}", Unit: "skill.get", Type: TypeQuery, InputMapper: skillIDInputMapper},
+
+		// Agent domain
+		{Method: http.MethodPost, Path: "/api/v2/agent/chat", Unit: "agent.chat", Type: TypeCommand, InputMapper: bodyInputMapper},
+		{Method: http.MethodPost, Path: "/api/v2/agent/reset", Unit: "agent.reset", Type: TypeCommand, InputMapper: bodyInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/agent/status", Unit: "agent.status", Type: TypeQuery, InputMapper: emptyInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/agent/history", Unit: "agent.history", Type: TypeQuery, InputMapper: queryInputMapper},
+
+		// Alert domain
+		{Method: http.MethodPost, Path: "/api/v2/alerts/rules", Unit: "alert.create_rule", Type: TypeCommand, InputMapper: bodyInputMapper},
+		{Method: http.MethodPut, Path: "/api/v2/alerts/rules/{id}", Unit: "alert.update_rule", Type: TypeCommand, InputMapper: bodyWithIDMapper},
+		{Method: http.MethodDelete, Path: "/api/v2/alerts/rules/{id}", Unit: "alert.delete_rule", Type: TypeCommand, InputMapper: idInputMapper},
+		{Method: http.MethodPost, Path: "/api/v2/alerts/{id}/ack", Unit: "alert.acknowledge", Type: TypeCommand, InputMapper: idInputMapper},
+		{Method: http.MethodPost, Path: "/api/v2/alerts/{id}/resolve", Unit: "alert.resolve", Type: TypeCommand, InputMapper: idInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/alerts/rules", Unit: "alert.list_rules", Type: TypeQuery, InputMapper: queryInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/alerts/history", Unit: "alert.history", Type: TypeQuery, InputMapper: queryInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/alerts/active", Unit: "alert.active", Type: TypeQuery, InputMapper: emptyInputMapper},
+
+		// Pipeline domain
+		{Method: http.MethodPost, Path: "/api/v2/pipelines", Unit: "pipeline.create", Type: TypeCommand, InputMapper: bodyInputMapper},
+		{Method: http.MethodDelete, Path: "/api/v2/pipelines/{id}", Unit: "pipeline.delete", Type: TypeCommand, InputMapper: idInputMapper},
+		{Method: http.MethodPost, Path: "/api/v2/pipelines/{id}/run", Unit: "pipeline.run", Type: TypeCommand, InputMapper: idInputMapper},
+		{Method: http.MethodPost, Path: "/api/v2/pipelines/{id}/cancel", Unit: "pipeline.cancel", Type: TypeCommand, InputMapper: idInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/pipelines", Unit: "pipeline.list", Type: TypeQuery, InputMapper: queryInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/pipelines/{id}", Unit: "pipeline.get", Type: TypeQuery, InputMapper: idInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/pipelines/{id}/status", Unit: "pipeline.status", Type: TypeQuery, InputMapper: idInputMapper},
+		{Method: http.MethodPost, Path: "/api/v2/pipelines/validate", Unit: "pipeline.validate", Type: TypeCommand, InputMapper: bodyInputMapper},
+
+		// Remote domain
+		{Method: http.MethodPost, Path: "/api/v2/remote/enable", Unit: "remote.enable", Type: TypeCommand, InputMapper: bodyInputMapper},
+		{Method: http.MethodPost, Path: "/api/v2/remote/disable", Unit: "remote.disable", Type: TypeCommand, InputMapper: emptyInputMapper},
+		{Method: http.MethodPost, Path: "/api/v2/remote/exec", Unit: "remote.exec", Type: TypeCommand, InputMapper: bodyInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/remote/status", Unit: "remote.status", Type: TypeQuery, InputMapper: emptyInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/remote/audit", Unit: "remote.audit", Type: TypeQuery, InputMapper: queryInputMapper},
 	}
 }
 
@@ -153,6 +204,26 @@ func nameInputMapper(_ *http.Request, pathParams map[string]string) map[string]a
 
 func emptyInputMapper(_ *http.Request, _ map[string]string) map[string]any {
 	return map[string]any{}
+}
+
+func bodyWithIDMapper(r *http.Request, pathParams map[string]string) map[string]any {
+	input := bodyInputMapper(r, pathParams)
+	if id, ok := pathParams["id"]; ok {
+		input["rule_id"] = id
+	}
+	return input
+}
+
+func recipeIDInputMapper(_ *http.Request, pathParams map[string]string) map[string]any {
+	return map[string]any{
+		"recipe_id": pathParams["id"],
+	}
+}
+
+func skillIDInputMapper(_ *http.Request, pathParams map[string]string) map[string]any {
+	return map[string]any{
+		"skill_id": pathParams["id"],
+	}
 }
 
 type pathParamExtractor struct{}

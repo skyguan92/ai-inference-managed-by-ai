@@ -100,6 +100,29 @@ const (
 	ErrCodeRemoteExecFailed ErrorCode = "01001"
 )
 
+// Catalog 领域错误码 (1100-1199)
+const (
+	ErrCodeRecipeNotFound      ErrorCode = "01100"
+	ErrCodeRecipeAlreadyExists ErrorCode = "01101"
+	ErrCodeRecipeInvalid       ErrorCode = "01102"
+	ErrCodeRecipeApplyFailed   ErrorCode = "01103"
+)
+
+// Skill 领域错误码 (1200-1299)
+const (
+	ErrCodeSkillNotFound         ErrorCode = "01200"
+	ErrCodeSkillAlreadyExists    ErrorCode = "01201"
+	ErrCodeSkillInvalid          ErrorCode = "01202"
+	ErrCodeBuiltinSkillImmutable ErrorCode = "01203"
+)
+
+// Agent 领域错误码 (1300-1399)
+const (
+	ErrCodeAgentNotEnabled      ErrorCode = "01300"
+	ErrCodeAgentLLMError        ErrorCode = "01301"
+	ErrCodeConversationNotFound ErrorCode = "01302"
+)
+
 // UnitError 统一的错误类型
 type UnitError struct {
 	Code    ErrorCode
@@ -217,10 +240,18 @@ func ErrorToHTTPStatus(code ErrorCode) int {
 		return http.StatusTooManyRequests
 	case ErrCodeModelNotFound, ErrCodeEngineNotFound, ErrCodeServiceNotFound,
 		ErrCodeAppNotFound, ErrCodePipelineNotFound, ErrCodeAlertRuleNotFound,
-		ErrCodeDeviceNotFound, ErrCodeResourceSlotNotFound:
+		ErrCodeDeviceNotFound, ErrCodeResourceSlotNotFound,
+		ErrCodeRecipeNotFound, ErrCodeSkillNotFound, ErrCodeConversationNotFound:
 		return http.StatusNotFound
-	case ErrCodeModelAlreadyExists, ErrCodeEngineAlreadyRunning:
+	case ErrCodeModelAlreadyExists, ErrCodeEngineAlreadyRunning,
+		ErrCodeRecipeAlreadyExists, ErrCodeSkillAlreadyExists:
 		return http.StatusConflict
+	case ErrCodeRecipeInvalid, ErrCodeSkillInvalid, ErrCodeBuiltinSkillImmutable:
+		return http.StatusBadRequest
+	case ErrCodeAgentNotEnabled, ErrCodeAgentLLMError:
+		return http.StatusServiceUnavailable
+	case ErrCodeRecipeApplyFailed:
+		return http.StatusInternalServerError
 	case ErrCodeRemoteNotEnabled, ErrCodeRemoteExecFailed:
 		return http.StatusServiceUnavailable
 	default:
@@ -239,7 +270,10 @@ func IsNotFound(err error) bool {
 			ue.Code == ErrCodePipelineNotFound ||
 			ue.Code == ErrCodeAlertRuleNotFound ||
 			ue.Code == ErrCodeDeviceNotFound ||
-			ue.Code == ErrCodeResourceSlotNotFound
+			ue.Code == ErrCodeResourceSlotNotFound ||
+			ue.Code == ErrCodeRecipeNotFound ||
+			ue.Code == ErrCodeSkillNotFound ||
+			ue.Code == ErrCodeConversationNotFound
 	}
 	return errors.Is(err, ErrNotFound)
 }
@@ -249,7 +283,9 @@ func IsAlreadyExists(err error) bool {
 	if ue, ok := AsUnitError(err); ok {
 		return ue.Code == ErrCodeAlreadyExists ||
 			ue.Code == ErrCodeModelAlreadyExists ||
-			ue.Code == ErrCodeEngineAlreadyRunning
+			ue.Code == ErrCodeEngineAlreadyRunning ||
+			ue.Code == ErrCodeRecipeAlreadyExists ||
+			ue.Code == ErrCodeSkillAlreadyExists
 	}
 	return false
 }
@@ -268,6 +304,14 @@ func IsRateLimited(err error) bool {
 		return ue.Code == ErrCodeRateLimited || ue.Code == ErrCodeInferenceRateLimited
 	}
 	return errors.Is(err, ErrRateLimited)
+}
+
+// IsImmutable 检查是否为不可变资源错误
+func IsImmutable(err error) bool {
+	if ue, ok := AsUnitError(err); ok {
+		return ue.Code == ErrCodeBuiltinSkillImmutable
+	}
+	return false
 }
 
 // Common errors for backward compatibility

@@ -166,6 +166,9 @@ func (r *RootCommand) addSubCommands() {
 	r.cmd.AddCommand(NewEngineCommand(r))
 	r.cmd.AddCommand(NewServiceCommand(r))
 	r.cmd.AddCommand(NewWorkflowCommand(r))
+	r.cmd.AddCommand(NewCatalogCommand(r))
+	r.cmd.AddCommand(NewSkillCommand(r))
+	r.cmd.AddCommand(NewAgentCommand(r))
 }
 
 func (r *RootCommand) Command() *cobra.Command {

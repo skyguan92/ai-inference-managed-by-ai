@@ -238,6 +238,43 @@ func TestDefaultRoutes(t *testing.T) {
 		{http.MethodPost, "/api/v2/inference/chat"},
 		{http.MethodGet, "/api/v2/devices"},
 		{http.MethodGet, "/api/v2/engines"},
+		// Alert domain
+		{http.MethodPost, "/api/v2/alerts/rules"},
+		{http.MethodPut, "/api/v2/alerts/rules/{id}"},
+		{http.MethodDelete, "/api/v2/alerts/rules/{id}"},
+		{http.MethodPost, "/api/v2/alerts/{id}/ack"},
+		{http.MethodPost, "/api/v2/alerts/{id}/resolve"},
+		{http.MethodGet, "/api/v2/alerts/rules"},
+		{http.MethodGet, "/api/v2/alerts/history"},
+		{http.MethodGet, "/api/v2/alerts/active"},
+		// Pipeline domain
+		{http.MethodPost, "/api/v2/pipelines"},
+		{http.MethodDelete, "/api/v2/pipelines/{id}"},
+		{http.MethodPost, "/api/v2/pipelines/{id}/run"},
+		{http.MethodPost, "/api/v2/pipelines/{id}/cancel"},
+		{http.MethodGet, "/api/v2/pipelines"},
+		{http.MethodGet, "/api/v2/pipelines/{id}"},
+		{http.MethodGet, "/api/v2/pipelines/{id}/status"},
+		{http.MethodPost, "/api/v2/pipelines/validate"},
+		// Remote domain
+		{http.MethodPost, "/api/v2/remote/enable"},
+		{http.MethodPost, "/api/v2/remote/disable"},
+		{http.MethodPost, "/api/v2/remote/exec"},
+		{http.MethodGet, "/api/v2/remote/status"},
+		{http.MethodGet, "/api/v2/remote/audit"},
+		// Catalog domain
+		{http.MethodPost, "/api/v2/catalog/recipes"},
+		{http.MethodPost, "/api/v2/catalog/recipes/validate"},
+		{http.MethodGet, "/api/v2/catalog/recipes/match"},
+		{http.MethodGet, "/api/v2/catalog/recipes"},
+		{http.MethodGet, "/api/v2/catalog/recipes/{id}/status"},
+		{http.MethodGet, "/api/v2/catalog/recipes/{id}"},
+		// Skill domain
+		{http.MethodPost, "/api/v2/skills"},
+		{http.MethodDelete, "/api/v2/skills/{id}"},
+		{http.MethodGet, "/api/v2/skills"},
+		{http.MethodGet, "/api/v2/skills/search"},
+		{http.MethodGet, "/api/v2/skills/{id}"},
 	}
 
 	for _, expected := range expectedRoutes {
@@ -313,6 +350,59 @@ func TestInputMappers(t *testing.T) {
 
 		if len(result) != 0 {
 			t.Errorf("expected empty map, got %v", result)
+		}
+	})
+
+	t.Run("bodyWithIDMapper", func(t *testing.T) {
+		body := `{"name":"cpu-high","threshold":90}`
+		req := httptest.NewRequest(http.MethodPut, "/test", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", ContentTypeJSON)
+		pathParams := map[string]string{"id": "rule-42"}
+
+		result := bodyWithIDMapper(req, pathParams)
+
+		if result["name"] != "cpu-high" {
+			t.Errorf("expected name=cpu-high, got %v", result["name"])
+		}
+		if result["rule_id"] != "rule-42" {
+			t.Errorf("expected rule_id=rule-42, got %v", result["rule_id"])
+		}
+	})
+
+	t.Run("bodyWithIDMapper no id", func(t *testing.T) {
+		body := `{"name":"cpu-high"}`
+		req := httptest.NewRequest(http.MethodPut, "/test", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", ContentTypeJSON)
+
+		result := bodyWithIDMapper(req, map[string]string{})
+
+		if result["name"] != "cpu-high" {
+			t.Errorf("expected name=cpu-high, got %v", result["name"])
+		}
+		if _, ok := result["rule_id"]; ok {
+			t.Errorf("expected rule_id to be absent, got %v", result["rule_id"])
+		}
+	})
+
+	t.Run("recipeIDInputMapper", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		pathParams := map[string]string{"id": "recipe-001"}
+
+		result := recipeIDInputMapper(req, pathParams)
+
+		if result["recipe_id"] != "recipe-001" {
+			t.Errorf("expected recipe_id=recipe-001, got %v", result["recipe_id"])
+		}
+	})
+
+	t.Run("skillIDInputMapper", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		pathParams := map[string]string{"id": "setup-llm"}
+
+		result := skillIDInputMapper(req, pathParams)
+
+		if result["skill_id"] != "setup-llm" {
+			t.Errorf("expected skill_id=setup-llm, got %v", result["skill_id"])
 		}
 	})
 }
