@@ -107,6 +107,10 @@ func (m *MockServiceProvider) GetRecommendation(ctx context.Context, modelID str
 	}, nil
 }
 
+func (m *MockServiceProvider) IsRunning(ctx context.Context, serviceID string) bool {
+	return true
+}
+
 type MockInferenceProvider struct{}
 
 func (m *MockInferenceProvider) Chat(ctx context.Context, modelID string, messages []inference.Message, opts inference.ChatOptions) (*inference.ChatResponse, error) {

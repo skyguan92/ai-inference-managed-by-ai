@@ -11,9 +11,34 @@ import (
 	"strings"
 
 	agentllm "github.com/jguan/ai-inference-managed-by-ai/pkg/agent/llm"
-	"github.com/jguan/ai-inference-managed-by-ai/pkg/gateway"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/skill"
 )
+
+// ToolDefinition describes a tool available to the agent.
+type ToolDefinition struct {
+	Name        string
+	Description string
+	InputSchema map[string]any
+}
+
+// ToolResult represents the result of a tool execution.
+type ToolResult struct {
+	Content []ContentBlock
+	IsError bool
+}
+
+// ContentBlock represents a block of content in a tool result.
+type ContentBlock struct {
+	Type string
+	Text string
+}
+
+// ToolExecutor provides tool listing and execution capabilities.
+// Implemented by gateway.MCPAdapter.
+type ToolExecutor interface {
+	GenerateToolDefinitions() []ToolDefinition
+	ExecuteTool(ctx context.Context, name string, arguments json.RawMessage) (*ToolResult, error)
+}
 
 const (
 	// maxToolCallRounds prevents infinite loops in the tool-call cycle.
@@ -27,7 +52,7 @@ You have access to a set of tools that correspond to AIMA platform operations. U
 // Agent is the core AI agent operator.
 type Agent struct {
 	llm           agentllm.LLMClient
-	mcpAdapter    *gateway.MCPAdapter
+	toolExecutor  ToolExecutor
 	skillRegistry *skill.SkillRegistry
 	conversations *ConversationStore
 	opts          AgentOptions
@@ -42,13 +67,13 @@ type AgentOptions struct {
 }
 
 // NewAgent creates a new Agent.
-func NewAgent(llm agentllm.LLMClient, mcpAdapter *gateway.MCPAdapter, skillRegistry *skill.SkillRegistry, opts AgentOptions) *Agent {
+func NewAgent(llm agentllm.LLMClient, toolExecutor ToolExecutor, skillRegistry *skill.SkillRegistry, opts AgentOptions) *Agent {
 	if opts.MaxTokens <= 0 {
 		opts.MaxTokens = 4096
 	}
 	return &Agent{
 		llm:           llm,
-		mcpAdapter:    mcpAdapter,
+		toolExecutor:  toolExecutor,
 		skillRegistry: skillRegistry,
 		conversations: NewConversationStore(),
 		opts:          opts,
@@ -203,14 +228,14 @@ func (a *Agent) buildSystemPrompt(ctx context.Context, userMessage string) strin
 	return sb.String()
 }
 
-// mcpToolsToLLMTools converts MCP tool definitions to the LLM ToolDef format.
+// mcpToolsToLLMTools converts tool definitions to the LLM ToolDef format.
 func (a *Agent) mcpToolsToLLMTools() []agentllm.ToolDef {
-	if a.mcpAdapter == nil {
+	if a.toolExecutor == nil {
 		return nil
 	}
-	mcpTools := a.mcpAdapter.GenerateToolDefinitions()
-	tools := make([]agentllm.ToolDef, 0, len(mcpTools))
-	for _, t := range mcpTools {
+	defs := a.toolExecutor.GenerateToolDefinitions()
+	tools := make([]agentllm.ToolDef, 0, len(defs))
+	for _, t := range defs {
 		tools = append(tools, agentllm.ToolDef{
 			Name:        t.Name,
 			Description: t.Description,
@@ -220,10 +245,10 @@ func (a *Agent) mcpToolsToLLMTools() []agentllm.ToolDef {
 	return tools
 }
 
-// executeTool runs a single tool call via the MCP adapter and returns the result as a string.
+// executeTool runs a single tool call via the tool executor and returns the result as a string.
 func (a *Agent) executeTool(ctx context.Context, tc agentllm.ToolCall) string {
-	if a.mcpAdapter == nil {
-		return `{"error": "MCP adapter not available"}`
+	if a.toolExecutor == nil {
+		return `{"error": "tool executor not available"}`
 	}
 
 	argsJSON, err := json.Marshal(tc.Arguments)
@@ -231,7 +256,7 @@ func (a *Agent) executeTool(ctx context.Context, tc agentllm.ToolCall) string {
 		return fmt.Sprintf(`{"error": "failed to marshal arguments: %s"}`, err)
 	}
 
-	result, err := a.mcpAdapter.ExecuteTool(ctx, tc.Name, argsJSON)
+	result, err := a.toolExecutor.ExecuteTool(ctx, tc.Name, argsJSON)
 	if err != nil {
 		slog.Warn("agent tool call failed",
 			"tool", tc.Name,
