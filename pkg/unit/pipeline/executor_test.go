@@ -224,6 +224,16 @@ func TestExecutor_Execute_RunInputOverridesStepInput(t *testing.T) {
 // --- Execute: status transitions ---
 
 func TestExecutor_Execute_SetsRunningAndStartedAt(t *testing.T) {
+	blockCh := make(chan struct{})
+	blockingExecutor := func(ctx context.Context, stepType string, input map[string]any) (map[string]any, error) {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-blockCh:
+			return map[string]any{}, nil
+		}
+	}
+
 	store := NewMemoryStore()
 	pipeline := newPipelineWithSteps([]PipelineStep{
 		{ID: "step1", Type: "test"},
@@ -234,15 +244,19 @@ func TestExecutor_Execute_SetsRunningAndStartedAt(t *testing.T) {
 	_ = store.CreateRun(context.Background(), run)
 
 	before := time.Now()
-	exec := NewExecutor(store, MockStepExecutor)
+	exec := NewExecutor(store, blockingExecutor)
 	_ = exec.Execute(context.Background(), pipeline, run, nil)
 
+	// Goroutine is blocked at step executor — run.Status was set synchronously.
 	if run.Status != RunStatusRunning {
 		t.Errorf("expected RunStatusRunning immediately after Execute, got %s", run.Status)
 	}
 	if run.StartedAt.Before(before) {
 		t.Error("expected StartedAt to be set after Execute was called")
 	}
+
+	close(blockCh)
+	waitForRunStatus(t, store, "run-1", RunStatusCompleted, 2*time.Second)
 }
 
 func TestExecutor_Execute_StoreUpdateRunCalledOnRunning(t *testing.T) {

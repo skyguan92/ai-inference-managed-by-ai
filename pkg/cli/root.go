@@ -161,7 +161,11 @@ func (r *RootCommand) persistentPreRunE(cmd *cobra.Command, args []string) error
 
 	// Two-phase agent setup: create Agent after Gateway so MCPAdapter can be used
 	// as the ToolExecutor (it needs the Gateway to dispatch tool calls).
-	if err := r.setupAgent(cmd.Context()); err != nil {
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := r.setupAgent(ctx); err != nil {
 		slog.Warn("agent setup failed, agent commands will be unavailable", "error", err)
 	}
 
