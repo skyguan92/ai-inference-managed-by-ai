@@ -371,11 +371,11 @@ func TestCancelCommand_Execute(t *testing.T) {
 			wantErr:  true,
 		},
 		{
-			name:     "cannot cancel completed run",
+			name:     "cancel completed run is idempotent success",
 			store:    NewMemoryStore(),
 			executor: NewExecutor(nil, nil),
 			input:    map[string]any{"run_id": "run-123"},
-			wantErr:  true,
+			wantErr:  false,
 			setup: func(store PipelineStore) string {
 				_ = store.CreatePipeline(context.Background(), createTestPipeline("pipe-123", "test", PipelineStatusIdle))
 				run := createTestRun("run-123", "pipe-123", RunStatusCompleted)

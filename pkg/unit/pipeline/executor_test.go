@@ -83,12 +83,8 @@ func TestExecutor_Execute_SingleStep_Success(t *testing.T) {
 		t.Fatalf("Execute returned error: %v", err)
 	}
 
-	// Run starts as Running immediately
-	if run.Status != RunStatusRunning {
-		t.Errorf("expected status Running after Execute, got %s", run.Status)
-	}
-
-	// Wait for the goroutine to complete
+	// Wait for the goroutine to complete, then verify final state via store.
+	// Do not read run.Status directly — the goroutine may be writing it concurrently.
 	finalRun := waitForRunStatus(t, store, "run-1", RunStatusCompleted, 2*time.Second)
 	if finalRun.CompletedAt == nil {
 		t.Error("expected CompletedAt to be set on completion")

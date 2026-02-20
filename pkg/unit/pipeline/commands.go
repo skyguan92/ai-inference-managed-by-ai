@@ -554,7 +554,15 @@ func (c *CancelCommand) Execute(ctx context.Context, input any) (any, error) {
 		return nil, fmt.Errorf("get run %s: %w", runID, err)
 	}
 
-	if run.Status != RunStatusPending && run.Status != RunStatusRunning {
+	switch run.Status {
+	case RunStatusPending, RunStatusRunning:
+		// cancellable
+	case RunStatusCompleted, RunStatusCancelled:
+		// already done — cancel is a no-op, return success (idempotent)
+		output := map[string]any{"success": true}
+		ec.PublishCompleted(output)
+		return output, nil
+	default:
 		ec.PublishFailed(ErrRunNotCancellable)
 		return nil, ErrRunNotCancellable
 	}
