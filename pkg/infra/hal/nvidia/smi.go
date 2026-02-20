@@ -187,7 +187,7 @@ func parsePercentage(s string) float64 {
 	s = strings.TrimSuffix(s, "%")
 	s = strings.TrimSpace(s)
 	var v float64
-	fmt.Sscanf(s, "%f", &v)
+	_, _ = fmt.Sscanf(s, "%f", &v)
 	return v
 }
 
@@ -196,7 +196,7 @@ func parseTemperature(s string) float64 {
 	s = strings.TrimSuffix(s, "C")
 	s = strings.TrimSpace(s)
 	var v float64
-	fmt.Sscanf(s, "%f", &v)
+	_, _ = fmt.Sscanf(s, "%f", &v)
 	return v
 }
 
@@ -205,7 +205,7 @@ func parsePower(s string) float64 {
 	s = strings.TrimSuffix(s, "W")
 	s = strings.TrimSpace(s)
 	var v float64
-	fmt.Sscanf(s, "%f", &v)
+	_, _ = fmt.Sscanf(s, "%f", &v)
 	return v
 }
 
@@ -214,7 +214,7 @@ func parseMemory(s string) uint64 {
 	s = strings.TrimSuffix(s, "MiB")
 	s = strings.TrimSpace(s)
 	var v uint64
-	fmt.Sscanf(s, "%d", &v)
+	_, _ = fmt.Sscanf(s, "%d", &v)
 	return v * 1024 * 1024
 }
 
@@ -223,6 +223,6 @@ func parseClock(s string) uint64 {
 	s = strings.TrimSuffix(s, "MHz")
 	s = strings.TrimSpace(s)
 	var v uint64
-	fmt.Sscanf(s, "%d", &v)
+	_, _ = fmt.Sscanf(s, "%d", &v)
 	return v
 }

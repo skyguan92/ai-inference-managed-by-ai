@@ -125,7 +125,7 @@ func TestAppResource_Get(t *testing.T) {
 
 func TestAppResource_Watch(t *testing.T) {
 	store := NewMemoryStore()
-	store.Create(context.Background(), createTestApp("app-123", "open-webui", AppStatusInstalled))
+	_ = store.Create(context.Background(), createTestApp("app-123", "open-webui", AppStatusInstalled))
 
 	r := NewAppResource("app-123", store, nil)
 
@@ -362,7 +362,7 @@ func TestMemoryStore_ListWithFilter(t *testing.T) {
 	}
 
 	for _, a := range apps {
-		store.Create(ctx, a)
+		_ = store.Create(ctx, a)
 	}
 
 	openWebuiApps, total, err := store.List(ctx, AppFilter{Template: "open-webui"})
@@ -381,8 +381,8 @@ func TestMemoryStore_ListWithFilter(t *testing.T) {
 		t.Errorf("expected 1 running app, got %d (total: %d)", len(runningApps), total)
 	}
 
-	store.Create(ctx, createTestApp("app-3", "nginx", AppStatusInstalled))
-	store.Create(ctx, createTestApp("app-4", "redis", AppStatusInstalled))
+	_ = store.Create(ctx, createTestApp("app-3", "nginx", AppStatusInstalled))
+	_ = store.Create(ctx, createTestApp("app-4", "redis", AppStatusInstalled))
 
 	pagedApps, total, err := store.List(ctx, AppFilter{Limit: 2, Offset: 1})
 	if err != nil {

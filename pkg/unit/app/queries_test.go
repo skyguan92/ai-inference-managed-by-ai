@@ -53,7 +53,7 @@ func TestGetQuery_Execute(t *testing.T) {
 			name: "successful get",
 			store: func() AppStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestApp("app-123", "open-webui", AppStatusInstalled))
+				_ = s.Create(context.Background(), createTestApp("app-123", "open-webui", AppStatusInstalled))
 				return s
 			}(),
 			provider:   &MockProvider{},
@@ -66,7 +66,7 @@ func TestGetQuery_Execute(t *testing.T) {
 			name: "get running app with metrics",
 			store: func() AppStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestApp("app-123", "open-webui", AppStatusRunning))
+				_ = s.Create(context.Background(), createTestApp("app-123", "open-webui", AppStatusRunning))
 				return s
 			}(),
 			provider:   &MockProvider{},
@@ -155,8 +155,8 @@ func TestListQuery_Execute(t *testing.T) {
 			name: "list all apps",
 			store: func() AppStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestApp("app-1", "open-webui", AppStatusRunning))
-				s.Create(context.Background(), createTestApp("app-2", "grafana", AppStatusStopped))
+				_ = s.Create(context.Background(), createTestApp("app-1", "open-webui", AppStatusRunning))
+				_ = s.Create(context.Background(), createTestApp("app-2", "grafana", AppStatusStopped))
 				return s
 			}(),
 			input:     map[string]any{},
@@ -167,8 +167,8 @@ func TestListQuery_Execute(t *testing.T) {
 			name: "list with status filter",
 			store: func() AppStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestApp("app-1", "open-webui", AppStatusRunning))
-				s.Create(context.Background(), createTestApp("app-2", "grafana", AppStatusStopped))
+				_ = s.Create(context.Background(), createTestApp("app-1", "open-webui", AppStatusRunning))
+				_ = s.Create(context.Background(), createTestApp("app-2", "grafana", AppStatusStopped))
 				return s
 			}(),
 			input:     map[string]any{"status": "running"},
@@ -179,8 +179,8 @@ func TestListQuery_Execute(t *testing.T) {
 			name: "list with template filter",
 			store: func() AppStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestApp("app-1", "open-webui", AppStatusRunning))
-				s.Create(context.Background(), createTestApp("app-2", "grafana", AppStatusStopped))
+				_ = s.Create(context.Background(), createTestApp("app-1", "open-webui", AppStatusRunning))
+				_ = s.Create(context.Background(), createTestApp("app-2", "grafana", AppStatusStopped))
 				return s
 			}(),
 			input:     map[string]any{"template": "grafana"},
@@ -258,7 +258,7 @@ func TestLogsQuery_Execute(t *testing.T) {
 			name: "successful get logs",
 			store: func() AppStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestApp("app-123", "open-webui", AppStatusRunning))
+				_ = s.Create(context.Background(), createTestApp("app-123", "open-webui", AppStatusRunning))
 				return s
 			}(),
 			provider: &MockProvider{},
@@ -270,7 +270,7 @@ func TestLogsQuery_Execute(t *testing.T) {
 			name: "get logs with tail",
 			store: func() AppStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestApp("app-123", "open-webui", AppStatusRunning))
+				_ = s.Create(context.Background(), createTestApp("app-123", "open-webui", AppStatusRunning))
 				return s
 			}(),
 			provider: &MockProvider{},
@@ -282,7 +282,7 @@ func TestLogsQuery_Execute(t *testing.T) {
 			name: "get logs with since",
 			store: func() AppStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestApp("app-123", "open-webui", AppStatusRunning))
+				_ = s.Create(context.Background(), createTestApp("app-123", "open-webui", AppStatusRunning))
 				return s
 			}(),
 			provider: &MockProvider{},
@@ -322,7 +322,7 @@ func TestLogsQuery_Execute(t *testing.T) {
 			name: "provider error",
 			store: func() AppStore {
 				s := NewMemoryStore()
-				s.Create(context.Background(), createTestApp("app-123", "open-webui", AppStatusRunning))
+				_ = s.Create(context.Background(), createTestApp("app-123", "open-webui", AppStatusRunning))
 				return s
 			}(),
 			provider: &MockProvider{logsErr: errors.New("logs error")},

@@ -68,7 +68,7 @@ func TestClient_GetModelInfo(t *testing.T) {
 				t.Errorf("expected Authorization header")
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(mockInfo)
+			_ = json.NewEncoder(w).Encode(mockInfo)
 		}))
 		defer server.Close()
 
@@ -90,7 +90,7 @@ func TestClient_GetModelInfo(t *testing.T) {
 	t.Run("error response", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(ErrorResponse{Error: "Model not found"})
+			_ = json.NewEncoder(w).Encode(ErrorResponse{Error: "Model not found"})
 		}))
 		defer server.Close()
 
@@ -126,7 +126,7 @@ func TestClient_SearchModels(t *testing.T) {
 				t.Errorf("expected search query 'llama', got %s", query)
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(mockResp)
+			_ = json.NewEncoder(w).Encode(mockResp)
 		}))
 		defer server.Close()
 
@@ -156,7 +156,7 @@ func TestClient_SearchModels(t *testing.T) {
 				t.Errorf("expected filter 'task:text-generation', got %v", filters)
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(SearchResponse{})
+			_ = json.NewEncoder(w).Encode(SearchResponse{})
 		}))
 		defer server.Close()
 
@@ -240,7 +240,7 @@ func TestProvider_Pull(t *testing.T) {
 			switch r.URL.Path {
 			case "/api/models/test-org/test-model":
 				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(mockInfo)
+				_ = json.NewEncoder(w).Encode(mockInfo)
 			case "/test-org/test-model/resolve/main/model.gguf":
 				w.Header().Set("Content-Length", "18")
 				w.Write(fileContent)
@@ -285,7 +285,7 @@ func TestProvider_Pull(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path == "/api/models/test-org/test-model" {
 				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(mockInfo)
+				_ = json.NewEncoder(w).Encode(mockInfo)
 				return
 			}
 			if strings.Contains(r.URL.Path, "/resolve/v1.0/") {
@@ -338,7 +338,7 @@ func TestProvider_Search(t *testing.T) {
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(mockResp)
+			_ = json.NewEncoder(w).Encode(mockResp)
 		}))
 		defer server.Close()
 
@@ -371,7 +371,7 @@ func TestProvider_Search(t *testing.T) {
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(mockResp)
+			_ = json.NewEncoder(w).Encode(mockResp)
 		}))
 		defer server.Close()
 
@@ -682,7 +682,7 @@ func TestProvider_Verify(t *testing.T) {
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(mockInfo)
+			_ = json.NewEncoder(w).Encode(mockInfo)
 		}))
 		defer server.Close()
 

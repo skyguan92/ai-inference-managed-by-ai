@@ -475,6 +475,6 @@ func createStoreWithApp(id string, template string, status AppStatus) AppStore {
 	store := NewMemoryStore()
 	app := createTestApp(id, template, status)
 	app.Status = status
-	store.Create(context.Background(), app)
+	_ = store.Create(context.Background(), app)
 	return store
 }
