@@ -226,7 +226,7 @@ func TestMemoryStore_ConcurrentOps_NoRace(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, _ = s.List(ctx, AppFilter{})
+			_, _, _ = s.List(ctx, AppFilter{})
 			_, _ = s.Get(ctx, "app-0")
 		}()
 	}

@@ -41,14 +41,14 @@ func (m *mockModelStore) Get(ctx context.Context, id string) (*model.Model, erro
 	return mdl, nil
 }
 
-func (m *mockModelStore) List(ctx context.Context, filter model.ModelFilter) ([]*model.Model, error) {
+func (m *mockModelStore) List(ctx context.Context, filter model.ModelFilter) ([]model.Model, int, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	var result []*model.Model
+	var result []model.Model
 	for _, mdl := range m.models {
-		result = append(result, mdl)
+		result = append(result, *mdl)
 	}
-	return result, nil
+	return result, len(result), nil
 }
 
 func (m *mockModelStore) Update(ctx context.Context, mdl *model.Model) error {

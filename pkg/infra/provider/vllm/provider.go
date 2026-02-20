@@ -519,19 +519,20 @@ func (p *Provider) scrapeMetrics(metricsURL string) (*service.ServiceMetrics, er
 //	not meaningful for the aggregated metrics we expose.
 func parsePromLine(line string) (name string, value float64, ok bool) {
 	// Format: metric_name[{labels}] value [timestamp]
-	// Find the last space to separate the value from the name+labels part.
+	// Find the first space to separate the name+labels part from the value.
 	line = strings.TrimSpace(line)
-	lastSpace := strings.LastIndex(line, " ")
-	if lastSpace < 0 {
+	firstSpace := strings.Index(line, " ")
+	if firstSpace < 0 {
 		return "", 0, false
 	}
 
-	nameWithLabels := strings.TrimSpace(line[:lastSpace])
-	valueStr := strings.TrimSpace(line[lastSpace+1:])
+	nameWithLabels := line[:firstSpace]
+	rest := strings.TrimSpace(line[firstSpace+1:])
 
-	// Strip timestamp if present (second space-separated token after value).
-	if spaceIdx := strings.Index(valueStr, " "); spaceIdx >= 0 {
-		valueStr = valueStr[:spaceIdx]
+	// Strip timestamp if present (anything after the next space).
+	valueStr := rest
+	if spaceIdx := strings.Index(rest, " "); spaceIdx >= 0 {
+		valueStr = rest[:spaceIdx]
 	}
 
 	// Strip labels: everything from '{' onwards is not part of the metric name.

@@ -3,7 +3,6 @@ package provider
 import (
 	"context"
 	"errors"
-	"os"
 	"strings"
 	"sync"
 	"testing"

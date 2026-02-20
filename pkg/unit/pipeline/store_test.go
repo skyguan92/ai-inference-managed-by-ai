@@ -326,7 +326,7 @@ func TestMemoryStore_ConcurrentPipelineOps_NoRace(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, _ = s.ListPipelines(ctx, PipelineFilter{})
+			_, _, _ = s.ListPipelines(ctx, PipelineFilter{})
 			_, _ = s.GetPipeline(ctx, "pipe-0")
 		}()
 	}

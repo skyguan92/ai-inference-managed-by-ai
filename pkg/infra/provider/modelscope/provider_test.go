@@ -686,7 +686,8 @@ func TestProvider_EstimateResources_FromFileSummary(t *testing.T) {
 	if req == nil {
 		t.Fatal("expected non-nil requirements")
 	}
-	expectedMin := int64(float64(8*1024*1024*1024) * 1.2)
+	baseBytes := 8 * 1024 * 1024 * 1024
+	expectedMin := int64(float64(baseBytes) * 1.2)
 	if req.MemoryMin != expectedMin {
 		t.Errorf("expected MemoryMin %d, got %d", expectedMin, req.MemoryMin)
 	}

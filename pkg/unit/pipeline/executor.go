@@ -37,14 +37,13 @@ func (e *Executor) Execute(ctx context.Context, pipeline *Pipeline, run *Pipelin
 	e.runningRuns[run.ID] = cancel
 	e.mu.Unlock()
 
-	defer func() {
-		e.mu.Lock()
-		delete(e.runningRuns, run.ID)
-		e.mu.Unlock()
-	}()
-
 	go func() {
 		defer cancel()
+		defer func() {
+			e.mu.Lock()
+			delete(e.runningRuns, run.ID)
+			e.mu.Unlock()
+		}()
 
 		executedSteps := make(map[string]map[string]any)
 
