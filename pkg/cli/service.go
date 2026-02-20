@@ -63,7 +63,7 @@ This creates a service configuration without starting it.`,
 	cmd.Flags().StringVarP(&device, "device", "d", "gpu", "Device type (cpu, gpu)")
 	cmd.Flags().IntVarP(&port, "port", "p", 0, "Service port (auto-assigned if not specified)")
 	cmd.Flags().IntVar(&gpuLayers, "gpu-layers", -1, "Number of GPU layers (-1 for auto)")
-	cmd.MarkFlagRequired("model")
+	_ = cmd.MarkFlagRequired("model")
 
 	return cmd
 }

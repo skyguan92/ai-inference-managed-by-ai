@@ -163,7 +163,7 @@ The skill file format:
 
 	cmd.Flags().StringVarP(&filePath, "file", "f", "", "Skill file path (Markdown with YAML front-matter)")
 	cmd.Flags().StringVarP(&source, "source", "s", "user", "Skill source (user, community)")
-	cmd.MarkFlagRequired("file")
+	_ = cmd.MarkFlagRequired("file")
 
 	return cmd
 }

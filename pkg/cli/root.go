@@ -60,9 +60,9 @@ hardware devices, and resources through HTTP, MCP, and CLI.`,
 	pflags.BoolVarP(&root.opts.Quiet, "quiet", "q", false, "Suppress output")
 	pflags.String("config", "", "Config file path (default: ~/.aima/config.yaml)")
 
-	viper.BindPFlag("output", pflags.Lookup("output"))
-	viper.BindPFlag("quiet", pflags.Lookup("quiet"))
-	viper.BindPFlag("config", pflags.Lookup("config"))
+	_ = viper.BindPFlag("output", pflags.Lookup("output"))
+	_ = viper.BindPFlag("quiet", pflags.Lookup("quiet"))
+	_ = viper.BindPFlag("config", pflags.Lookup("config"))
 
 	root.cmd = cmd
 

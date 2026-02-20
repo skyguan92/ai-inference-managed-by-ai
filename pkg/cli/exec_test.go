@@ -56,7 +56,7 @@ func TestExtractFlags(t *testing.T) {
 	cmd.Flags().Int("count", 0, "count")
 	cmd.Flags().Bool("verbose", false, "verbose")
 
-	cmd.ParseFlags([]string{"--name", "test", "--count", "5", "--verbose"})
+	_ = cmd.ParseFlags([]string{"--name", "test", "--count", "5", "--verbose"})
 
 	flags := cmd.Flags()
 	result := extractFlags(flags)
@@ -71,7 +71,7 @@ func TestExtractFlags_NoChangedFlags(t *testing.T) {
 	cmd.Flags().String("name", "", "name")
 	cmd.Flags().Int("count", 0, "count")
 
-	cmd.ParseFlags([]string{})
+	_ = cmd.ParseFlags([]string{})
 
 	flags := cmd.Flags()
 	result := extractFlags(flags)
@@ -94,7 +94,7 @@ func TestRunExec_MissingUnit(t *testing.T) {
 	}
 
 	cmd := &cobra.Command{}
-	cmd.ParseFlags([]string{})
+	_ = cmd.ParseFlags([]string{})
 
 	err := runExec(context.Background(), root, "nonexistent.unit", "", cmd)
 	require.Error(t, err)
@@ -116,7 +116,7 @@ func TestRunExec_InvalidJSON(t *testing.T) {
 	}
 
 	cmd := &cobra.Command{}
-	cmd.ParseFlags([]string{})
+	_ = cmd.ParseFlags([]string{})
 
 	err := runExec(context.Background(), root, "model.list", "{invalid json", cmd)
 	require.Error(t, err)
@@ -145,7 +145,7 @@ func TestRunExec_WithFlags(t *testing.T) {
 	cmd.Flags().Bool("quiet", false, "quiet")
 	cmd.Flags().String("config", "", "config")
 	cmd.Flags().Bool("help", false, "help")
-	cmd.ParseFlags([]string{"--source", "ollama", "--repo", "test"})
+	_ = cmd.ParseFlags([]string{"--source", "ollama", "--repo", "test"})
 
 	err := runExec(context.Background(), root, "model.pull", "", cmd)
 	require.Error(t, err)
@@ -166,7 +166,7 @@ func TestRunExec_WithValidJSONInput(t *testing.T) {
 	}
 
 	cmd := &cobra.Command{}
-	cmd.ParseFlags([]string{})
+	_ = cmd.ParseFlags([]string{})
 
 	err := runExec(context.Background(), root, "model.list", `{"type":"llm"}`, cmd)
 	require.Error(t, err)
@@ -187,7 +187,7 @@ func TestRunExec_CommandType(t *testing.T) {
 	}
 
 	cmd := &cobra.Command{}
-	cmd.ParseFlags([]string{})
+	_ = cmd.ParseFlags([]string{})
 
 	err := runExec(context.Background(), root, "model.pull", `{"source":"ollama","repo":"test"}`, cmd)
 	require.Error(t, err)

@@ -246,7 +246,7 @@ func NewCatalogValidateCommand(root *RootCommand) *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&file, "file", "f", "", "Recipe file path (YAML)")
-	cmd.MarkFlagRequired("file")
+	_ = cmd.MarkFlagRequired("file")
 
 	return cmd
 }

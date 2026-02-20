@@ -517,7 +517,7 @@ func TestInMemoryEventBus_ContextCancellation(t *testing.T) {
 		return nil
 	}
 
-	bus.Subscribe(handler)
+	_ = bus.Subscribe(handler)
 
 	_ = bus.Publish(newMockEvent("test", "test"))
 	time.Sleep(50 * time.Millisecond)

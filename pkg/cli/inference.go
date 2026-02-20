@@ -57,7 +57,7 @@ Messages can be provided via the --message flag or piped via stdin.`,
 	cmd.Flags().IntVar(&maxTokens, "max-tokens", 0, "Maximum tokens to generate")
 	cmd.Flags().BoolVar(&stream, "stream", false, "Stream response (not yet supported)")
 
-	cmd.MarkFlagRequired("model")
+	_ = cmd.MarkFlagRequired("model")
 
 	return cmd
 }
@@ -129,8 +129,8 @@ func NewInferenceEmbedCommand(root *RootCommand) *cobra.Command {
 	cmd.Flags().StringVarP(&model, "model", "m", "", "Embedding model name (required)")
 	cmd.Flags().StringVarP(&input, "input", "i", "", "Text to embed (required)")
 
-	cmd.MarkFlagRequired("model")
-	cmd.MarkFlagRequired("input")
+	_ = cmd.MarkFlagRequired("model")
+	_ = cmd.MarkFlagRequired("input")
 
 	return cmd
 }

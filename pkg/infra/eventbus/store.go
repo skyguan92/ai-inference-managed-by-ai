@@ -148,7 +148,7 @@ func (s *SQLiteEventStore) SaveBatch(ctx context.Context, events []unit.Event) e
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	stmt, err := tx.PrepareContext(ctx, `
 		INSERT INTO events (id, type, domain, correlation_id, payload, timestamp)
