@@ -2,6 +2,7 @@ package integration
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -98,9 +99,12 @@ func TestE2E_ModelLifecycle(t *testing.T) {
 	defer cancel()
 
 	// Subscribe to events
+	var mu sync.Mutex
 	events := make([]unit.Event, 0)
 	subID, err := bus.Subscribe(func(evt unit.Event) error {
+		mu.Lock()
 		events = append(events, evt)
+		mu.Unlock()
 		return nil
 	}, eventbus.FilterByDomain("model"))
 	require.NoError(t, err)
@@ -162,7 +166,10 @@ func TestE2E_ModelLifecycle(t *testing.T) {
 
 	// Verify events were published (may vary by implementation)
 	time.Sleep(100 * time.Millisecond) // Allow events to be processed
-	t.Logf("Received %d model events", len(events))
+	mu.Lock()
+	eventCount := len(events)
+	mu.Unlock()
+	t.Logf("Received %d model events", eventCount)
 	// Events may or may not be published depending on implementation
 
 	// Verify final state (may vary by implementation)
@@ -247,9 +254,12 @@ func TestE2E_PipelineExecution(t *testing.T) {
 	defer cancel()
 
 	// Subscribe to pipeline events
+	var pmu sync.Mutex
 	pipelineEvents := make([]unit.Event, 0)
 	subID, err := bus.Subscribe(func(evt unit.Event) error {
+		pmu.Lock()
 		pipelineEvents = append(pipelineEvents, evt)
+		pmu.Unlock()
 		return nil
 	}, eventbus.FilterByDomain("pipeline"))
 	require.NoError(t, err)
@@ -335,7 +345,10 @@ func TestE2E_PipelineExecution(t *testing.T) {
 
 	// Verify events
 	time.Sleep(100 * time.Millisecond)
-	assert.GreaterOrEqual(t, len(pipelineEvents), 0, "pipeline events may be published")
+	pmu.Lock()
+	pipelineEventCount := len(pipelineEvents)
+	pmu.Unlock()
+	assert.GreaterOrEqual(t, pipelineEventCount, 0, "pipeline events may be published")
 }
 
 func TestE2E_ResourceAllocationWorkflow(t *testing.T) {
@@ -647,9 +660,12 @@ func TestE2E_CompleteWorkflow(t *testing.T) {
 	defer cancel()
 
 	// Collect all events
+	var amu sync.Mutex
 	allEvents := make([]unit.Event, 0)
 	subID, err := bus.Subscribe(func(evt unit.Event) error {
+		amu.Lock()
 		allEvents = append(allEvents, evt)
+		amu.Unlock()
 		return nil
 	})
 	require.NoError(t, err)
@@ -736,8 +752,11 @@ func TestE2E_CompleteWorkflow(t *testing.T) {
 
 	// Verify events were captured
 	time.Sleep(200 * time.Millisecond)
-	t.Logf("Captured %d events during workflow", len(allEvents))
-	assert.GreaterOrEqual(t, len(allEvents), 0, "events should be captured")
+	amu.Lock()
+	allEventCount := len(allEvents)
+	amu.Unlock()
+	t.Logf("Captured %d events during workflow", allEventCount)
+	assert.GreaterOrEqual(t, allEventCount, 0, "events should be captured")
 }
 
 // TestE2E_ErrorHandling tests error propagation through the system

@@ -2,6 +2,7 @@ package integration
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -21,9 +22,12 @@ func TestEvent_System(t *testing.T) {
 	defer func() { _ = bus.Close() }()
 
 	// Subscribe to events
+	var mu sync.Mutex
 	receivedEvents := make([]unit.Event, 0)
 	subID, err := bus.Subscribe(func(evt unit.Event) error {
+		mu.Lock()
 		receivedEvents = append(receivedEvents, evt)
+		mu.Unlock()
 		return nil
 	})
 	require.NoError(t, err)
@@ -44,7 +48,10 @@ func TestEvent_System(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Verify events were received
-	assert.GreaterOrEqual(t, len(receivedEvents), 0, "events may be received")
+	mu.Lock()
+	receivedCount := len(receivedEvents)
+	mu.Unlock()
+	assert.GreaterOrEqual(t, receivedCount, 0, "events may be received")
 }
 
 // TestEvent_FilterByType tests event filtering by type
@@ -52,12 +59,15 @@ func TestEvent_FilterByType(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus()
 	defer func() { _ = bus.Close() }()
 
+	var mu sync.Mutex
 	type1Events := make([]unit.Event, 0)
 	type2Events := make([]unit.Event, 0)
 
 	// Subscribe to type1 events only
 	sub1, err := bus.Subscribe(func(evt unit.Event) error {
+		mu.Lock()
 		type1Events = append(type1Events, evt)
+		mu.Unlock()
 		return nil
 	}, eventbus.FilterByType("test.type1"))
 	require.NoError(t, err)
@@ -65,7 +75,9 @@ func TestEvent_FilterByType(t *testing.T) {
 
 	// Subscribe to type2 events only
 	sub2, err := bus.Subscribe(func(evt unit.Event) error {
+		mu.Lock()
 		type2Events = append(type2Events, evt)
+		mu.Unlock()
 		return nil
 	}, eventbus.FilterByType("test.type2"))
 	require.NoError(t, err)
@@ -84,8 +96,12 @@ func TestEvent_FilterByType(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Verify filtering worked
-	assert.Equal(t, 2, len(type1Events), "should receive 2 type1 events")
-	assert.Equal(t, 1, len(type2Events), "should receive 1 type2 events")
+	mu.Lock()
+	type1Count := len(type1Events)
+	type2Count := len(type2Events)
+	mu.Unlock()
+	assert.Equal(t, 2, type1Count, "should receive 2 type1 events")
+	assert.Equal(t, 1, type2Count, "should receive 1 type2 events")
 }
 
 // TestEvent_FilterByDomain tests event filtering by domain
@@ -93,12 +109,15 @@ func TestEvent_FilterByDomain(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus()
 	defer func() { _ = bus.Close() }()
 
+	var mu sync.Mutex
 	modelEvents := make([]unit.Event, 0)
 	engineEvents := make([]unit.Event, 0)
 
 	// Subscribe to model domain events
 	sub1, err := bus.Subscribe(func(evt unit.Event) error {
+		mu.Lock()
 		modelEvents = append(modelEvents, evt)
+		mu.Unlock()
 		return nil
 	}, eventbus.FilterByDomain("model"))
 	require.NoError(t, err)
@@ -106,7 +125,9 @@ func TestEvent_FilterByDomain(t *testing.T) {
 
 	// Subscribe to engine domain events
 	sub2, err := bus.Subscribe(func(evt unit.Event) error {
+		mu.Lock()
 		engineEvents = append(engineEvents, evt)
+		mu.Unlock()
 		return nil
 	}, eventbus.FilterByDomain("engine"))
 	require.NoError(t, err)
@@ -124,8 +145,12 @@ func TestEvent_FilterByDomain(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	assert.Equal(t, 2, len(modelEvents), "should receive 2 model events")
-	assert.Equal(t, 1, len(engineEvents), "should receive 1 engine event")
+	mu.Lock()
+	modelCount := len(modelEvents)
+	engineCount := len(engineEvents)
+	mu.Unlock()
+	assert.Equal(t, 2, modelCount, "should receive 2 model events")
+	assert.Equal(t, 1, engineCount, "should receive 1 engine event")
 }
 
 // TestEvent_FilterByTypes tests filtering by multiple event types
@@ -133,11 +158,14 @@ func TestEvent_FilterByTypes(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus()
 	defer func() { _ = bus.Close() }()
 
+	var mu sync.Mutex
 	receivedEvents := make([]unit.Event, 0)
 
 	// Subscribe to multiple event types
 	subID, err := bus.Subscribe(func(evt unit.Event) error {
+		mu.Lock()
 		receivedEvents = append(receivedEvents, evt)
+		mu.Unlock()
 		return nil
 	}, eventbus.FilterByTypes("model.created", "model.deleted", "pipeline.completed"))
 	require.NoError(t, err)
@@ -161,7 +189,10 @@ func TestEvent_FilterByTypes(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	assert.Equal(t, 3, len(receivedEvents), "should receive only filtered event types")
+	mu.Lock()
+	receivedCount := len(receivedEvents)
+	mu.Unlock()
+	assert.Equal(t, 3, receivedCount, "should receive only filtered event types")
 }
 
 // TestEvent_FilterByDomains tests filtering by multiple domains
@@ -169,11 +200,14 @@ func TestEvent_FilterByDomains(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus()
 	defer func() { _ = bus.Close() }()
 
+	var mu sync.Mutex
 	receivedEvents := make([]unit.Event, 0)
 
 	// Subscribe to multiple domains
 	subID, err := bus.Subscribe(func(evt unit.Event) error {
+		mu.Lock()
 		receivedEvents = append(receivedEvents, evt)
+		mu.Unlock()
 		return nil
 	}, eventbus.FilterByDomains("model", "resource"))
 	require.NoError(t, err)
@@ -189,7 +223,10 @@ func TestEvent_FilterByDomains(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Should receive at least the model events (may vary by timing)
-	assert.GreaterOrEqual(t, len(receivedEvents), 2, "should receive at least 2 events from model/resource domains")
+	mu.Lock()
+	receivedCount := len(receivedEvents)
+	mu.Unlock()
+	assert.GreaterOrEqual(t, receivedCount, 2, "should receive at least 2 events from model/resource domains")
 }
 
 // TestEvent_MultipleSubscribers tests multiple subscribers receiving the same events
@@ -201,13 +238,16 @@ func TestEvent_MultipleSubscribers(t *testing.T) {
 	const numEvents = 10
 
 	// Create subscribers
+	var mu sync.Mutex
 	subscribers := make([]eventbus.SubscriptionID, numSubscribers)
 	eventCounts := make([]int, numSubscribers)
 
 	for i := 0; i < numSubscribers; i++ {
 		idx := i
 		subID, err := bus.Subscribe(func(evt unit.Event) error {
+			mu.Lock()
 			eventCounts[idx]++
+			mu.Unlock()
 			return nil
 		})
 		require.NoError(t, err)
@@ -227,8 +267,12 @@ func TestEvent_MultipleSubscribers(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Verify all subscribers received all events
+	mu.Lock()
+	countsCopy := make([]int, numSubscribers)
+	copy(countsCopy, eventCounts)
+	mu.Unlock()
 	for i := 0; i < numSubscribers; i++ {
-		assert.Equal(t, numEvents, eventCounts[i], "subscriber %d should receive all events", i)
+		assert.Equal(t, numEvents, countsCopy[i], "subscriber %d should receive all events", i)
 	}
 
 	// Unsubscribe all
@@ -243,9 +287,12 @@ func TestEvent_Unsubscribe(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus()
 	defer func() { _ = bus.Close() }()
 
+	var mu sync.Mutex
 	receivedCount := 0
 	subID, err := bus.Subscribe(func(evt unit.Event) error {
+		mu.Lock()
 		receivedCount++
+		mu.Unlock()
 		return nil
 	})
 	require.NoError(t, err)
@@ -255,7 +302,10 @@ func TestEvent_Unsubscribe(t *testing.T) {
 	require.NoError(t, err)
 
 	time.Sleep(50 * time.Millisecond)
-	assert.Equal(t, 1, receivedCount, "should receive first event")
+	mu.Lock()
+	count := receivedCount
+	mu.Unlock()
+	assert.Equal(t, 1, count, "should receive first event")
 
 	// Unsubscribe
 	err = bus.Unsubscribe(subID)
@@ -268,7 +318,10 @@ func TestEvent_Unsubscribe(t *testing.T) {
 	require.NoError(t, err)
 
 	time.Sleep(50 * time.Millisecond)
-	assert.Equal(t, 1, receivedCount, "should not receive events after unsubscribe")
+	mu.Lock()
+	count = receivedCount
+	mu.Unlock()
+	assert.Equal(t, 1, count, "should not receive events after unsubscribe")
 }
 
 // TestEvent_HandlerError tests that errors in handlers don't crash the system
@@ -276,19 +329,24 @@ func TestEvent_HandlerError(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus()
 	defer func() { _ = bus.Close() }()
 
+	var mu sync.Mutex
 	goodHandlerCount := 0
 	errorHandlerCount := 0
 
 	// Subscribe handler that returns error
 	_, err := bus.Subscribe(func(evt unit.Event) error {
+		mu.Lock()
 		errorHandlerCount++
+		mu.Unlock()
 		return assert.AnError
 	})
 	require.NoError(t, err)
 
 	// Subscribe handler that works fine
 	_, err = bus.Subscribe(func(evt unit.Event) error {
+		mu.Lock()
 		goodHandlerCount++
+		mu.Unlock()
 		return nil
 	})
 	require.NoError(t, err)
@@ -302,7 +360,10 @@ func TestEvent_HandlerError(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Good handler should still receive all events
-	assert.Equal(t, 5, goodHandlerCount, "good handler should receive all events")
+	mu.Lock()
+	goodCount := goodHandlerCount
+	mu.Unlock()
+	assert.Equal(t, 5, goodCount, "good handler should receive all events")
 }
 
 // TestEvent_BufferOverflow tests behavior when buffer is full
@@ -315,10 +376,13 @@ func TestEvent_BufferOverflow(t *testing.T) {
 	defer func() { _ = bus.Close() }()
 
 	// Slow handler to cause backup
+	var mu sync.Mutex
 	receivedCount := 0
 	_, err := bus.Subscribe(func(evt unit.Event) error {
 		time.Sleep(50 * time.Millisecond)
+		mu.Lock()
 		receivedCount++
+		mu.Unlock()
 		return nil
 	})
 	require.NoError(t, err)
@@ -331,7 +395,10 @@ func TestEvent_BufferOverflow(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 
 	// Some events should have been processed despite potential overflow
-	t.Logf("Received %d events out of 20", receivedCount)
+	mu.Lock()
+	count := receivedCount
+	mu.Unlock()
+	t.Logf("Received %d events out of 20", count)
 }
 
 // TestEvent_CloseDrainsBuffer tests that Close properly drains pending events
@@ -341,9 +408,12 @@ func TestEvent_CloseDrainsBuffer(t *testing.T) {
 		eventbus.WithWorkerCount(2),
 	)
 
+	var mu sync.Mutex
 	receivedCount := 0
 	_, err := bus.Subscribe(func(evt unit.Event) error {
+		mu.Lock()
 		receivedCount++
+		mu.Unlock()
 		return nil
 	})
 	require.NoError(t, err)
@@ -360,7 +430,10 @@ func TestEvent_CloseDrainsBuffer(t *testing.T) {
 
 	// All events should have been processed
 	time.Sleep(50 * time.Millisecond)
-	t.Logf("Processed %d events after close", receivedCount)
+	mu.Lock()
+	count := receivedCount
+	mu.Unlock()
+	t.Logf("Processed %d events after close", count)
 }
 
 // TestEvent_NilEventHandling tests handling of nil events
@@ -396,9 +469,12 @@ func TestEvent_IntegrationWithCommands(t *testing.T) {
 	defer func() { _ = bus.Close() }()
 
 	// Collect events
+	var mu sync.Mutex
 	events := make([]unit.Event, 0)
 	_, err = bus.Subscribe(func(evt unit.Event) error {
+		mu.Lock()
 		events = append(events, evt)
+		mu.Unlock()
 		return nil
 	})
 	require.NoError(t, err)
@@ -417,7 +493,10 @@ func TestEvent_IntegrationWithCommands(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Events may or may not be published depending on command implementation
-	t.Logf("Received %d events from command execution", len(events))
+	mu.Lock()
+	eventCount := len(events)
+	mu.Unlock()
+	t.Logf("Received %d events from command execution", eventCount)
 }
 
 // testEvent is a simple test event implementation

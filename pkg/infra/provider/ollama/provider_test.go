@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -1142,6 +1143,10 @@ func TestProvider_PullError(t *testing.T) {
 }
 
 func TestProvider_Install(t *testing.T) {
+	// Skip if ollama is not installed
+	if _, err := exec.LookPath("ollama"); err != nil {
+		t.Skip("requires ollama to be installed")
+	}
 	p := NewProvider("")
 	result, err := p.Install(context.Background(), "ollama", "")
 	if err != nil {
