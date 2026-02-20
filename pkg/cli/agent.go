@@ -71,7 +71,11 @@ func runAgentChat(ctx context.Context, root *RootCommand, message, conversationI
 
 	resp := gw.Handle(ctx, req)
 	if !resp.Success {
-		PrintError(fmt.Errorf("%s: %s", resp.Error.Code, resp.Error.Message), opts)
+		errMsg := fmt.Sprintf("%s: %s", resp.Error.Code, resp.Error.Message)
+		if resp.Error.Details != nil {
+			errMsg = fmt.Sprintf("%s\ndetails: %v", errMsg, resp.Error.Details)
+		}
+		PrintError(fmt.Errorf("%s", errMsg), opts)
 		return fmt.Errorf("agent chat failed: %s", resp.Error.Message)
 	}
 

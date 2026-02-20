@@ -22,6 +22,7 @@ type Config struct {
 	Remote   RemoteConfig   `toml:"remote"`
 	Security SecurityConfig `toml:"security"`
 	Logging  LoggingConfig  `toml:"logging"`
+	Agent    AgentConfig    `toml:"agent"`
 }
 
 type GeneralConfig struct {
@@ -91,6 +92,23 @@ type LoggingConfig struct {
 	File   string `toml:"file"`
 }
 
+// AgentConfig holds settings for the AI Agent Operator.
+type AgentConfig struct {
+	// LLMProvider selects the client implementation: "openai" (default), "anthropic", "ollama".
+	LLMProvider string `toml:"llm_provider"`
+	// LLMBaseURL overrides the default API base URL (e.g. for OpenAI-compatible endpoints).
+	LLMBaseURL string `toml:"llm_base_url"`
+	// LLMAPIKey is the API key for the chosen LLM provider.
+	LLMAPIKey string `toml:"llm_api_key"`
+	// LLMModel is the model identifier to use.
+	LLMModel string `toml:"llm_model"`
+	// MaxTokens limits the token count for each LLM response.
+	MaxTokens int `toml:"max_tokens"`
+	// LLMUserAgent sets the HTTP User-Agent for LLM API requests.
+	// Some endpoints (e.g. Kimi For Coding) restrict access by User-Agent.
+	LLMUserAgent string `toml:"llm_user_agent"`
+}
+
 func Default() *Config {
 	homeDir, _ := os.UserHomeDir()
 	dataDir := filepath.Join(homeDir, ".aima")
@@ -148,6 +166,13 @@ func Default() *Config {
 			Level:  "info",
 			Format: "json",
 			File:   filepath.Join(dataDir, "logs", "aima.log"),
+		},
+		Agent: AgentConfig{
+			LLMProvider: "openai",
+			LLMBaseURL:  "",
+			LLMAPIKey:   "",
+			LLMModel:    "moonshot-v1-8k",
+			MaxTokens:   4096,
 		},
 	}
 }
@@ -283,6 +308,35 @@ func ApplyEnvOverrides(cfg *Config) {
 	}
 	if v := os.Getenv("AIMA_ALERT_ENABLED"); v != "" {
 		cfg.Alert.Enabled = strings.ToLower(v) == "true" || v == "1"
+	}
+	// Agent / LLM settings.
+	// Standard OPENAI_* vars are applied first, then AIMA_LLM_* vars override them.
+	if v := os.Getenv("OPENAI_API_KEY"); v != "" {
+		cfg.Agent.LLMAPIKey = v
+	}
+	if v := os.Getenv("OPENAI_BASE_URL"); v != "" {
+		cfg.Agent.LLMBaseURL = v
+	}
+	if v := os.Getenv("OPENAI_MODEL"); v != "" {
+		cfg.Agent.LLMModel = v
+	}
+	if v := os.Getenv("AIMA_LLM_PROVIDER"); v != "" {
+		cfg.Agent.LLMProvider = v
+	}
+	if v := os.Getenv("AIMA_LLM_API_KEY"); v != "" {
+		cfg.Agent.LLMAPIKey = v
+	}
+	if v := os.Getenv("AIMA_LLM_BASE_URL"); v != "" {
+		cfg.Agent.LLMBaseURL = v
+	}
+	if v := os.Getenv("AIMA_LLM_MODEL"); v != "" {
+		cfg.Agent.LLMModel = v
+	}
+	if v := os.Getenv("OPENAI_USER_AGENT"); v != "" {
+		cfg.Agent.LLMUserAgent = v
+	}
+	if v := os.Getenv("AIMA_LLM_USER_AGENT"); v != "" {
+		cfg.Agent.LLMUserAgent = v
 	}
 }
 

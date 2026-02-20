@@ -64,3 +64,14 @@ rate_limit_per_min = 120    # 每分钟请求限制
 level = "info"              # 日志级别 (debug/info/warn/error)
 format = "json"             # 日志格式 (json/text)
 file = "~/.aima/logs/aima.log"  # 日志文件路径
+
+# AI Agent Operator 设置
+# 也可通过环境变量配置 (优先级: AIMA_LLM_* > OPENAI_* > 此配置文件)
+[agent]
+llm_provider = "openai"         # LLM 提供商: openai (含兼容接口), anthropic, ollama
+llm_base_url = ""               # API 基础 URL（留空使用官方地址）
+                                # Kimi 示例: https://api.kimi.com/coding/v1
+llm_api_key = ""                # API 密钥（建议用环境变量 OPENAI_API_KEY 设置）
+llm_model = "moonshot-v1-8k"    # 模型 ID（Kimi 编程专用: kimi-for-coding）
+max_tokens = 4096               # 每次 LLM 调用的最大 token 数
+llm_user_agent = ""             # 自定义 User-Agent（Kimi 编程 API 需要 claude-code/1.0）

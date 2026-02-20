@@ -240,11 +240,24 @@ func RegisterAll(registry *unit.Registry, opts ...Option) error {
 		return fmt.Errorf("register skill domain: %w", err)
 	}
 
-	if err := registerAgentDomain(registry, options); err != nil {
-		return fmt.Errorf("register agent domain: %w", err)
+	// Agent domain is only registered when an agent is explicitly provided.
+	// This allows two-phase setup: register all other domains first, create the
+	// gateway+MCPAdapter, then wire up the Agent and call RegisterAgentDomain.
+	if options.Agent != nil {
+		if err := registerAgentDomain(registry, options); err != nil {
+			return fmt.Errorf("register agent domain: %w", err)
+		}
 	}
 
 	return nil
+}
+
+// RegisterAgentDomain registers the agent domain commands, queries, and resources
+// with the provided live Agent. Call this after the Gateway is created so the
+// Agent can reference the MCPAdapter as its ToolExecutor.
+func RegisterAgentDomain(registry *unit.Registry, a *coreagent.Agent) error {
+	options := &Options{Agent: a}
+	return registerAgentDomain(registry, options)
 }
 
 func registerModelDomain(registry *unit.Registry, options *Options) error {

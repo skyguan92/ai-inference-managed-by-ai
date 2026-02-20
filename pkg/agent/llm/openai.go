@@ -17,12 +17,15 @@ type OpenAIClient struct {
 	apiKey     string
 	model      string
 	baseURL    string
+	userAgent  string
 	httpClient *http.Client
 }
 
 // NewOpenAIClient creates a new OpenAI-compatible client.
 // baseURL defaults to the official OpenAI endpoint if empty.
 // The API key is read from OPENAI_API_KEY if apiKey is empty.
+// The user agent is read from OPENAI_USER_AGENT if not set; some
+// API endpoints (e.g. Kimi For Coding) restrict access by User-Agent.
 func NewOpenAIClient(model, apiKey, baseURL string) *OpenAIClient {
 	if apiKey == "" {
 		apiKey = os.Getenv("OPENAI_API_KEY")
@@ -33,10 +36,12 @@ func NewOpenAIClient(model, apiKey, baseURL string) *OpenAIClient {
 	if baseURL == "" {
 		baseURL = defaultOpenAIBaseURL
 	}
+	userAgent := os.Getenv("OPENAI_USER_AGENT")
 	return &OpenAIClient{
 		apiKey:     apiKey,
 		model:      model,
 		baseURL:    baseURL,
+		userAgent:  userAgent,
 		httpClient: &http.Client{},
 	}
 }
@@ -46,11 +51,12 @@ func (c *OpenAIClient) ModelName() string { return c.model }
 
 // openAIMessage is the wire format for OpenAI chat messages.
 type openAIMessage struct {
-	Role       string         `json:"role"`
-	Content    any            `json:"content"` // string or nil
-	ToolCallID string         `json:"tool_call_id,omitempty"`
-	ToolCalls  []openAIToolCall `json:"tool_calls,omitempty"`
-	Name       string         `json:"name,omitempty"`
+	Role             string           `json:"role"`
+	Content          any              `json:"content"` // string or nil
+	ToolCallID       string           `json:"tool_call_id,omitempty"`
+	ToolCalls        []openAIToolCall `json:"tool_calls,omitempty"`
+	Name             string           `json:"name,omitempty"`
+	ReasoningContent string           `json:"reasoning_content,omitempty"` // reasoning models (Kimi, o1)
 }
 
 type openAIToolCall struct {
@@ -137,6 +143,9 @@ func (c *OpenAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+	if c.userAgent != "" {
+		httpReq.Header.Set("User-Agent", c.userAgent)
+	}
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
@@ -171,8 +180,9 @@ func (c *OpenAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 
 func messageToOpenAI(m Message) openAIMessage {
 	msg := openAIMessage{
-		Role:    m.Role,
-		Content: m.Content,
+		Role:             m.Role,
+		Content:          m.Content,
+		ReasoningContent: m.ReasoningContent,
 	}
 
 	if m.Role == "tool" {
@@ -226,9 +236,10 @@ func openAIResponseToChatResponse(r *openAIResponse) *ChatResponse {
 	}
 
 	resp.Message = Message{
-		Role:      "assistant",
-		Content:   content,
-		ToolCalls: toolCalls,
+		Role:             "assistant",
+		Content:          content,
+		ToolCalls:        toolCalls,
+		ReasoningContent: choice.Message.ReasoningContent,
 	}
 	resp.ToolCalls = toolCalls
 	return resp

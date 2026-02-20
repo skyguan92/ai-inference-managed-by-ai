@@ -7,8 +7,11 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
+	coreagent "github.com/jguan/ai-inference-managed-by-ai/pkg/agent"
+	agentllm "github.com/jguan/ai-inference-managed-by-ai/pkg/agent/llm"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/config"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/gateway"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/provider"
@@ -30,12 +33,13 @@ var (
 )
 
 type RootCommand struct {
-	cmd       *cobra.Command
-	cfg       *config.Config
-	gateway   *gateway.Gateway
-	registry  *unit.Registry
-	opts      *OutputOptions
-	formatStr string
+	cmd          *cobra.Command
+	cfg          *config.Config
+	gateway      *gateway.Gateway
+	registry     *unit.Registry
+	serviceStore service.ServiceStore
+	opts         *OutputOptions
+	formatStr    string
 }
 
 func NewRootCommand() *RootCommand {
@@ -138,6 +142,9 @@ func (r *RootCommand) persistentPreRunE(cmd *cobra.Command, args []string) error
 	// Create engine store (memory-based for now)
 	engineStore := engine.NewMemoryStore()
 
+	// Expose serviceStore to setupAgent for local LLM auto-detection
+	r.serviceStore = serviceStore
+
 	// Register all atomic units with providers
 	if err := registry.RegisterAll(r.registry,
 		registry.WithModelProvider(modelProvider),
@@ -152,7 +159,80 @@ func (r *RootCommand) persistentPreRunE(cmd *cobra.Command, args []string) error
 
 	r.gateway = gateway.NewGateway(r.registry, gateway.WithTimeout(r.cfg.Gateway.RequestTimeoutD))
 
+	// Two-phase agent setup: create Agent after Gateway so MCPAdapter can be used
+	// as the ToolExecutor (it needs the Gateway to dispatch tool calls).
+	if err := r.setupAgent(cmd.Context()); err != nil {
+		slog.Warn("agent setup failed, agent commands will be unavailable", "error", err)
+	}
+
 	return nil
+}
+
+// setupAgent creates the LLM client, wraps the MCPAdapter as a ToolExecutor,
+// constructs the Agent, and registers the agent domain with the registry.
+//
+// When no API key is configured, it tries to auto-detect a locally running
+// AIMA inference service (via serviceStore) or a local Ollama instance.
+// Returns nil without registering an agent when no LLM backend is available.
+func (r *RootCommand) setupAgent(ctx context.Context) error {
+	cfg := r.cfg.Agent
+
+	var llmClient agentllm.LLMClient
+
+	if cfg.LLMAPIKey == "" {
+		// No cloud API key — probe for a locally running inference service.
+		svcs := r.listRunningServices(ctx)
+		var info string
+		var err error
+		llmClient, info, err = detectLocalLLM(ctx, svcs, r.cfg.Engine.OllamaAddr)
+		if err != nil || llmClient == nil {
+			slog.Debug("no API key and no local LLM service detected, agent unavailable")
+			return nil
+		}
+		slog.Info("agent using local inference service", "info", info)
+	} else {
+		switch cfg.LLMProvider {
+		case "anthropic":
+			llmClient = agentllm.NewAnthropicClient(cfg.LLMModel, cfg.LLMAPIKey)
+		case "ollama":
+			llmClient = agentllm.NewOllamaClient(cfg.LLMModel, cfg.LLMBaseURL)
+		default: // "openai" and OpenAI-compatible endpoints (e.g. Kimi, Azure OpenAI)
+			// Strip trailing slash so url construction (baseURL + "/chat/completions") is correct.
+			baseURL := strings.TrimRight(cfg.LLMBaseURL, "/")
+			llmClient = agentllm.NewOpenAIClient(cfg.LLMModel, cfg.LLMAPIKey, baseURL)
+		}
+	}
+
+	mcpAdapter := gateway.NewMCPAdapter(r.gateway)
+	toolExecutor := gateway.NewAgentExecutorAdapter(mcpAdapter)
+	agentInstance := coreagent.NewAgent(llmClient, toolExecutor, nil, coreagent.AgentOptions{
+		MaxTokens: cfg.MaxTokens,
+	})
+
+	if err := registry.RegisterAgentDomain(r.registry, agentInstance); err != nil {
+		return fmt.Errorf("register agent domain: %w", err)
+	}
+
+	slog.Info("agent operator ready",
+		"provider", llmClient.Name(),
+		"model", llmClient.ModelName(),
+	)
+	return nil
+}
+
+// listRunningServices queries the service store for running services.
+// Returns nil if the store is unavailable or returns an error.
+func (r *RootCommand) listRunningServices(ctx context.Context) []service.ModelService {
+	if r.serviceStore == nil {
+		return nil
+	}
+	svcs, _, err := r.serviceStore.List(ctx, service.ServiceFilter{
+		Status: service.ServiceStatusRunning,
+	})
+	if err != nil {
+		return nil
+	}
+	return svcs
 }
 
 func (r *RootCommand) addSubCommands() {

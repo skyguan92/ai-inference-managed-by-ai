@@ -16,10 +16,11 @@ type LLMClient interface {
 
 // Message represents a single turn in a conversation.
 type Message struct {
-	Role       string     `json:"role"`                  // "system", "user", "assistant", "tool"
-	Content    string     `json:"content"`
-	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
-	ToolCallID string     `json:"tool_call_id,omitempty"` // set when Role == "tool"
+	Role             string     `json:"role"`                       // "system", "user", "assistant", "tool"
+	Content          string     `json:"content"`
+	ToolCalls        []ToolCall `json:"tool_calls,omitempty"`
+	ToolCallID       string     `json:"tool_call_id,omitempty"`      // set when Role == "tool"
+	ReasoningContent string     `json:"reasoning_content,omitempty"` // used by reasoning models (e.g. Kimi, o1)
 }
 
 // ToolCall represents a tool invocation requested by the LLM.
