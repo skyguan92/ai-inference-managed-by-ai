@@ -103,15 +103,24 @@ type Resource interface {
 
 ```
 pkg/
-├── unit/              # 原子单元（核心）
+├── unit/              # 原子单元（核心, 13 个领域）
 │   ├── types.go       # 接口定义
 │   ├── registry.go    # 注册表
 │   ├── schema.go      # Schema 定义
-│   └── {domain}/      # 领域实现
+│   ├── {domain}/      # 10 个原有领域实现
+│   ├── catalog/       # 硬件最佳实践 (Recipe 管理)
+│   ├── agent/         # AI 代理操作
+│   └── skill/         # 技能知识库
+├── agent/             # AI Agent 核心实现
+│   ├── llm/           # LLM 客户端 (Anthropic/OpenAI/Ollama)
+│   └── skill/         # Skill 加载和管理
+├── catalog/           # Recipe 管理 (内置 YAML + 匹配算法)
 ├── service/           # 服务层（聚合原子单元）
 ├── workflow/          # 编排层
 ├── gateway/           # 统一入口
 └── infra/             # 基础设施
+    └── provider/
+        └── registry/  # Docker 镜像仓库抽象
 ```
 
 ---
@@ -660,16 +669,41 @@ git commit -m "feat(model): implement model.pull command"
 
 | 阶段 | 内容 | 状态 |
 |------|------|------|
-| Phase 1 | 核心框架（types, registry, schema） | 待开始 |
-| Phase 2 | 核心领域 | 待开始 |
-| Phase 3 | 适配器（HTTP, MCP, CLI） | 待开始 |
-| Phase 4 | 其他领域 | 待开始 |
-| Phase 5 | 编排层 | 待开始 |
-| Phase 6 | 完善和文档 | 待开始 |
+| Phase 1 | 核心框架（types, registry, schema） | ✅ 完成 |
+| Phase 2 | 核心领域 (device, model, engine, inference) | ✅ 完成 |
+| Phase 3 | 适配器（HTTP, MCP, gRPC, CLI） | ✅ 完成 |
+| Phase 4 | 其他领域 (resource, service, app, alert, remote) | ✅ 完成 |
+| Phase 5 | 编排层 (Workflow DSL + Templates) | ✅ 完成 |
+| Phase 6 | Catalog 领域 (硬件最佳实践 + 一键部署) | 待开始 |
+| Phase 7 | Skill 领域 (AI Agent 技能知识库) | 待开始 |
+| Phase 8 | Agent 领域 (AI Agent Operator) | 待开始 |
 
-详细计划见: `docs/reference/migration/priority.md`
+详细计划见: `docs/ARCHITECTURE.md`
+
+---
+
+## 附录 D: AI Agent Operator 开发指南
+
+Agent Operator 是 AIMA 的核心创新 — 一个可配置 LLM 后端的 AI 代理，通过 MCP Tools 自动操作 AIMA 平台。
+
+### 关键设计决策
+
+| 决策 | 选择 | 理由 |
+|------|------|------|
+| Tool 执行路径 | 复用 `MCPAdapter.ExecuteTool()` | 与外部 MCP 客户端走相同路径，确保权限一致 |
+| LLM 客户端 | 接口 + 3 个实现 (Anthropic/OpenAI/Ollama) | Anthropic API 格式不兼容 OpenAI，需独立适配器 |
+| Skills 作为原子单元 | 新 `skill` 领域 | Agent 可通过 Tool 调用管理自己的技能 |
+| Agent 作为原子单元 | 新 `agent` 领域 | Agent 可被外部 MCP 客户端调用 |
+
+### 新领域 Scope 参考
+
+| Scope | 说明 |
+|-------|------|
+| catalog | 硬件 Recipe 管理 |
+| agent | AI Agent 代理 |
+| skill | Agent 技能管理 |
 
 ---
 
 *本文档由 AI Agent 遵循，确保开发一致性和质量。*
-*最后更新: 2026-02-16*
+*最后更新: 2026-02-20*

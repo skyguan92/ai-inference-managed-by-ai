@@ -77,19 +77,33 @@ Go 的泛型不支持协变，因此 `Registry` 无法同时存储 `Command[Pull
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
+│                      AI Agent Layer (智能代理层)                     │
+│    Agent Operator · Skills · Conversation · LLM Client Adapters    │
+├─────────────────────────────────────────────────────────────────────┤
 │                      Orchestration Layer                            │
 │          Pipelines · Workflows · Pre-built Flows · DSL              │
 ├─────────────────────────────────────────────────────────────────────┤
 │                      Service Layer                                  │
-│    ModelService · InferenceService · DeviceService · AppService    │
+│    ModelService · InferenceService · CatalogService · AppService   │
 ├─────────────────────────────────────────────────────────────────────┤
 │                   Atomic Unit Layer (核心)                          │
 │     Command · Query · Event · Resource (4 种接口类型)               │
+│     13 个领域: device model engine inference resource service      │
+│                app pipeline alert remote catalog agent skill       │
 ├─────────────────────────────────────────────────────────────────────┤
 │                   Infrastructure Layer                              │
-│      HAL · Store · EventBus · Docker · Network · Crypto            │
+│      HAL · Store · EventBus · Docker · Registry · Network          │
 └─────────────────────────────────────────────────────────────────────┘
 ```
+
+### 新增分层说明
+
+| 层 | 新增内容 | 说明 |
+|----|---------|------|
+| AI Agent Layer | Agent Operator, Skills, LLM Client | 面向终端用户的智能对话代理，通过 MCP Tools 操作 AIMA |
+| Service Layer | CatalogService | 编排 Recipe 的一键部署流程（拉取引擎镜像 + 拉取模型）|
+| Atomic Unit Layer | catalog / agent / skill 三个新领域 | 硬件最佳实践、AI 代理、技能知识库 |
+| Infrastructure Layer | Registry Provider | Docker 镜像仓库抽象层，支持 DockerHub/GHCR/国内镜像 |
 
 ---
 
@@ -286,6 +300,12 @@ asms://{domain}/{identifier}[/{sub-resource}]
 | `asms://alerts/active` | 静态 | 活动告警 |
 | `asms://remote/status` | 静态 | 远程状态 |
 | `asms://remote/audit` | 静态 | 审计日志 |
+| `asms://catalog/recipes` | 静态 | Recipe 列表 |
+| `asms://catalog/recipe/{id}` | 动态 | Recipe 详情 |
+| `asms://agent/status` | 静态 | Agent 状态 |
+| `asms://agent/conversations` | 静态 | 活跃会话 |
+| `asms://skills` | 静态 | Skills 列表 |
+| `asms://skill/{id}` | 动态 | Skill 详情 |
 
 #### 静态 vs 动态资源
 
@@ -746,6 +766,531 @@ Docker 应用管理。
 
 ---
 
+### 11. Catalog Domain
+
+硬件最佳实践管理。将经过验证的"硬件配置 → 推理引擎镜像 → 可运行模型 → 最优参数"组合沉淀为 **Recipe（配方）**，用户可基于自己的硬件快速匹配并一键部署。
+
+#### 设计理念
+
+AIMA 的核心资产是在不同硬件上验证过的推理方案。Recipe 将这些方案结构化，使得：
+1. **新用户零配置启动** — 检测硬件后自动匹配最佳 Recipe
+2. **社区共享** — 用户可贡献和下载经验证的 Recipe
+3. **AI Agent 可理解** — Recipe 的 YAML 格式对 AI Agent 完全透明
+
+#### 核心类型
+
+```go
+// HardwareProfile 描述特定硬件配置
+type HardwareProfile struct {
+    GPUVendor   string   `json:"gpu_vendor" yaml:"gpu_vendor"`     // "NVIDIA", "AMD", "Apple", ""
+    GPUModel    string   `json:"gpu_model" yaml:"gpu_model"`       // "RTX 4090", "A100", "GB10"
+    GPUArch     string   `json:"gpu_arch" yaml:"gpu_arch"`         // "sm_89", "sm_121a"
+    VRAMMinGB   int      `json:"vram_min_gb" yaml:"vram_min_gb"`   // 最低显存 (GB)
+    CPUArch     string   `json:"cpu_arch" yaml:"cpu_arch"`         // "x86_64", "aarch64"
+    OS          string   `json:"os" yaml:"os"`                     // "linux", "windows", "darwin"
+    UnifiedMem  bool     `json:"unified_memory" yaml:"unified_memory"` // Apple Silicon / Jetson Thor
+    Tags        []string `json:"tags,omitempty" yaml:"tags,omitempty"`
+}
+
+// Recipe 映射硬件到验证过的引擎+模型+配置组合
+type Recipe struct {
+    ID             string           `json:"id" yaml:"id"`
+    Name           string           `json:"name" yaml:"name"`
+    Description    string           `json:"description" yaml:"description"`
+    Version        string           `json:"version" yaml:"version"`
+    Author         string           `json:"author,omitempty" yaml:"author,omitempty"`
+    Profile        HardwareProfile  `json:"profile" yaml:"profile"`
+    Engine         RecipeEngine     `json:"engine" yaml:"engine"`
+    Models         []RecipeModel    `json:"models" yaml:"models"`
+    ResourceLimits ResourceLimits   `json:"resource_limits" yaml:"resource_limits"`
+    Verified       bool             `json:"verified" yaml:"verified"`
+    Tags           []string         `json:"tags,omitempty" yaml:"tags,omitempty"`
+}
+
+// RecipeEngine 引擎镜像配置
+type RecipeEngine struct {
+    Type           string         `json:"type" yaml:"type"`           // "vllm", "ollama"
+    Image          string         `json:"image" yaml:"image"`         // Docker 镜像
+    FallbackImages []string       `json:"fallback_images,omitempty"`  // 备用镜像
+    Config         map[string]any `json:"config,omitempty"`           // 引擎特定配置
+}
+
+// RecipeModel 模型下载配置
+type RecipeModel struct {
+    Name           string `json:"name" yaml:"name"`
+    Source         string `json:"source" yaml:"source"`           // "ollama", "huggingface", "modelscope"
+    Repo           string `json:"repo" yaml:"repo"`               // 仓库路径
+    Tag            string `json:"tag,omitempty" yaml:"tag,omitempty"`
+    Type           string `json:"type" yaml:"type"`               // "llm", "vlm", "asr"
+    Format         string `json:"format,omitempty" yaml:"format,omitempty"` // "gguf", "safetensors"
+    Mirror         string `json:"mirror,omitempty" yaml:"mirror,omitempty"` // 国内镜像源
+    MemoryRequired int64  `json:"memory_required,omitempty"`      // 所需内存 (bytes)
+}
+```
+
+#### Recipe YAML 示例
+
+```yaml
+# pkg/catalog/recipes/nvidia-rtx4090-llm.yaml
+id: "nvidia-rtx4090-llm-vllm"
+name: "NVIDIA RTX 4090 - LLM with vLLM"
+description: "适用于 RTX 4090 (24GB VRAM) 的大语言模型推理方案"
+version: "1.0.0"
+author: "aima-community"
+
+profile:
+  gpu_vendor: "NVIDIA"
+  gpu_model: "RTX 4090"
+  gpu_arch: "sm_89"
+  vram_min_gb: 24
+  cpu_arch: "x86_64"
+  os: "linux"
+  unified_memory: false
+  tags: ["consumer", "ada-lovelace"]
+
+engine:
+  type: "vllm"
+  image: "vllm/vllm-openai:v0.15.0"
+  config:
+    gpu_memory_utilization: 0.90
+    max_model_len: 32768
+    tensor_parallel_size: 1
+    quantization: "awq"
+
+models:
+  - name: "Qwen 2.5 7B AWQ"
+    source: "huggingface"
+    repo: "Qwen/Qwen2.5-7B-Instruct-AWQ"
+    type: "llm"
+    format: "safetensors"
+    mirror: "modelscope"
+    memory_required: 8000000000
+  - name: "Llama 3.2 3B"
+    source: "ollama"
+    repo: "llama3.2:3b"
+    type: "llm"
+    format: "gguf"
+    memory_required: 4000000000
+
+resource_limits:
+  gpu_memory_utilization: 0.90
+  max_model_len: 32768
+  tensor_parallel: 1
+
+verified: true
+tags: ["llm", "24gb", "consumer-gpu"]
+```
+
+#### Commands
+
+| 名称 | 描述 | 输入 | 输出 |
+|------|------|------|------|
+| `catalog.create_recipe` | 创建/添加 Recipe | `{recipe (YAML/JSON)}` | `{recipe_id}` |
+| `catalog.validate_recipe` | 验证 Recipe 格式正确性 | `{recipe (YAML/JSON)}` | `{valid, issues: []}` |
+| `catalog.apply_recipe` | 一键部署：拉取引擎镜像 + 拉取模型 | `{recipe_id, skip_engine?, skip_models?}` | `{engine_ready, models: [{name, status}]}` |
+
+#### Queries
+
+| 名称 | 描述 | 输入 | 输出 |
+|------|------|------|------|
+| `catalog.match` | 基于当前硬件匹配最佳 Recipe | `{gpu_vendor?, tags?, limit?}` | `{recipes: [{recipe, score}]}` |
+| `catalog.list` | 列出所有 Recipe | `{tags?, gpu_vendor?, verified_only?}` | `{recipes: [], total}` |
+| `catalog.get` | 获取特定 Recipe | `{recipe_id}` | `{recipe}` |
+| `catalog.check_status` | 检查 Recipe 所需制品是否本地已有 | `{recipe_id}` | `{engine_ready, models_ready: []}` |
+
+#### Resources
+
+| URI | 描述 |
+|-----|------|
+| `asms://catalog/recipes` | 所有 Recipe 列表 |
+| `asms://catalog/recipe/{id}` | 特定 Recipe 详情 |
+
+#### Events
+
+| 类型 | 描述 | 载荷 |
+|------|------|------|
+| `catalog.recipe_created` | Recipe 创建 | `{recipe_id, name}` |
+| `catalog.recipe_matched` | Recipe 匹配成功 | `{recipe_id, hardware_profile, score}` |
+| `catalog.recipe_applied` | Recipe 部署完成 | `{recipe_id, engine_ready, models_ready}` |
+
+#### 硬件匹配算法
+
+`catalog.match` 使用评分制匹配当前硬件与 Recipe：
+
+```
+匹配流程:
+1. HAL Provider.Detect() -> 获取当前硬件信息 (HardwareInfo)
+2. 遍历所有 Recipe 的 HardwareProfile
+3. 评分规则:
+   - GPU Vendor 完全匹配: +40 分
+   - GPU Model 完全匹配: +30 分
+   - GPU Arch 兼容: +15 分
+   - VRAM 满足最低要求: +10 分
+   - OS 匹配: +5 分
+4. 按分数降序排列，返回 Top N
+```
+
+#### 存储方式
+
+- **内置 Recipe**: 通过 `//go:embed` 编译进二进制（与 workflow templates 相同模式）
+- **用户 Recipe**: 存储在 `~/.aima/recipes/` 目录，YAML 格式
+- **Recipe 注册表**: 运行时合并内置和用户 Recipe
+
+---
+
+### 12. Agent Domain
+
+AI 代理操作系统。提供一个可配置的 AI Agent，代替用户操作 AIMA 平台。Agent 通过 LLM（如 Claude Haiku、GPT-4o、本地 Ollama 模型）驱动，使用 AIMA 的 MCP Tools 作为其能力集。
+
+#### 设计理念
+
+AIMA 的 MCP 适配器已经将所有原子单元自动生成为 Tool 定义。Agent 是一个坐在 MCP Tools 之上的对话循环：接收用户自然语言 → LLM 思考 → 调用 AIMA Tools → 返回结果。类似于 Claude Code 对代码仓库的操作，但 Agent 只对 AIMA 的原子单元有权限。
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                        Agent Operator                          │
+│                                                                │
+│  用户消息 ──► LLM (Claude/GPT/Ollama) ──► Tool Calls          │
+│                      ▲                       │                 │
+│                      │                       ▼                 │
+│              Tool Results ◄── MCPAdapter.ExecuteTool()         │
+│                                                                │
+│  System Prompt = 基础描述 + 活跃 Skills + Tool 列表            │
+└────────────────────────────────────────────────────────────────┘
+```
+
+#### 核心类型
+
+```go
+// LLMClient 抽象不同 LLM 提供商的通信接口
+type LLMClient interface {
+    Chat(ctx context.Context, messages []Message, tools []ToolDef, opts ChatOptions) (*ChatResponse, error)
+    Name() string
+    ModelName() string
+}
+
+// 支持的 LLM 提供商:
+// - Anthropic Claude (anthropic.go) — claude-haiku / claude-sonnet
+// - OpenAI 兼容 (openai.go)        — GPT-4o / 本地 OpenAI API 服务器
+// - Ollama (ollama.go)              — 本地模型
+
+// Message 对话消息
+type Message struct {
+    Role       string     `json:"role"`         // "system", "user", "assistant", "tool"
+    Content    string     `json:"content"`
+    ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
+    ToolCallID string     `json:"tool_call_id,omitempty"`
+}
+
+// Agent 核心 AI 代理
+type Agent struct {
+    llm           LLMClient
+    mcpAdapter    *gateway.MCPAdapter     // 复用现有 MCP 工具
+    skillRegistry *skill.SkillRegistry    // 技能注册表
+    conversations map[string]*Conversation
+}
+```
+
+#### Agent 对话循环
+
+```go
+func (a *Agent) Chat(ctx, conversationID, userMessage string) (string, error) {
+    // 1. 获取或创建会话
+    conv := a.getOrCreateConversation(conversationID)
+    conv.Messages = append(conv.Messages, Message{Role: "user", Content: userMessage})
+
+    // 2. 构建 System Prompt (基础描述 + Skills + Tool 列表)
+    systemPrompt := a.buildSystemPrompt()
+
+    // 3. 获取可用工具 (从 MCP 适配器自动生成)
+    toolDefs := a.mcpToolsToLLMTools(a.mcpAdapter.GenerateToolDefinitions())
+
+    // 4. 对话循环 (可能涉及多次 Tool 调用)
+    for {
+        response := a.llm.Chat(ctx, conv.Messages, toolDefs, opts)
+        conv.Messages = append(conv.Messages, response.Message)
+
+        if len(response.ToolCalls) == 0 {
+            return response.Message.Content, nil  // 无 Tool 调用，返回文本
+        }
+
+        // 5. 执行每个 Tool 调用 (通过 MCP 适配器)
+        for _, tc := range response.ToolCalls {
+            result := a.mcpAdapter.ExecuteTool(ctx, tc.Name, tc.Arguments)
+            conv.Messages = append(conv.Messages, Message{
+                Role: "tool", Content: result, ToolCallID: tc.ID,
+            })
+        }
+        // 继续循环: LLM 看到 Tool 结果后可能调用更多工具或直接回复
+    }
+}
+```
+
+#### Commands
+
+| 名称 | 描述 | 输入 | 输出 |
+|------|------|------|------|
+| `agent.chat` | 向 AI Agent 发送消息并获取回复 | `{message, conversation_id?}` | `{response, conversation_id, tool_calls_count}` |
+| `agent.reset` | 重置/清空会话 | `{conversation_id}` | `{success}` |
+
+#### Queries
+
+| 名称 | 描述 | 输入 | 输出 |
+|------|------|------|------|
+| `agent.status` | 获取 Agent 状态 | `{}` | `{enabled, provider, model, active_conversations}` |
+| `agent.history` | 获取会话历史 | `{conversation_id, limit?}` | `{messages: []}` |
+
+#### Resources
+
+| URI | 描述 |
+|-----|------|
+| `asms://agent/status` | Agent 状态 |
+| `asms://agent/conversations` | 活跃会话列表 |
+
+#### Events
+
+| 类型 | 描述 | 载荷 |
+|------|------|------|
+| `agent.message_sent` | Agent 发送回复 | `{conversation_id, message_length}` |
+| `agent.tool_called` | Agent 调用了 Tool | `{conversation_id, tool_name, success}` |
+| `agent.conversation_created` | 新会话创建 | `{conversation_id}` |
+
+#### CLI 集成
+
+```bash
+# 交互式对话模式
+aima agent chat
+# > 帮我在当前硬件上部署一个 LLM
+# Agent: 让我先检查你的硬件配置...
+# [tool_call: device_detect]
+# Agent: 你有一块 RTX 4090，24GB 显存。我找到了 3 个匹配的方案...
+
+# 单条问题
+aima agent ask "当前安装了哪些模型？"
+
+# 查看状态
+aima agent status
+```
+
+#### 安全约束
+
+- Agent 的 Tool 调用通过 `MCPAdapter.ExecuteTool()` 执行，与外部 MCP 客户端走相同路径
+- Auth 中间件同样生效：Agent 的操作受制于调用者的认证级别
+- Agent 不能直接调用原子单元，必须经过 Gateway 路径
+
+---
+
+### 13. Skill Domain
+
+AI Agent 技能知识库。Skills 是结构化的最佳实践文档，以 Markdown + YAML Front-matter 格式存储，加载到 Agent 的 System Prompt 中指导其决策。
+
+#### 设计理念
+
+Agent 需要领域知识才能有效操作 AIMA。Skills 解决了"Agent 知道有哪些 Tool，但不知道什么场景下用哪些 Tool、用什么参数"的问题。
+
+```
+Skills 类比:
+- AIMA Tools = Agent 的"手脚"（能做什么）
+- Skills     = Agent 的"经验"（什么时候做、怎么做）
+```
+
+Skills 可以是：
+1. **内置 (builtin)** — 随 AIMA 二进制发布，覆盖基础场景
+2. **用户自建 (user)** — 用户根据自己的使用场景创建
+3. **社区共享 (community)** — 从社区下载的经验集
+
+#### Skill 文件格式
+
+使用 YAML Front-matter + Markdown 正文（与 Hugo/Jekyll 相同模式）：
+
+```markdown
+---
+id: setup-llm
+name: "在新硬件上部署 LLM"
+category: setup
+description: "指导 Agent 在新机器上设置 LLM 推理服务"
+trigger:
+  keywords: ["setup", "install", "configure", "部署", "安装"]
+  tool_names: ["catalog_match", "catalog_apply_recipe"]
+  always_on: false
+priority: 10
+enabled: true
+source: builtin
+---
+
+# 在新硬件上部署 LLM
+
+当用户要求设置 LLM 推理时，按以下步骤操作：
+
+## 步骤 1: 检测硬件
+调用 `device_detect` 获取 GPU、CPU、内存信息。
+
+## 步骤 2: 匹配 Recipe
+调用 `catalog_match` 查找匹配的 Recipe。展示前 3 个选项给用户。
+
+## 步骤 3: 部署 Recipe
+用户选择后，调用 `catalog_apply_recipe` 一键部署。
+
+## 步骤 4: 验证
+调用 `inference_chat` 发送测试消息确认一切正常。
+
+## 常见问题
+- 如果 `catalog_match` 无结果，改为手动推荐合适的引擎和模型
+- 如果 Docker pull 失败，检查是否配置了国内镜像
+```
+
+#### 核心类型
+
+```go
+// Skill 表示一个可加载到 Agent 上下文中的知识单元
+type Skill struct {
+    ID          string       `json:"id" yaml:"id"`
+    Name        string       `json:"name" yaml:"name"`
+    Category    string       `json:"category" yaml:"category"`       // setup, troubleshoot, optimize, manage
+    Description string       `json:"description" yaml:"description"`
+    Trigger     SkillTrigger `json:"trigger" yaml:"trigger"`
+    Content     string       `json:"content" yaml:"content"`         // Markdown 正文
+    Priority    int          `json:"priority" yaml:"priority"`       // 优先级 (越高越重要)
+    Enabled     bool         `json:"enabled" yaml:"enabled"`
+    Source      string       `json:"source" yaml:"source"`           // "builtin", "user", "community"
+}
+
+// SkillTrigger 定义 Skill 的激活条件
+type SkillTrigger struct {
+    Keywords  []string `json:"keywords,omitempty" yaml:"keywords,omitempty"`     // 用户消息含这些词时激活
+    ToolNames []string `json:"tool_names,omitempty" yaml:"tool_names,omitempty"` // 涉及这些 Tool 时激活
+    AlwaysOn  bool     `json:"always_on,omitempty" yaml:"always_on,omitempty"`   // 始终加载到 System Prompt
+}
+```
+
+#### Agent 如何使用 Skills
+
+```go
+func (a *Agent) buildSystemPrompt() string {
+    // 1. 基础描述: "你是 AIMA AI Agent，负责管理 AI 推理基础设施..."
+    // 2. Tool 列表摘要: 从 MCPAdapter 获取
+    // 3. 始终加载的 Skills (always_on=true)
+    // 4. 触发式 Skills: 分析最近对话，匹配 keywords/tool_names
+    // 拼接为完整 System Prompt
+}
+```
+
+#### Commands
+
+| 名称 | 描述 | 输入 | 输出 |
+|------|------|------|------|
+| `skill.add` | 添加新 Skill | `{path \| content, source?}` | `{skill_id}` |
+| `skill.remove` | 移除用户 Skill | `{skill_id}` | `{success}` |
+| `skill.enable` | 启用 Skill | `{skill_id}` | `{success}` |
+| `skill.disable` | 禁用 Skill | `{skill_id}` | `{success}` |
+
+#### Queries
+
+| 名称 | 描述 | 输入 | 输出 |
+|------|------|------|------|
+| `skill.list` | 列出 Skills | `{category?, source?, enabled_only?}` | `{skills: [], total}` |
+| `skill.get` | 获取 Skill 详情 | `{skill_id}` | `{skill}` |
+| `skill.search` | 搜索 Skills | `{query, category?}` | `{skills: []}` |
+
+#### Resources
+
+| URI | 描述 |
+|-----|------|
+| `asms://skills` | 所有 Skills 列表 |
+| `asms://skill/{id}` | 特定 Skill 详情 |
+
+#### Events
+
+| 类型 | 描述 | 载荷 |
+|------|------|------|
+| `skill.added` | Skill 添加 | `{skill_id, name, source}` |
+| `skill.removed` | Skill 移除 | `{skill_id}` |
+| `skill.enabled` | Skill 启用 | `{skill_id}` |
+| `skill.disabled` | Skill 禁用 | `{skill_id}` |
+
+#### 内置 Skills
+
+| Skill ID | 类别 | 说明 |
+|----------|------|------|
+| `setup-llm` | setup | 在新硬件上部署 LLM 推理 |
+| `troubleshoot-gpu` | troubleshoot | GPU 问题排查 |
+| `optimize-inference` | optimize | 推理性能优化 |
+| `manage-models` | manage | 模型管理最佳实践 |
+| `recipe-advisor` | setup | Recipe 选择和自定义指导 |
+
+#### 存储方式
+
+- **内置 Skills**: `skills/builtin/*.md`，通过 `//go:embed` 编译进二进制
+- **用户 Skills**: `~/.aima/skills/*.md`，文件系统直接管理
+- **加载顺序**: 内置 → 用户，同 ID 用户版本覆盖内置版本
+
+---
+
+## 外部仓库集成
+
+### Registry Provider 抽象
+
+Engine Docker 镜像来自 DockerHub、GHCR 等容器仓库，模型来自 HuggingFace、ModelScope 等模型仓库。`RegistryProvider` 统一抽象镜像仓库操作。
+
+```go
+// RegistryProvider 抽象 Docker 镜像仓库操作
+type RegistryProvider interface {
+    Name() string
+    PullImage(ctx context.Context, image string, progress chan<- PullProgress) error
+    ImageExists(ctx context.Context, image string) (bool, error)
+}
+
+// 实现:
+// - DockerHub (dockerhub.go)
+// - GitHub Container Registry (ghcr.go)
+```
+
+### 国内镜像支持
+
+中国用户访问 DockerHub 和 HuggingFace 可能受限。通过配置镜像源自动替换：
+
+```toml
+[registry]
+region = "cn"  # 启用国内镜像
+
+[[registry.mirrors]]
+source = "docker.io"
+mirror = "registry.cn-hangzhou.aliyuncs.com"
+region = "cn"
+
+[[registry.mirrors]]
+source = "huggingface.co"
+mirror = "hf-mirror.com"
+region = "cn"
+```
+
+Recipe 中的 `mirror` 字段支持模型从 ModelScope 下载（替代 HuggingFace）：
+
+```yaml
+models:
+  - name: "Qwen 2.5 7B"
+    source: "huggingface"
+    repo: "Qwen/Qwen2.5-7B-Instruct-AWQ"
+    mirror: "modelscope"  # region=cn 时自动使用 ModelScope
+```
+
+### 一键部署数据流
+
+```
+catalog.apply_recipe(recipe_id):
+  1. 加载 Recipe
+  2. 检查引擎镜像:
+     RegistryProvider.ImageExists(recipe.Engine.Image)?
+     -> 否: RegistryProvider.PullImage(image)  // 自动选择镜像源
+     -> 失败: 依次尝试 FallbackImages
+  3. 拉取模型 (对每个 recipe.Models):
+     -> 调用 model.pull(source, repo, tag)     // 复用现有原子单元
+     -> region=cn 且有 mirror: 替换 source 为 mirror
+  4. 返回部署状态
+```
+
+---
+
 ## 服务层
 
 服务层聚合多个原子单元，提供更高级别的业务逻辑。
@@ -1187,64 +1732,51 @@ ai-inference-managed-by-ai/
 │       └── main.go              # 单二进制入口
 │
 ├── pkg/
-│   ├── unit/                    # 原子单元 (核心)
+│   ├── unit/                    # 原子单元 (核心, 13 个领域)
 │   │   ├── types.go             # Command/Query/Event/Resource 接口
 │   │   ├── registry.go          # 单元注册表
 │   │   ├── schema.go            # Schema 定义和验证
 │   │   ├── context.go           # 执行上下文
 │   │   │
-│   │   ├── device/              # Device 领域
-│   │   │   ├── commands.go
-│   │   │   ├── queries.go
-│   │   │   ├── resources.go
-│   │   │   └── events.go
-│   │   │
-│   │   ├── model/               # Model 领域
-│   │   │   ├── commands.go
-│   │   │   ├── queries.go
-│   │   │   ├── resources.go
-│   │   │   └── events.go
-│   │   │
-│   │   ├── engine/              # Engine 领域
-│   │   │   ├── commands.go
-│   │   │   ├── queries.go
-│   │   │   ├── resources.go
-│   │   │   └── events.go
-│   │   │
-│   │   ├── inference/           # Inference 领域
-│   │   │   ├── commands.go
-│   │   │   ├── queries.go
-│   │   │   └── resources.go
-│   │   │
-│   │   ├── resource/            # Resource 领域
-│   │   │   ├── commands.go
-│   │   │   ├── queries.go
-│   │   │   └── resources.go
-│   │   │
-│   │   ├── service/             # Service 领域
-│   │   │   ├── commands.go
-│   │   │   ├── queries.go
-│   │   │   └── resources.go
-│   │   │
-│   │   ├── app/                 # App 领域
-│   │   │   ├── commands.go
-│   │   │   ├── queries.go
-│   │   │   └── resources.go
-│   │   │
-│   │   ├── pipeline/            # Pipeline 领域
-│   │   │   ├── commands.go
-│   │   │   ├── queries.go
-│   │   │   └── resources.go
-│   │   │
-│   │   ├── alert/               # Alert 领域
-│   │   │   ├── commands.go
-│   │   │   ├── queries.go
-│   │   │   └── resources.go
-│   │   │
-│   │   └── remote/              # Remote 领域
-│   │       ├── commands.go
-│   │       ├── queries.go
-│   │       └── resources.go
+│   │   ├── device/              # Device 领域 — 硬件设备管理
+│   │   ├── model/               # Model 领域 — 模型管理
+│   │   ├── engine/              # Engine 领域 — 推理引擎管理
+│   │   ├── inference/           # Inference 领域 — 推理服务
+│   │   ├── resource/            # Resource 领域 — 资源管理
+│   │   ├── service/             # Service 领域 — 模型服务化
+│   │   ├── app/                 # App 领域 — Docker 应用
+│   │   ├── pipeline/            # Pipeline 领域 — 管道编排
+│   │   ├── alert/               # Alert 领域 — 告警管理
+│   │   ├── remote/              # Remote 领域 — 远程操作
+│   │   ├── catalog/             # Catalog 领域 — 硬件最佳实践 ★ NEW
+│   │   ├── agent/               # Agent 领域 — AI 代理操作 ★ NEW
+│   │   └── skill/               # Skill 领域 — 技能知识库 ★ NEW
+│   │
+│   ├── agent/                   # AI Agent 核心实现 ★ NEW
+│   │   ├── agent.go             # Agent 对话循环
+│   │   ├── types.go             # Agent/Message/Conversation 类型
+│   │   ├── tools.go             # MCP Tool → LLM Tool 转换桥
+│   │   ├── conversation.go      # 会话状态管理
+│   │   ├── store.go             # ConversationStore 接口
+│   │   ├── llm/                 # LLM 客户端适配器
+│   │   │   ├── types.go         # LLMClient 接口
+│   │   │   ├── anthropic.go     # Anthropic Claude
+│   │   │   ├── openai.go        # OpenAI 兼容
+│   │   │   └── ollama.go        # 本地 Ollama
+│   │   └── skill/               # 技能加载和管理
+│   │       ├── types.go         # Skill/SkillTrigger 类型
+│   │       ├── loader.go        # 加载内置+用户 Skills
+│   │       ├── registry.go      # SkillRegistry
+│   │       └── prompt.go        # System Prompt 构建
+│   │
+│   ├── catalog/                 # Recipe 管理 ★ NEW
+│   │   ├── recipes/             # 内置 Recipe YAML (//go:embed)
+│   │   │   ├── nvidia-rtx4090-llm.yaml
+│   │   │   ├── nvidia-a100-llm.yaml
+│   │   │   ├── apple-m-series-llm.yaml
+│   │   │   └── generic-cpu-llm.yaml
+│   │   ├── loader.go            # Recipe 加载器
+│   │   └── matcher.go           # 硬件-Recipe 评分匹配
 │   │
 │   ├── service/                 # 服务层 (聚合)
 │   │   ├── model_service.go
@@ -1255,7 +1787,8 @@ ai-inference-managed-by-ai/
 │   │   ├── app_service.go
 │   │   ├── pipeline_service.go
 │   │   ├── alert_service.go
-│   │   └── remote_service.go
+│   │   ├── remote_service.go
+│   │   └── catalog_service.go   # Recipe 部署编排 ★ NEW
 │   │
 │   ├── workflow/                # 编排层
 │   │   ├── engine.go            # 工作流引擎
@@ -1263,50 +1796,53 @@ ai-inference-managed-by-ai/
 │   │   ├── validator.go         # DAG 验证
 │   │   ├── executor.go          # 步骤执行器
 │   │   └── templates/           # 预构建模板
-│   │       ├── voice_assistant.yaml
-│   │       ├── rag_pipeline.yaml
-│   │       └── batch_inference.yaml
 │   │
 │   ├── gateway/                 # 统一入口
 │   │   ├── gateway.go           # 核心 Gateway
 │   │   ├── http_adapter.go      # HTTP 适配
 │   │   ├── mcp_adapter.go       # MCP 协议适配
-│   │   ├── cli_adapter.go       # CLI 适配
-│   │   └── grpc_adapter.go      # gRPC 适配 (可选)
+│   │   ├── mcp_tools.go         # MCP Tool 自动生成
+│   │   ├── grpc_adapter.go      # gRPC 适配
+│   │   └── middleware/          # 中间件 (auth, logging, cors, recovery)
 │   │
 │   ├── infra/                   # 基础设施层
 │   │   ├── hal/                 # 硬件抽象
-│   │   │   ├── device.go
-│   │   │   ├── provider.go
-│   │   │   ├── nvidia/
-│   │   │   └── generic/
-│   │   │
 │   │   ├── store/               # 数据存储
-│   │   │   ├── sqlite_store.go
-│   │   │   ├── memory.go
-│   │   │   ├── model_filestore.go
-│   │   │   └── repositories/
-│   │   │
 │   │   ├── eventbus/            # 事件总线
-│   │   │
 │   │   ├── docker/              # Docker 客户端
-│   │   │
-│   │   └── network/             # 网络工具
+│   │   ├── metrics/             # Prometheus 指标
+│   │   ├── network/             # 网络工具
+│   │   ├── ratelimit/           # 速率限制
+│   │   └── provider/            # 外部集成
+│   │       ├── ollama/          # Ollama 推理引擎
+│   │       ├── vllm/            # vLLM 推理引擎
+│   │       ├── huggingface/     # HuggingFace 模型仓库
+│   │       ├── modelscope/      # ModelScope 模型仓库
+│   │       ├── registry/        # Docker 镜像仓库 ★ NEW
+│   │       │   ├── types.go     # RegistryProvider 接口
+│   │       │   ├── dockerhub.go # DockerHub 实现
+│   │       │   └── mirror.go    # 国内镜像支持
+│   │       ├── hybrid_engine_provider.go
+│   │       ├── multi_engine_provider.go
+│   │       └── docker_engine_provider.go
 │   │
 │   ├── config/                  # 配置管理
-│   │   └── config.go
-│   │
+│   ├── registry/                # 注册工具
 │   └── cli/                     # CLI 命令行
-│       ├── root.go              # 根命令
-│       ├── model.go             # 模型管理命令
-│       ├── engine.go            # 引擎管理命令
-│       ├── inference.go         # 推理命令
-│       ├── exec.go              # 执行命令
-│       ├── workflow.go          # 工作流命令
-│       ├── mcp.go               # MCP 服务命令
-│       ├── service.go           # 服务管理
-│       ├── start.go             # 启动命令
-│       └── version.go           # 版本信息
+│       ├── root.go
+│       ├── device.go, model.go, engine.go, inference.go
+│       ├── exec.go, workflow.go, mcp.go, service.go
+│       ├── agent.go             # Agent 交互命令 ★ NEW
+│       ├── start.go
+│       └── version.go
+│
+├── skills/                      # 内置 Skills (//go:embed) ★ NEW
+│   └── builtin/
+│       ├── setup-llm.md
+│       ├── troubleshoot-gpu.md
+│       ├── optimize-inference.md
+│       ├── manage-models.md
+│       └── recipe-advisor.md
 │
 ├── configs/
 │   └── aima.toml               # 默认配置
@@ -1341,28 +1877,40 @@ main()
   +-- EventBus (InMemory / Persistent)
   +-- HAL Provider (NVIDIA / Generic)
   +-- Docker Client
+  +-- Registry Provider (DockerHub + Mirrors)    ★ NEW
   |
   v
 3. 创建 Registry
   |
   v
-4. 注册原子单元（所有 10 个域的 Commands/Queries/Resources）
+4. 注册原子单元（所有 13 个域的 Commands/Queries/Resources）
+  +-- 10 个原有领域
+  +-- Catalog 领域 (加载内置+用户 Recipes)     ★ NEW
+  +-- Skill 领域 (加载内置+用户 Skills)         ★ NEW
+  +-- Agent 领域                                 ★ NEW
   |
   v
 5. 创建 Service 层
+  +-- CatalogService (编排 Recipe 部署)          ★ NEW
   |
   v
 6. 创建 Gateway
   |
   v
-7. 启动 Adapters
+7. 初始化 AI Agent (如果 agent.enabled=true)    ★ NEW
+  +-- 创建 LLM Client (Anthropic/OpenAI/Ollama)
+  +-- 加载 SkillRegistry
+  +-- 注册 Agent 到 Gateway
+  |
+  v
+8. 启动 Adapters
   +-- HTTP Server (:9090)
   +-- MCP Server (stdio/SSE)
   +-- gRPC Server (:50051)
   +-- CLI (如果是 CLI 模式)
   |
   v
-8. 系统就绪 -> 接受请求
+9. 系统就绪 -> 接受请求
 ```
 
 ### 优雅关闭
@@ -1612,7 +2160,52 @@ rate_limit_per_min = 120
 level = "info"
 format = "json"
 file = "~/.aima/logs/aima.log"
+
+# ─── 以下为新增配置 ─────────────────────────────
+
+[catalog]
+recipes_dir = "~/.aima/recipes"        # 用户自定义 Recipe 目录
+
+[registry]
+region = ""                            # 设为 "cn" 启用国内镜像
+
+[[registry.mirrors]]
+source = "docker.io"
+mirror = "registry.cn-hangzhou.aliyuncs.com"
+region = "cn"
+
+[[registry.mirrors]]
+source = "huggingface.co"
+mirror = "hf-mirror.com"
+region = "cn"
+
+[agent]
+enabled = true
+provider = "anthropic"                 # "anthropic", "openai", "ollama"
+api_endpoint = ""                      # 自定义 API 端点 (代理或本地)
+api_key = ""                           # 建议使用 AIMA_AGENT_API_KEY 环境变量
+model = "claude-haiku-4-5-20251001"    # LLM 模型 ID
+max_tokens = 4096
+temperature = 0.7
+max_history = 50                       # 会话中保留的最大消息数
+
+[skill]
+builtin_enabled = true                 # 加载内置 Skills
+user_skills_dir = "~/.aima/skills"     # 用户 Skills 目录
+max_active_skills = 10                 # System Prompt 中最大活跃 Skills 数
 ```
+
+### 新增环境变量覆盖
+
+| 环境变量 | 配置项 | 说明 |
+|---------|--------|------|
+| `AIMA_AGENT_PROVIDER` | `agent.provider` | LLM 提供商 |
+| `AIMA_AGENT_API_KEY` | `agent.api_key` | LLM API Key (敏感，推荐用环境变量) |
+| `AIMA_AGENT_MODEL` | `agent.model` | LLM 模型 ID |
+| `AIMA_AGENT_ENDPOINT` | `agent.api_endpoint` | 自定义 API 端点 |
+| `AIMA_REGISTRY_REGION` | `registry.region` | 镜像区域 |
+| `AIMA_CATALOG_DIR` | `catalog.recipes_dir` | Recipe 目录 |
+| `AIMA_SKILLS_DIR` | `skill.user_skills_dir` | Skills 目录 |
 
 ---
 
@@ -2012,7 +2605,34 @@ HTTP Client -> POST /api/v2/stream
     -> 最终: event: chunk / data: {"done": true}
 ```
 
-### 场景 3: Workflow 编排
+### 场景 3: AI Agent 一键部署 (新增)
+
+```
+用户: "帮我部署一个 LLM"
+
+  -> aima agent chat
+    -> Agent.Chat(ctx, "帮我部署一个 LLM")
+      -> LLM 思考: 需要先检测硬件
+      -> [Tool Call: device_detect]
+        -> MCPAdapter.ExecuteTool("device_detect", {})
+        -> Gateway.Handle(command, device.detect)
+        -> HAL.Detect() -> {GPU: "RTX 4090", VRAM: 24GB}
+      -> LLM 思考: 有 RTX 4090，查找匹配方案
+      -> [Tool Call: catalog_match]
+        -> 评分匹配 -> 返回 Top 3 Recipes
+      -> LLM 回复: "找到 3 个方案: 1. vLLM + Qwen 2.5  2. ..."
+      -> 用户: "用第一个"
+      -> [Tool Call: catalog_apply_recipe]
+        -> CatalogService.ApplyRecipe()
+          -> RegistryProvider.PullImage("vllm/vllm-openai:v0.15.0")
+          -> model.pull(source=huggingface, repo=Qwen/Qwen2.5-7B-AWQ)
+        -> 返回 {engine_ready: true, models: [{name: "Qwen 2.5", status: "ready"}]}
+      -> [Tool Call: inference_chat] (测试)
+        -> 返回测试成功
+      -> LLM 回复: "部署完成！Qwen 2.5 7B 已就绪，可以开始对话。"
+```
+
+### 场景 4: Workflow 编排
 
 ```
 API Request: POST /api/v2/workflow/voice_assistant/run
@@ -2183,33 +2803,61 @@ AI Agent 检查执行结果，决定下一步：
 
 ## 迁移路径
 
-### Phase 1: 核心框架 (1-2 周)
+### Phase 1: 核心框架 ✅
 - 定义原子单元接口
 - 实现注册表和 Schema
 - 构建 Gateway 核心
 
-### Phase 2: 核心领域 (3-4 周)
-- 迁移 device 原子单元
-- 迁移 model 原子单元
-- 迁移 engine 原子单元
-- 迁移 inference 原子单元
+### Phase 2: 核心领域 ✅
+- 迁移 device / model / engine / inference 原子单元
 
-### Phase 3: 适配器 (2 周)
-- 实现 HTTP 适配器
-- 实现 MCP 适配器
-- 实现 CLI 适配器
+### Phase 3: 适配器 ✅
+- 实现 HTTP / MCP / gRPC / CLI 适配器
 
-### Phase 4: 其他领域 (2 周)
-- 迁移 resource 原子单元
-- 迁移 service 原子单元
-- 迁移 app 原子单元
-- 迁移 alert 原子单元
+### Phase 4: 其他领域 ✅
+- 迁移 resource / service / app / alert / remote 原子单元
 
-### Phase 5: 编排层 (2 周)
-- 实现 Workflow 引擎
-- 迁移 Pipeline 模板
+### Phase 5: 编排层 ✅
+- 实现 Workflow 引擎和 Pipeline 模板
 
-### Phase 6: 完善和文档 (1 周)
-- 清理遗留代码
-- 完善文档
-- 添加示例
+### Phase 6: 硬件最佳实践 Catalog (NEW)
+- Recipe 类型定义和 Store
+- 内置 Recipe YAML (RTX 4090, A100, M 系列, CPU)
+- 硬件匹配算法
+- `catalog.create_recipe`, `catalog.match`, `catalog.list`, `catalog.get`
+- Registry Provider (DockerHub + 国内镜像)
+- `catalog.apply_recipe` 一键部署
+
+### Phase 7: AI Agent Skills (NEW)
+- Skill 类型定义和加载器
+- 内置 Skills (setup-llm, troubleshoot-gpu 等)
+- SkillRegistry 和 System Prompt 构建
+- `skill.add`, `skill.list`, `skill.search` 等原子单元
+
+### Phase 8: AI Agent Operator (NEW)
+- LLM Client 接口和适配器 (Anthropic/OpenAI/Ollama)
+- Agent 对话循环 (MCP Tool → LLM Tool 桥接)
+- 会话管理
+- `agent.chat`, `agent.status` 原子单元
+- CLI `aima agent chat` / `aima agent ask`
+
+---
+
+## 领域总览
+
+| # | 领域 | Commands | Queries | Resources | 说明 |
+|---|------|----------|---------|-----------|------|
+| 1 | device | 2 | 3 | 3 动态 | 硬件设备管理 |
+| 2 | model | 5 | 4 | 2 | 模型管理 |
+| 3 | engine | 4 | 3 | 2 | 推理引擎管理 |
+| 4 | inference | 9 (流式) | 2 | 1 | 推理服务 |
+| 5 | resource | 3 | 4 | 3 | 资源管理 |
+| 6 | service | 5 | 3 | 2 | 模型服务化 |
+| 7 | app | 4 | 4 | 2 | Docker 应用 |
+| 8 | pipeline | 4 | 4 | 2 | 管道编排 |
+| 9 | alert | 5 | 3 | 2 | 告警管理 |
+| 10 | remote | 3 (流式) | 2 | 2 | 远程操作 |
+| 11 | **catalog** | **3** | **4** | **2** | **硬件最佳实践 ★ NEW** |
+| 12 | **agent** | **2** | **2** | **2** | **AI 代理操作 ★ NEW** |
+| 13 | **skill** | **4** | **3** | **2** | **技能知识库 ★ NEW** |
+| | **合计** | **53** | **41** | **27** | **13 个领域** |
