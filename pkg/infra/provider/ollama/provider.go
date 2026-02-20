@@ -246,7 +246,7 @@ func (p *Provider) Verify(ctx context.Context, modelID string, checksum string) 
 		p.mu.RUnlock()
 	}
 
-	resp, err := p.client.ShowModel(ctx, &ShowModelRequest{Name: modelName})
+	_, err := p.client.ShowModel(ctx, &ShowModelRequest{Name: modelName})
 	if err != nil {
 		return &model.VerificationResult{
 			Valid:  false,
@@ -256,7 +256,7 @@ func (p *Provider) Verify(ctx context.Context, modelID string, checksum string) 
 
 	issues := []string{}
 
-	// TODO: implement checksum verification using resp.Details.ParameterSize
+	// TODO: implement checksum verification using ShowModel response
 
 	if len(issues) == 0 {
 		return &model.VerificationResult{Valid: true}, nil
