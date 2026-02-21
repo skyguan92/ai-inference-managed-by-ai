@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -131,6 +132,8 @@ type ServiceProvider interface {
 	GetRecommendation(ctx context.Context, modelID string, hint string) (*Recommendation, error)
 	// IsRunning checks if the service container/process is actually running
 	IsRunning(ctx context.Context, serviceID string) bool
+	// GetLogs returns the last tail lines of container/process logs for the service
+	GetLogs(ctx context.Context, serviceID string, tail int) (string, error)
 }
 
 type MockProvider struct {
@@ -205,6 +208,10 @@ func (m *MockProvider) GetRecommendation(ctx context.Context, modelID string, hi
 
 func (m *MockProvider) IsRunning(ctx context.Context, serviceID string) bool {
 	return true
+}
+
+func (m *MockProvider) GetLogs(ctx context.Context, serviceID string, tail int) (string, error) {
+	return fmt.Sprintf("mock logs for service %s (last %d lines)", serviceID, tail), nil
 }
 
 func createTestService(id string, modelID string, status ServiceStatus) *ModelService {

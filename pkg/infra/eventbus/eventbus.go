@@ -273,3 +273,24 @@ func FilterByDomains(domains ...string) EventFilter {
 		return domainSet[event.Domain()]
 	}
 }
+
+// EventPublisherAdapter adapts an EventBus to the unit.EventPublisher interface.
+// It allows EventBus instances to be passed as unit.EventPublisher where needed.
+type EventPublisherAdapter struct {
+	bus EventBus
+}
+
+// NewEventPublisherAdapter creates an adapter that satisfies unit.EventPublisher
+// by wrapping an EventBus. Events published as `any` are type-asserted to unit.Event.
+func NewEventPublisherAdapter(bus EventBus) *EventPublisherAdapter {
+	return &EventPublisherAdapter{bus: bus}
+}
+
+// Publish implements unit.EventPublisher. It accepts `any` and attempts a type assertion
+// to unit.Event before forwarding to the underlying EventBus.
+func (a *EventPublisherAdapter) Publish(event any) error {
+	if e, ok := event.(unit.Event); ok {
+		return a.bus.Publish(e)
+	}
+	return fmt.Errorf("eventbus adapter: event does not implement unit.Event")
+}

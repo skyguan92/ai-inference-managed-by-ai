@@ -545,3 +545,114 @@ func (q *StatusQuery) Execute(ctx context.Context, input any) (any, error) {
 	ec.PublishCompleted(result)
 	return result, nil
 }
+
+// LogsQuery retrieves container/process logs for a service
+type LogsQuery struct {
+	store    ServiceStore
+	provider ServiceProvider
+	events   unit.EventPublisher
+}
+
+func NewLogsQuery(store ServiceStore, provider ServiceProvider) *LogsQuery {
+	return &LogsQuery{store: store, provider: provider}
+}
+
+func NewLogsQueryWithEvents(store ServiceStore, provider ServiceProvider, events unit.EventPublisher) *LogsQuery {
+	return &LogsQuery{store: store, provider: provider, events: events}
+}
+
+func (q *LogsQuery) Name() string {
+	return "service.logs"
+}
+
+func (q *LogsQuery) Domain() string {
+	return "service"
+}
+
+func (q *LogsQuery) Description() string {
+	return "Get container logs for a running or stopped service"
+}
+
+func (q *LogsQuery) InputSchema() unit.Schema {
+	return unit.Schema{
+		Type: "object",
+		Properties: map[string]unit.Field{
+			"service_id": {
+				Name: "service_id",
+				Schema: unit.Schema{
+					Type:        "string",
+					Description: "Service ID",
+				},
+			},
+			"tail": {
+				Name: "tail",
+				Schema: unit.Schema{
+					Type:        "number",
+					Description: "Number of lines to return from end of log",
+				},
+			},
+		},
+		Required: []string{"service_id"},
+	}
+}
+
+func (q *LogsQuery) OutputSchema() unit.Schema {
+	return unit.Schema{
+		Type: "object",
+		Properties: map[string]unit.Field{
+			"logs": {Name: "logs", Schema: unit.Schema{Type: "string"}},
+		},
+	}
+}
+
+func (q *LogsQuery) Examples() []unit.Example {
+	return []unit.Example{
+		{
+			Input:       map[string]any{"service_id": "svc-vllm-model-abc123"},
+			Output:      map[string]any{"logs": "2026-01-01 INFO Server started"},
+			Description: "Get last 100 lines of service logs",
+		},
+	}
+}
+
+func (q *LogsQuery) Execute(ctx context.Context, input any) (any, error) {
+	ec := unit.NewExecutionContext(q.events, q.Domain(), q.Name())
+	ec.PublishStarted(input)
+
+	if q.store == nil || q.provider == nil {
+		err := ErrProviderNotSet
+		ec.PublishFailed(err)
+		return nil, err
+	}
+
+	inputMap, ok := input.(map[string]any)
+	if !ok {
+		err := fmt.Errorf("invalid input type: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
+	}
+
+	serviceID, _ := inputMap["service_id"].(string)
+	if serviceID == "" {
+		err := fmt.Errorf("service_id is required: %w", ErrInvalidInput)
+		ec.PublishFailed(err)
+		return nil, err
+	}
+
+	tail := 100
+	if t, ok := inputMap["tail"].(float64); ok && t > 0 {
+		tail = int(t)
+	} else if t, ok := inputMap["tail"].(int); ok && t > 0 {
+		tail = t
+	}
+
+	logs, err := q.provider.GetLogs(ctx, serviceID, tail)
+	if err != nil {
+		ec.PublishFailed(err)
+		return nil, fmt.Errorf("get logs for service %s: %w", serviceID, err)
+	}
+
+	result := map[string]any{"logs": logs}
+	ec.PublishCompleted(result)
+	return result, nil
+}

@@ -1193,6 +1193,33 @@ func (p *HybridServiceProvider) IsRunning(ctx context.Context, serviceID string)
 	return true // Simplified check for now
 }
 
+// GetLogs returns the last tail lines of logs for the service container.
+func (p *HybridServiceProvider) GetLogs(ctx context.Context, serviceID string, tail int) (string, error) {
+	p.hybridProvider.mu.RLock()
+	info, exists := p.hybridProvider.serviceInfo[serviceID]
+	p.hybridProvider.mu.RUnlock()
+
+	if !exists || info == nil || info.ProcessID == "" {
+		// Try to find container by label if not in memory
+		containers, err := p.hybridProvider.dockerClient.ListContainers(ctx, map[string]string{"aima.service": serviceID})
+		if err != nil || len(containers) == 0 {
+			return "", fmt.Errorf("service %s has no running container", serviceID)
+		}
+		logs, err := p.hybridProvider.dockerClient.GetContainerLogs(ctx, containers[0], tail)
+		if err != nil {
+			return "", fmt.Errorf("get container logs: %w", err)
+		}
+		return logs, nil
+	}
+
+	// Use the tracked container ID
+	logs, err := p.hybridProvider.dockerClient.GetContainerLogs(ctx, info.ProcessID, tail)
+	if err != nil {
+		return "", fmt.Errorf("get container logs for %s: %w", info.ProcessID, err)
+	}
+	return logs, nil
+}
+
 // GetEngineProvider returns the underlying engine provider
 func (p *HybridServiceProvider) GetEngineProvider() engine.EngineProvider {
 	return p.hybridProvider

@@ -2,6 +2,7 @@ package vllm
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/model"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/service"
@@ -66,6 +67,11 @@ func (s *ServiceProvider) GetServiceInfo(serviceID string) (*ServiceInfo, error)
 // IsRunning checks if the service is actually running
 func (s *ServiceProvider) IsRunning(ctx context.Context, serviceID string) bool {
 	return s.provider.isRunning(serviceID)
+}
+
+// GetLogs returns the last tail lines of logs for the service
+func (s *ServiceProvider) GetLogs(ctx context.Context, serviceID string, tail int) (string, error) {
+	return "", fmt.Errorf("service logs not supported by vLLM provider")
 }
 
 // Ensure ServiceProvider implements the interface

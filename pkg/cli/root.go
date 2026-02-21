@@ -195,6 +195,7 @@ func (r *RootCommand) persistentPreRunE(cmd *cobra.Command, args []string) error
 		registry.WithDeviceProvider(deviceProvider),
 		registry.WithInferenceProvider(inferenceProvider),
 		registry.WithResourceProvider(resourceProvider),
+		registry.WithEventBus(eventbus.NewEventPublisherAdapter(r.eventBus)),
 	); err != nil {
 		return fmt.Errorf("register units: %w", err)
 	}

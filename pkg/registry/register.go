@@ -505,6 +505,9 @@ func registerServiceDomain(registry *unit.Registry, options *Options) error {
 		if err := registry.RegisterQuery(service.NewRecommendQueryWithEvents(provider, events)); err != nil {
 			return err
 		}
+		if err := registry.RegisterQuery(service.NewLogsQueryWithEvents(store, provider, events)); err != nil {
+			return err
+		}
 	}
 
 	// Register ResourceFactory for dynamic resource creation

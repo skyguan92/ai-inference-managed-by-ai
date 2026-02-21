@@ -211,5 +211,9 @@ func (p *MultiEngineProvider) IsRunning(ctx context.Context, serviceID string) b
 	return p.vllmProvider.IsRunning(ctx, serviceID)
 }
 
+func (p *MultiEngineProvider) GetLogs(ctx context.Context, serviceID string, tail int) (string, error) {
+	return p.vllmProvider.GetLogs(ctx, serviceID, tail)
+}
+
 // Ensure MultiEngineProvider implements the interface
 var _ service.ServiceProvider = (*MultiEngineProvider)(nil)
