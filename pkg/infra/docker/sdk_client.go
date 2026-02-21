@@ -7,6 +7,7 @@ import (
 	"io"
 	"strconv"
 
+	cerrdefs "github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
@@ -116,13 +117,13 @@ func (c *SDKClient) StopContainer(ctx context.Context, containerID string, timeo
 	stopOpts := container.StopOptions{Timeout: &timeout}
 	if err := c.cli.ContainerStop(ctx, containerID, stopOpts); err != nil {
 		// Ignore "not found" or "not running" errors — container may already be gone.
-		if !dockerclient.IsErrNotFound(err) {
+		if !cerrdefs.IsNotFound(err) {
 			return fmt.Errorf("docker ContainerStop: %w", err)
 		}
 	}
 
 	if err := c.cli.ContainerRemove(context.Background(), containerID, container.RemoveOptions{Force: true}); err != nil {
-		if !dockerclient.IsErrNotFound(err) {
+		if !cerrdefs.IsNotFound(err) {
 			return fmt.Errorf("docker ContainerRemove: %w", err)
 		}
 	}
@@ -231,7 +232,7 @@ func (c *SDKClient) ContainerEvents(ctx context.Context, filterMap map[string]st
 				ev := ContainerEvent{
 					ContainerID: msg.Actor.ID,
 					Action:      string(msg.Action),
-					Status:      msg.Status,
+					Status:      string(msg.Action), // msg.Status is deprecated; Action carries the same info
 				}
 				select {
 				case ch <- ev:
