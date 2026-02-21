@@ -76,13 +76,13 @@ AIMA_CONFIG=/tmp/aima-bad-log.toml /tmp/aima model list
 ```bash
 rm -rf /tmp/aima-test-data
 cat > /tmp/aima-custom-dir.toml << 'EOF'
-[storage]
+[general]
 data_dir = "/tmp/aima-test-data"
 EOF
 
-AIMA_CONFIG=/tmp/aima-custom-dir.toml /tmp/aima model list
+/tmp/aima --config /tmp/aima-custom-dir.toml model list
 ls -la /tmp/aima-test-data/
-# Expected: directory created with SQLite files
+# Expected: directory created with SQLite files (aima.db)
 ```
 
 ### Test 5: Env Var Precedence

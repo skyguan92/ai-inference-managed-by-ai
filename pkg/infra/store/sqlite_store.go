@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/model"
@@ -18,6 +20,10 @@ type SQLiteStore struct {
 
 // NewSQLiteStore creates a new SQLite-backed model store
 func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
+	if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
+		return nil, fmt.Errorf("create database directory: %w", err)
+	}
+
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite database: %w", err)
