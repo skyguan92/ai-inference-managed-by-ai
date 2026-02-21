@@ -26,17 +26,23 @@ type ServerConfig struct {
 // longOperationTimeout is the maximum duration allowed for long-running HTTP
 // operations such as service start (up to 20 min for large model loading) and
 // agent chat (up to 10 min for multi-turn LLM conversations). The server-level
-// WriteTimeout and IdleTimeout must exceed this to avoid killing in-flight
-// requests. Per-handler timeouts (via RequestOptions.Timeout) provide the
-// actual deadline enforcement.
+// WriteTimeout must exceed this to avoid killing in-flight requests.
+// Per-handler timeouts (via RequestOptions.Timeout) provide the actual
+// deadline enforcement.
 const longOperationTimeout = 25 * time.Minute
+
+// defaultIdleTimeout controls how long idle keep-alive connections are held
+// open between requests. This is independent of long-running operation
+// timeouts — an idle connection is one that has finished its last request and
+// is waiting for the next one.
+const defaultIdleTimeout = 120 * time.Second
 
 func DefaultServerConfig() ServerConfig {
 	return ServerConfig{
 		Addr:            ":9090",
 		ReadTimeout:     15 * time.Second,
 		WriteTimeout:    longOperationTimeout,
-		IdleTimeout:     longOperationTimeout,
+		IdleTimeout:     defaultIdleTimeout,
 		ShutdownTimeout: 10 * time.Second,
 		EnableCORS:      false,
 		CORSConfig:      middleware.DefaultCORSConfig(),
@@ -65,7 +71,7 @@ func NewServer(gateway *Gateway, config ServerConfig) *Server {
 		config.WriteTimeout = longOperationTimeout
 	}
 	if config.IdleTimeout == 0 {
-		config.IdleTimeout = longOperationTimeout
+		config.IdleTimeout = defaultIdleTimeout
 	}
 	if config.ShutdownTimeout == 0 {
 		config.ShutdownTimeout = 10 * time.Second

@@ -191,8 +191,8 @@ func TestDefaultServerConfig(t *testing.T) {
 	if cfg.WriteTimeout != longOperationTimeout {
 		t.Errorf("expected write timeout %v (longOperationTimeout), got %v", longOperationTimeout, cfg.WriteTimeout)
 	}
-	if cfg.IdleTimeout != longOperationTimeout {
-		t.Errorf("expected idle timeout %v (longOperationTimeout), got %v", longOperationTimeout, cfg.IdleTimeout)
+	if cfg.IdleTimeout != defaultIdleTimeout {
+		t.Errorf("expected idle timeout %v (defaultIdleTimeout), got %v", defaultIdleTimeout, cfg.IdleTimeout)
 	}
 	if cfg.ShutdownTimeout != 10*time.Second {
 		t.Errorf("expected shutdown timeout 10s, got %v", cfg.ShutdownTimeout)
