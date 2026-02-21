@@ -504,6 +504,13 @@ func toInt(v any) (int, bool) {
 		return int(val), true
 	case float32:
 		return int(val), true
+	case string:
+		// Handle query string parameters which arrive as strings (e.g. vram_gb=24 from GET requests).
+		var n int
+		if _, err := fmt.Sscanf(val, "%d", &n); err == nil {
+			return n, true
+		}
+		return 0, false
 	default:
 		return 0, false
 	}

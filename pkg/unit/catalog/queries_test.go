@@ -177,7 +177,7 @@ func TestScoreRecipe(t *testing.T) {
 		{
 			name:          "insufficient VRAM",
 			hw:            HardwareProfile{GPUVendor: "NVIDIA", VRAMMinGB: 8},
-			expectedScore: 40, // VRAM too low, no +10
+			expectedScore: 0, // VRAM too low — hard filter: recipe requires 24GB, machine has 8GB
 		},
 		{
 			name:          "no match",

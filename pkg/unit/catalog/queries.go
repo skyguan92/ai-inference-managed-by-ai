@@ -208,9 +208,23 @@ func (q *MatchQuery) Execute(ctx context.Context, input any) (any, error) {
 //	GPU Arch compatible:    +15
 //	VRAM satisfies minimum: +10
 //	OS match:               +5
+//
+// Returns 0 if:
+//   - The recipe requires a GPU vendor but the query specifies a different vendor.
+//   - The recipe requires more VRAM than the query machine provides.
 func scoreRecipe(recipe Recipe, hw HardwareProfile) int {
 	score := 0
 	p := recipe.Profile
+
+	// Hard filter: vendor mismatch — recipe targets a specific vendor that the query doesn't match.
+	if p.GPUVendor != "" && hw.GPUVendor != "" && p.GPUVendor != hw.GPUVendor {
+		return 0
+	}
+
+	// Hard filter: VRAM insufficient — recipe requires more VRAM than the machine has.
+	if p.VRAMMinGB > 0 && hw.VRAMMinGB > 0 && hw.VRAMMinGB < p.VRAMMinGB {
+		return 0
+	}
 
 	if hw.GPUVendor != "" && p.GPUVendor == hw.GPUVendor {
 		score += 40

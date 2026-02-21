@@ -76,7 +76,7 @@ func NewServer(gateway *Gateway, config ServerConfig) *Server {
 	// on s.http initialization when called from different goroutines.
 	mux := http.NewServeMux()
 	handler := s.buildHandler()
-	mux.Handle("/api/v2/", http.StripPrefix("/api/v2", handler))
+	mux.Handle("/api/v2/", handler)
 	mux.HandleFunc("/openapi.json", s.handleOpenAPI)
 	mux.HandleFunc("/health", s.handleHealth)
 
@@ -110,7 +110,7 @@ func (s *Server) buildHandler() http.Handler {
 	routerHandler := s.router
 
 	handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/execute" && r.Method == http.MethodPost {
+		if r.URL.Path == "/api/v2/execute" && r.Method == http.MethodPost {
 			executeHandler.ServeHTTP(w, r)
 			return
 		}

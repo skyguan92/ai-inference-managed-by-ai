@@ -113,7 +113,7 @@ func TestServer_BuildHandler(t *testing.T) {
 
 	t.Run("execute endpoint", func(t *testing.T) {
 		body := `{"type":"command","unit":"test.echo"}`
-		req := httptest.NewRequest(http.MethodPost, "/execute", bytes.NewBufferString(body))
+		req := httptest.NewRequest(http.MethodPost, "/api/v2/execute", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", ContentTypeJSON)
 		rec := httptest.NewRecorder()
 
@@ -254,7 +254,7 @@ func TestServer_PanicRecovery(t *testing.T) {
 	handler := s.buildHandler()
 
 	body := `{"type":"command","unit":"test.panic"}`
-	req := httptest.NewRequest(http.MethodPost, "/execute", bytes.NewBufferString(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v2/execute", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", ContentTypeJSON)
 	rec := httptest.NewRecorder()
 
