@@ -181,6 +181,9 @@ func (r *RootCommand) persistentPreRunE(cmd *cobra.Command, args []string) error
 	// Create inference provider that proxies to running services
 	inferenceProvider := provider.NewProxyInferenceProvider(serviceStore, modelStore)
 
+	// Create resource provider that reads system memory/storage metrics (Bug #49)
+	resourceProvider := provider.NewSystemResourceProvider()
+
 	// Register all atomic units with providers
 	if err := registry.RegisterAll(r.registry,
 		registry.WithModelProvider(modelProvider),
@@ -191,6 +194,7 @@ func (r *RootCommand) persistentPreRunE(cmd *cobra.Command, args []string) error
 		registry.WithEngineStore(engineStore),
 		registry.WithDeviceProvider(deviceProvider),
 		registry.WithInferenceProvider(inferenceProvider),
+		registry.WithResourceProvider(resourceProvider),
 	); err != nil {
 		return fmt.Errorf("register units: %w", err)
 	}
