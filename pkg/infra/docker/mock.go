@@ -540,6 +540,8 @@ func (c *MockClient) StreamLogs(ctx context.Context, containerID string, since s
 }
 
 // ListContainers implements docker.Client: returns container IDs matching label filters.
+// Includes containers in all states (running, created, exited, etc.) to match the
+// real client behavior, which uses All: true / -a flag.
 func (c *MockClient) ListContainers(ctx context.Context, labels map[string]string) ([]string, error) {
 	select {
 	case <-ctx.Done():
@@ -547,10 +549,8 @@ func (c *MockClient) ListContainers(ctx context.Context, labels map[string]strin
 	default:
 	}
 	var ids []string
-	for id, ct := range c.Containers {
-		if ct.Status == "running" {
-			ids = append(ids, id)
-		}
+	for id := range c.Containers {
+		ids = append(ids, id)
 	}
 	return ids, nil
 }

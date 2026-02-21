@@ -428,6 +428,28 @@ func TestStartCommand_Execute(t *testing.T) {
 	}
 }
 
+// TestStartCommand_FailedStatusTransition verifies Bug #24: when Start fails,
+// service transitions to "failed" instead of staying at "creating".
+func TestStartCommand_FailedStatusTransition(t *testing.T) {
+	store := createStoreWithService("svc-123", "model-1", ServiceStatusCreating)
+	provider := &MockProvider{startErr: errors.New("docker container exited")}
+	cmd := NewStartCommand(store, provider)
+
+	_, err := cmd.Execute(context.Background(), map[string]any{"service_id": "svc-123"})
+	if err == nil {
+		t.Fatal("expected error from failed start")
+	}
+
+	// Verify service status transitioned to "failed"
+	svc, getErr := store.Get(context.Background(), "svc-123")
+	if getErr != nil {
+		t.Fatalf("failed to get service: %v", getErr)
+	}
+	if svc.Status != ServiceStatusFailed {
+		t.Errorf("expected service status %q, got %q", ServiceStatusFailed, svc.Status)
+	}
+}
+
 func TestStopCommand_Name(t *testing.T) {
 	cmd := NewStopCommand(nil, nil)
 	if cmd.Name() != "service.stop" {
@@ -486,11 +508,11 @@ func TestStopCommand_Execute(t *testing.T) {
 			wantErr:  true,
 		},
 		{
-			name:     "service not running",
+			name:     "service already stopped",
 			store:    createStoreWithService("svc-123", "model-1", ServiceStatusStopped),
 			provider: &MockProvider{},
 			input:    map[string]any{"service_id": "svc-123"},
-			wantErr:  true,
+			wantErr:  false,
 		},
 		{
 			name:     "provider error",
@@ -498,6 +520,34 @@ func TestStopCommand_Execute(t *testing.T) {
 			provider: &MockProvider{stopErr: errors.New("stop failed")},
 			input:    map[string]any{"service_id": "svc-123"},
 			wantErr:  true,
+		},
+		{
+			name:     "stop creating service succeeds",
+			store:    createStoreWithService("svc-123", "model-1", ServiceStatusCreating),
+			provider: &MockProvider{},
+			input:    map[string]any{"service_id": "svc-123"},
+			wantErr:  false,
+		},
+		{
+			name:     "stop failed service succeeds",
+			store:    createStoreWithService("svc-123", "model-1", ServiceStatusFailed),
+			provider: &MockProvider{},
+			input:    map[string]any{"service_id": "svc-123"},
+			wantErr:  false,
+		},
+		{
+			name:     "stop creating service ignores provider error",
+			store:    createStoreWithService("svc-123", "model-1", ServiceStatusCreating),
+			provider: &MockProvider{stopErr: errors.New("nothing to stop")},
+			input:    map[string]any{"service_id": "svc-123"},
+			wantErr:  false,
+		},
+		{
+			name:     "stop failed service ignores provider error",
+			store:    createStoreWithService("svc-123", "model-1", ServiceStatusFailed),
+			provider: &MockProvider{stopErr: errors.New("nothing to stop")},
+			input:    map[string]any{"service_id": "svc-123"},
+			wantErr:  false,
 		},
 	}
 
@@ -526,6 +576,34 @@ func TestStopCommand_Execute(t *testing.T) {
 
 			if success, ok := resultMap["success"].(bool); !ok || !success {
 				t.Error("expected success=true")
+			}
+		})
+	}
+}
+
+// TestStopCommand_StatusTransitions verifies Bug #25: stop on non-running
+// services transitions them to "stopped" in the store.
+func TestStopCommand_StatusTransitions(t *testing.T) {
+	for _, fromStatus := range []ServiceStatus{ServiceStatusCreating, ServiceStatusFailed, ServiceStatusRunning} {
+		t.Run(string(fromStatus), func(t *testing.T) {
+			store := createStoreWithService("svc-123", "model-1", fromStatus)
+			cmd := NewStopCommand(store, &MockProvider{})
+
+			result, err := cmd.Execute(context.Background(), map[string]any{"service_id": "svc-123"})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			resultMap := result.(map[string]any)
+			if !resultMap["success"].(bool) {
+				t.Fatal("expected success=true")
+			}
+
+			svc, getErr := store.Get(context.Background(), "svc-123")
+			if getErr != nil {
+				t.Fatalf("failed to get service: %v", getErr)
+			}
+			if svc.Status != ServiceStatusStopped {
+				t.Errorf("expected status %q after stop, got %q", ServiceStatusStopped, svc.Status)
 			}
 		})
 	}

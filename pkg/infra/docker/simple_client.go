@@ -69,9 +69,6 @@ func (c *SimpleClient) CreateAndStartContainer(ctx context.Context, name, image 
 		args = append(args, "--cpus", opts.CPU)
 	}
 
-	// Add restart policy
-	args = append(args, "--restart", "unless-stopped")
-
 	// Add image and command
 	args = append(args, image)
 	if len(opts.Cmd) > 0 {
@@ -130,7 +127,7 @@ func (c *SimpleClient) GetContainerLogs(ctx context.Context, containerID string,
 
 // ListContainers lists containers with given labels
 func (c *SimpleClient) ListContainers(ctx context.Context, labels map[string]string) ([]string, error) {
-	args := []string{"ps", "-q", "--filter", "label=aima.managed=true"}
+	args := []string{"ps", "-a", "-q", "--filter", "label=aima.managed=true"}
 
 	for k, v := range labels {
 		args = append(args, "--filter", fmt.Sprintf("label=%s=%s", k, v))

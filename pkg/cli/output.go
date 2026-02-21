@@ -116,6 +116,35 @@ func formatSliceTable(data any) (string, error) {
 func formatMapTable(data any) (string, error) {
 	v := reflect.ValueOf(data)
 	if v.Kind() == reflect.Map {
+		// Detect the common response pattern {"items": [...], "total": N}.
+		// When present, render the items slice as a proper table instead of
+		// dumping the raw JSON for the nested array.
+		itemsKey := v.MapIndex(reflect.ValueOf("items"))
+		if itemsKey.IsValid() {
+			itemsVal := itemsKey.Interface()
+			rv := reflect.ValueOf(itemsVal)
+			if rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array {
+				tableStr, err := formatSliceTable(itemsVal)
+				if err != nil {
+					return "", err
+				}
+				// Append any extra keys (e.g. "total") below the table.
+				var extra strings.Builder
+				iter := v.MapRange()
+				for iter.Next() {
+					key := fmt.Sprintf("%v", iter.Key())
+					if key == "items" {
+						continue
+					}
+					fmt.Fprintf(&extra, "%s: %s\n", key, formatValue(iter.Value().Interface()))
+				}
+				if extra.Len() > 0 {
+					return tableStr + extra.String(), nil
+				}
+				return tableStr, nil
+			}
+		}
+
 		var sb strings.Builder
 		w := tabwriter.NewWriter(&sb, 0, 0, 2, ' ', 0)
 

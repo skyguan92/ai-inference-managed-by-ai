@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"time"
 
 	cerrdefs "github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
@@ -108,6 +109,10 @@ func (c *SDKClient) CreateAndStartContainer(ctx context.Context, name, image str
 	}
 
 	if err := c.cli.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
+		// Clean up the created container so it doesn't block the port on retry.
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_ = c.cli.ContainerRemove(cleanupCtx, resp.ID, container.RemoveOptions{Force: true})
 		return "", fmt.Errorf("docker ContainerStart: %w", err)
 	}
 
@@ -199,7 +204,7 @@ func (c *SDKClient) ListContainers(ctx context.Context, labels map[string]string
 		f.Add("label", fmt.Sprintf("%s=%s", k, v))
 	}
 
-	containers, err := c.cli.ContainerList(ctx, container.ListOptions{Filters: f})
+	containers, err := c.cli.ContainerList(ctx, container.ListOptions{All: true, Filters: f})
 	if err != nil {
 		return nil, fmt.Errorf("docker ContainerList: %w", err)
 	}

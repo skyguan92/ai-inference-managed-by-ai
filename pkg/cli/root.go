@@ -9,12 +9,18 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	coreagent "github.com/jguan/ai-inference-managed-by-ai/pkg/agent"
 	agentllm "github.com/jguan/ai-inference-managed-by-ai/pkg/agent/llm"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/config"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/gateway"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/eventbus"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/hal/nvidia"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/provider"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/provider/huggingface"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/store"
@@ -23,8 +29,6 @@ import (
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/engine"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/model"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/service"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 var (
@@ -151,8 +155,31 @@ func (r *RootCommand) persistentPreRunE(cmd *cobra.Command, args []string) error
 	// Create engine store (memory-based for now)
 	engineStore := engine.NewMemoryStore()
 
+	// Seed engine store with available engine types from loaded assets.
+	if hep, ok := engineProvider.(*provider.HybridEngineProvider); ok {
+		for _, assetType := range hep.AssetTypes() {
+			now := time.Now().Unix()
+			if err := engineStore.Create(context.Background(), &engine.Engine{
+				ID:        "engine-" + uuid.New().String()[:8],
+				Name:      assetType,
+				Type:      engine.EngineType(assetType),
+				Status:    engine.EngineStatusStopped,
+				CreatedAt: now,
+				UpdatedAt: now,
+			}); err != nil {
+				slog.Warn("failed to seed engine store", "type", assetType, "error", err)
+			}
+		}
+	}
+
+	// Create device provider (NVIDIA GPU detection via nvidia-smi)
+	deviceProvider := nvidia.NewProvider()
+
 	// Expose serviceStore to setupAgent for local LLM auto-detection
 	r.serviceStore = serviceStore
+
+	// Create inference provider that proxies to running services
+	inferenceProvider := provider.NewProxyInferenceProvider(serviceStore, modelStore)
 
 	// Register all atomic units with providers
 	if err := registry.RegisterAll(r.registry,
@@ -162,6 +189,8 @@ func (r *RootCommand) persistentPreRunE(cmd *cobra.Command, args []string) error
 		registry.WithServiceStore(serviceStore),
 		registry.WithEngineProvider(engineProvider),
 		registry.WithEngineStore(engineStore),
+		registry.WithDeviceProvider(deviceProvider),
+		registry.WithInferenceProvider(inferenceProvider),
 	); err != nil {
 		return fmt.Errorf("register units: %w", err)
 	}

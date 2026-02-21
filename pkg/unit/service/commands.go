@@ -441,6 +441,15 @@ func (c *StartCommand) InputSchema() unit.Schema {
 					MinLength:   ptrs.Int(1),
 				},
 			},
+			"timeout": {
+				Name: "timeout",
+				Schema: unit.Schema{
+					Type:        "number",
+					Description: "Timeout in seconds for the start operation (including health check). Defaults to the gateway timeout if not set. Use 600 for large models.",
+					Min:         ptrs.Float64(1),
+					Max:         ptrs.Float64(3600),
+				},
+			},
 		},
 		Required: []string{"service_id"},
 	}
@@ -492,6 +501,13 @@ func (c *StartCommand) Execute(ctx context.Context, input any) (any, error) {
 		return nil, err
 	}
 
+	// Apply caller-specified timeout so the agent can override the gateway default.
+	if timeoutSec, ok := inputMap["timeout"].(float64); ok && timeoutSec > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(timeoutSec)*time.Second)
+		defer cancel()
+	}
+
 	service, err := c.store.Get(ctx, serviceID)
 	if err != nil {
 		ec.PublishFailed(err)
@@ -527,6 +543,16 @@ func (c *StartCommand) Execute(ctx context.Context, input any) (any, error) {
 	}
 
 	if startErr != nil {
+		// Transition to failed status so the service is not stuck at "creating".
+		// Use a fresh context because the original ctx may already be cancelled
+		// (e.g. gateway timeout), which is exactly what caused the start failure.
+		service.Status = ServiceStatusFailed
+		service.UpdatedAt = time.Now().Unix()
+		updateCtx, updateCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer updateCancel()
+		if updateErr := c.store.Update(updateCtx, service); updateErr != nil {
+			slog.Warn("failed to update service status to failed", "service_id", serviceID, "error", updateErr)
+		}
 		ec.PublishFailed(startErr)
 		return nil, fmt.Errorf("start service %s: %w", serviceID, startErr)
 	}
@@ -651,19 +677,33 @@ func (c *StopCommand) Execute(ctx context.Context, input any) (any, error) {
 		return nil, fmt.Errorf("get service %s: %w", serviceID, err)
 	}
 
-	if service.Status != ServiceStatusRunning {
-		ec.PublishFailed(ErrServiceNotRunning)
-		return nil, ErrServiceNotRunning
-	}
-
 	force := false
 	if f, ok := inputMap["force"].(bool); ok {
 		force = f
 	}
 
-	if err := c.provider.Stop(ctx, serviceID, force); err != nil {
-		ec.PublishFailed(err)
-		return nil, fmt.Errorf("stop service %s: %w", serviceID, err)
+	if service.Status == ServiceStatusStopped {
+		// Already stopped — nothing to do
+		output := map[string]any{"success": true}
+		ec.PublishCompleted(output)
+		return output, nil
+	}
+
+	// Attempt to stop even for non-running states (creating, failed) so that
+	// any orphaned containers are cleaned up. Ignore stop errors for services
+	// that were never fully running — the provider may return an error if there is
+	// nothing to stop, which is fine.
+	if service.Status == ServiceStatusRunning || service.Status == ServiceStatusCreating || service.Status == ServiceStatusFailed {
+		if err := c.provider.Stop(ctx, serviceID, force); err != nil {
+			// For non-running services, log but don't fail — the goal is to
+			// transition to stopped status regardless.
+			if service.Status != ServiceStatusRunning {
+				slog.Warn("ignoring stop error for non-running service", "service_id", serviceID, "status", service.Status, "error", err)
+			} else {
+				ec.PublishFailed(err)
+				return nil, fmt.Errorf("stop service %s: %w", serviceID, err)
+			}
+		}
 	}
 
 	service.Status = ServiceStatusStopped

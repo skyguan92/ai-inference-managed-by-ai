@@ -104,6 +104,18 @@ func newHybridEngineProviderWithClient(modelStore model.ModelStore, dc docker.Cl
 	}
 }
 
+// AssetTypes returns the engine type keys from the loaded YAML assets.
+// This is used by the CLI to seed the EngineStore at startup.
+func (p *HybridEngineProvider) AssetTypes() []string {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	types := make([]string, 0, len(p.engineAssets))
+	for k := range p.engineAssets {
+		types = append(types, k)
+	}
+	return types
+}
+
 // SetEventBus injects an event bus so the provider can publish progress events.
 func (p *HybridEngineProvider) SetEventBus(bus eventbus.EventBus) {
 	p.mu.Lock()
@@ -387,6 +399,23 @@ func (p *HybridEngineProvider) startDockerWithRetry(ctx context.Context, engineT
 
 	p.publishProgress(engineType, "pulling", "Image found: "+image, 50)
 
+	// Clean up any stale containers for this engine type before creating a new one.
+	// This catches orphaned containers left in "Created" or "Exited" state from
+	// previous failed start attempts, which would otherwise block the port.
+	staleIDs, _ := p.dockerClient.ListContainers(ctx, map[string]string{"aima.engine": engineType})
+	for _, cid := range staleIDs {
+		slog.Info("removing stale container before start", "container_id", cid, "engine", engineType)
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		if err := p.dockerClient.StopContainer(cleanupCtx, cid, 10); err != nil {
+			slog.Warn("failed to remove stale container", "container_id", cid, "error", err)
+		}
+		cancel()
+	}
+	if len(staleIDs) > 0 {
+		// Brief wait for Docker to fully release ports after container removal.
+		time.Sleep(2 * time.Second)
+	}
+
 	opts := docker.ContainerOptions{
 		Ports: map[string]string{
 			strconv.Itoa(port): strconv.Itoa(port),
@@ -470,7 +499,23 @@ func (p *HybridEngineProvider) waitForHealth(ctx context.Context, engineType, co
 	for time.Now().Before(deadline) {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			// Context cancelled (e.g. gateway timeout) — clean up the container
+			// so the port is freed for subsequent start attempts.
+			shortID := containerID
+			if len(shortID) > 12 {
+				shortID = shortID[:12]
+			}
+			slog.Warn("health check cancelled, cleaning up container",
+				"container_id", shortID, "reason", ctx.Err())
+			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cleanupCancel()
+			if stopErr := p.dockerClient.StopContainer(cleanupCtx, containerID, 10); stopErr != nil {
+				slog.Warn("failed to stop container during cleanup", "container_id", shortID, "error", stopErr)
+			}
+			p.mu.Lock()
+			delete(p.containers, engineType)
+			p.mu.Unlock()
+			return fmt.Errorf("health check cancelled, container cleaned up: %w", ctx.Err())
 		default:
 		}
 
