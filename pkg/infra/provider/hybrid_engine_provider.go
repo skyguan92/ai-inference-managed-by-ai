@@ -327,6 +327,17 @@ func (p *HybridEngineProvider) Start(ctx context.Context, name string, config ma
 
 	useGPU := limits.GPU
 	port := p.getDefaultPort(engineType)
+	// Allow caller to override port via config (e.g. when a service has a stored port assignment).
+	if configPort, ok := config["port"]; ok {
+		switch v := configPort.(type) {
+		case int:
+			port = v
+		case int64:
+			port = int(v)
+		case float64:
+			port = int(v)
+		}
+	}
 
 	// Check for async mode
 	asyncMode := false
@@ -1105,6 +1116,14 @@ func (p *HybridServiceProvider) StartAsync(ctx context.Context, serviceID string
 		config["device"] = "gpu"
 		config["gpu"] = true
 		config["gpu_memory_utilization"] = 0.75 // Limit GPU memory
+	}
+
+	// Read the persisted port assignment for this service from the store.
+	// This ensures two services with different ports don't both default to 8000.
+	if svc, svcErr := p.serviceStore.Get(ctx, serviceID); svcErr == nil && svc.Config != nil {
+		if portVal, ok := svc.Config["port"]; ok {
+			config["port"] = portVal
+		}
 	}
 
 	// Start the engine with retry and health check
