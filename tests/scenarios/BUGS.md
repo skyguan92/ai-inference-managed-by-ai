@@ -174,3 +174,20 @@ Running `aima device list` (nonexistent subcommand) shows the `device` help page
 
 ### Obs #5: Container stop always uses label fallback path
 Every `service stop` invocation finds containers via Docker label lookup (not the in-memory map), because the in-memory container map is not persisted across CLI invocations. This works correctly but is slightly inefficient — each stop requires a Docker API call. Not a bug, but worth noting for future optimization.
+
+### Bug #32: SQLite store fails with CANTOPEN when data directory doesn't exist
+
+- **Scenario**: 9 (Config & Persistence Resilience)
+- **Severity**: Medium (P1) — prevents custom data_dir from using SQLite
+- **Command**: `aima --config /tmp/aima-custom.toml model list` where config has `[general].data_dir = "/tmp/aima-test-data"`
+- **Expected**: Custom directory created, SQLite database initialized there
+- **Actual**: SQLite fails with "unable to open database file: out of memory (SQLITE_CANTOPEN=14)" because parent directory doesn't exist when SQLite tries to create the DB file; falls back to file store
+- **Root Cause**: `NewSQLiteStore` in `pkg/infra/store/sqlite_store.go` calls `sql.Open("sqlite", dbPath)` without first creating the parent directory via `os.MkdirAll`
+- **Status**: FIXED — Added `os.MkdirAll(filepath.Dir(dbPath), 0755)` before `sql.Open` in NewSQLiteStore. Commit: e91955d
+
+### Bug #33 (Doc): Scenario 9 uses wrong TOML section for data_dir
+
+- **Scenario**: 9 (Config & Persistence Resilience)
+- **Severity**: Low (P2) — documentation bug only
+- **Problem**: Test 4 in scenario file uses `[storage]\ndata_dir = ...` but the actual config struct has `data_dir` under `[general]`
+- **Status**: FIXED — Updated scenario 9 test script to use `[general]` section. Commit: e91955d
