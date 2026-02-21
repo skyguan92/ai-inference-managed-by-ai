@@ -26,6 +26,7 @@ import (
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/store"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/registry"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/catalog"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/engine"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/model"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/service"
@@ -104,10 +105,11 @@ func (r *RootCommand) persistentPreRunE(cmd *cobra.Command, args []string) error
 		dataDir = filepath.Join(home, dataDir[2:])
 	}
 
-	// Create SQLite store for models and services
+	// Create SQLite store for models, services, and catalog recipes
 	dbPath := filepath.Join(dataDir, "aima.db")
 	var modelStore model.ModelStore
 	var serviceStore service.ServiceStore
+	var catalogStore catalog.RecipeStore
 
 	sqliteStore, err := store.NewSQLiteStore(dbPath)
 	if err != nil {
@@ -118,9 +120,11 @@ func (r *RootCommand) persistentPreRunE(cmd *cobra.Command, args []string) error
 			slog.Warn("failed to create file store, using memory store", "error", err)
 			modelStore = model.NewMemoryStore()
 			serviceStore = service.NewMemoryStore()
+			catalogStore = catalog.NewMemoryStore()
 		} else {
 			modelStore = fileStore
 			serviceStore = service.NewMemoryStore()
+			catalogStore = catalog.NewMemoryStore()
 		}
 	} else {
 		slog.Info("using SQLite database for persistent storage")
@@ -132,6 +136,14 @@ func (r *RootCommand) persistentPreRunE(cmd *cobra.Command, args []string) error
 			serviceStore = service.NewMemoryStore()
 		} else {
 			serviceStore = svcStore
+		}
+		// Create catalog recipe store using the same database
+		catStore, err := store.NewCatalogSQLiteStore(sqliteStore.DB())
+		if err != nil {
+			slog.Warn("failed to create catalog SQLite store, using memory store", "error", err)
+			catalogStore = catalog.NewMemoryStore()
+		} else {
+			catalogStore = catStore
 		}
 	}
 
@@ -195,6 +207,7 @@ func (r *RootCommand) persistentPreRunE(cmd *cobra.Command, args []string) error
 		registry.WithDeviceProvider(deviceProvider),
 		registry.WithInferenceProvider(inferenceProvider),
 		registry.WithResourceProvider(resourceProvider),
+		registry.WithCatalogStore(catalogStore),
 		registry.WithEventBus(eventbus.NewEventPublisherAdapter(r.eventBus)),
 	); err != nil {
 		return fmt.Errorf("register units: %w", err)
