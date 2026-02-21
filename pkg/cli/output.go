@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"reflect"
+	"sort"
 	"strings"
 	"text/tabwriter"
 
@@ -180,6 +181,14 @@ func getFields(data any) []string {
 	v := reflect.ValueOf(data)
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
+	}
+	if v.Kind() == reflect.Map {
+		keys := make([]string, 0, v.Len())
+		for _, k := range v.MapKeys() {
+			keys = append(keys, fmt.Sprintf("%v", k.Interface()))
+		}
+		sort.Strings(keys)
+		return keys
 	}
 	if v.Kind() != reflect.Struct {
 		return []string{"value"}

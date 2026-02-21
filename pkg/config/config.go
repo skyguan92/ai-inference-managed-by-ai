@@ -430,7 +430,19 @@ func Load(configPath string) (*Config, error) {
 			return nil, fmt.Errorf("load config from %s: %w", configPath, err)
 		}
 	} else {
-		cfg = Default()
+		// Bug #26: Try the default config file location before falling back to
+		// hard-coded defaults. This ensures ~/.aima/config.toml is always loaded
+		// when the user does not specify --config explicitly.
+		homeDir, _ := os.UserHomeDir()
+		defaultPath := filepath.Join(homeDir, ".aima", "config.toml")
+		if _, statErr := os.Stat(defaultPath); statErr == nil {
+			cfg, err = LoadFromFile(defaultPath)
+			if err != nil {
+				return nil, fmt.Errorf("load default config from %s: %w", defaultPath, err)
+			}
+		} else {
+			cfg = Default()
+		}
 	}
 
 	ApplyEnvOverrides(cfg)

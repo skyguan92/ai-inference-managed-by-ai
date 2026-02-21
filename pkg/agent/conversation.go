@@ -78,6 +78,16 @@ func (s *ConversationStore) Get(id string) *Conversation {
 	return s.conversations[id]
 }
 
+// Inject inserts or replaces a conversation in the store (used for loading from disk).
+func (s *ConversationStore) Inject(conv *Conversation) {
+	if conv == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.conversations[conv.ID] = conv
+}
+
 // Delete removes a conversation.
 func (s *ConversationStore) Delete(id string) bool {
 	s.mu.Lock()

@@ -389,13 +389,49 @@ func (p *HybridEngineProvider) Start(ctx context.Context, name string, config ma
 					}
 
 					// Bug #14 fix: Capture container logs before cleanup to aid debugging.
-					if logs, logErr := p.dockerClient.GetContainerLogs(ctx, result.ProcessID, 10); logErr == nil && logs != "" {
+					// Bug #5b: Also scan logs for OOM/fatal vLLM errors (non-retriable).
+					if logs, logErr := p.dockerClient.GetContainerLogs(ctx, result.ProcessID, 50); logErr == nil && logs != "" {
 						slog.Warn("container failed, last logs", "container_id", result.ProcessID[:12], "logs", logs)
+						oomPatterns := []string{
+							"Engine core initialization failed",
+							"Out of memory",
+							"CUDA out of memory",
+							"Failed to allocate",
+							"RuntimeError: Failed to start",
+							"torch.cuda.OutOfMemoryError",
+						}
+						for _, pattern := range oomPatterns {
+							if strings.Contains(logs, pattern) {
+								slog.Warn("OOM/fatal vLLM error detected, aborting retries", "pattern", pattern)
+								_, _ = p.Stop(context.Background(), engineType, true, 10)
+								lastErr = &fatalStartError{cause: fmt.Errorf("engine OOM/fatal error (%s): %w", pattern, err)}
+								break
+							}
+						}
+						if errors.As(lastErr, new(*fatalStartError)) {
+							break
+						}
 					}
 
 					_, _ = p.Stop(ctx, engineType, true, 10)
-					// Wait briefly for port to be released before retrying.
-					time.Sleep(2 * time.Second)
+					// Bug #31: Poll TCP to wait for port release instead of fixed sleep.
+					portPollCtx2, portPollCancel2 := context.WithTimeout(context.Background(), 15*time.Second)
+					// cancel immediately after loop (not deferred, to avoid accumulating per retry)
+				portPollLoop2:
+					for {
+						conn, dialErr := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 100*time.Millisecond)
+						if dialErr != nil {
+							break portPollLoop2
+						}
+						conn.Close()
+						select {
+						case <-portPollCtx2.Done():
+							slog.Warn("port still in use after health-check fail, proceeding anyway", "port", port)
+							break portPollLoop2
+						case <-time.After(300 * time.Millisecond):
+						}
+					}
+					portPollCancel2()
 					lastErr = err
 					continue
 				}
@@ -490,8 +526,38 @@ func (p *HybridEngineProvider) startDockerWithRetry(ctx context.Context, engineT
 	}
 
 	if len(portConflicts) > 0 || len(staleIDs) > 0 {
-		// Brief wait for Docker to fully release ports after container removal.
-		time.Sleep(2 * time.Second)
+		// Bug #31: Poll TCP to wait for port release instead of a fixed sleep.
+		portPollCtx, portPollCancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer portPollCancel()
+	portPollLoop:
+		for {
+			conn, dialErr := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 100*time.Millisecond)
+			if dialErr != nil {
+				break portPollLoop
+			}
+			conn.Close()
+			select {
+			case <-portPollCtx.Done():
+				slog.Warn("port still in use after cleanup, proceeding anyway", "port", port)
+				break portPollLoop
+			case <-time.After(300 * time.Millisecond):
+			}
+		}
+
+		// Wait up to 15 seconds for all stopped containers to be fully removed
+		// before attempting to create a new one with the same name/port.
+		// This prevents "container name already in use" conflicts when Docker
+		// is still in the "removing" state after StopContainer returns.
+		waitDeadline := time.Now().Add(15 * time.Second)
+		for time.Now().Before(waitDeadline) {
+			pollCtx, pollCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			remaining, pollErr := p.dockerClient.ListContainers(pollCtx, map[string]string{"aima.engine": engineType})
+			pollCancel()
+			if pollErr != nil || len(remaining) == 0 {
+				break
+			}
+			time.Sleep(500 * time.Millisecond)
+		}
 	}
 
 	// Phase 3 — Native port check: verify port is not occupied by a non-Docker process.

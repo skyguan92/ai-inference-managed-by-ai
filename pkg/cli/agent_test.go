@@ -3,11 +3,16 @@ package cli
 import (
 	"bytes"
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	coreagent "github.com/jguan/ai-inference-managed-by-ai/pkg/agent"
+	agentllm "github.com/jguan/ai-inference-managed-by-ai/pkg/agent/llm"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/gateway"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
 )
@@ -256,3 +261,78 @@ func TestRunAgentReset_DifferentConversationIDs(t *testing.T) {
 		})
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Conversation persistence helpers
+// ---------------------------------------------------------------------------
+
+func makeTestConversation(id string) *coreagent.Conversation {
+	return &coreagent.Conversation{
+		ID: id,
+		Messages: []agentllm.Message{
+			{Role: "user", Content: "hello"},
+			{Role: "assistant", Content: "hi there"},
+		},
+		CreatedAt: time.Now().Truncate(time.Second),
+		UpdatedAt: time.Now().Truncate(time.Second),
+	}
+}
+
+func TestConversationPersistence_RoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	convID := "conv-test123"
+
+	orig := makeTestConversation(convID)
+	err := saveConversationToFile(dir, convID, orig)
+	require.NoError(t, err)
+
+	loaded, err := loadConversationFromFile(dir, convID)
+	require.NoError(t, err)
+	require.NotNil(t, loaded)
+
+	assert.Equal(t, orig.ID, loaded.ID)
+	assert.Len(t, loaded.Messages, 2)
+	assert.Equal(t, orig.Messages[0].Role, loaded.Messages[0].Role)
+	assert.Equal(t, orig.Messages[0].Content, loaded.Messages[0].Content)
+	assert.Equal(t, orig.Messages[1].Role, loaded.Messages[1].Role)
+	assert.Equal(t, orig.Messages[1].Content, loaded.Messages[1].Content)
+}
+
+func TestConversationPersistence_FileNotFound(t *testing.T) {
+	dir := t.TempDir()
+
+	conv, err := loadConversationFromFile(dir, "nonexistent-conv")
+	require.NoError(t, err)
+	assert.Nil(t, conv)
+}
+
+func TestConversationPersistence_InvalidJSON(t *testing.T) {
+	dir := t.TempDir()
+	convID := "conv-bad"
+
+	err := saveConversationToFile(dir, convID, makeTestConversation(convID))
+	require.NoError(t, err)
+
+	// Overwrite with invalid JSON.
+	convPath := filepath.Join(dir, "conversations", convID+".json")
+	require.NoError(t, os.WriteFile(convPath, []byte("not json {"), 0644))
+
+	_, err = loadConversationFromFile(dir, convID)
+	require.Error(t, err)
+}
+
+func TestConversationPersistence_MultipleConversations(t *testing.T) {
+	dir := t.TempDir()
+
+	for _, id := range []string{"conv-a", "conv-b", "conv-c"} {
+		require.NoError(t, saveConversationToFile(dir, id, makeTestConversation(id)))
+	}
+
+	for _, id := range []string{"conv-a", "conv-b", "conv-c"} {
+		conv, err := loadConversationFromFile(dir, id)
+		require.NoError(t, err)
+		require.NotNil(t, conv)
+		assert.Equal(t, id, conv.ID)
+	}
+}
+

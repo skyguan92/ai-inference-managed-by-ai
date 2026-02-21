@@ -167,6 +167,7 @@ func defaultRoutes() []Route {
 
 		{Method: http.MethodGet, Path: "/api/v2/services", Unit: "service.list", Type: TypeQuery, InputMapper: queryInputMapper},
 		{Method: http.MethodPost, Path: "/api/v2/services", Unit: "service.create", Type: TypeCommand, InputMapper: bodyInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/services/status", Unit: "service.status", Type: TypeQuery, InputMapper: queryInputMapper},
 		{Method: http.MethodGet, Path: "/api/v2/services/{id}", Unit: "service.get", Type: TypeQuery, InputMapper: serviceIDInputMapper},
 		{Method: http.MethodDelete, Path: "/api/v2/services/{id}", Unit: "service.delete", Type: TypeCommand, InputMapper: serviceIDInputMapper},
 

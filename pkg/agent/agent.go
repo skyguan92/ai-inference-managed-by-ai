@@ -158,6 +158,12 @@ func (a *Agent) GetConversation(id string) *Conversation {
 	return a.conversations.Get(id)
 }
 
+// InjectConversation pre-populates the conversation store with a loaded conversation.
+// If a conversation with the same ID already exists in memory, it is replaced.
+func (a *Agent) InjectConversation(conv *Conversation) {
+	a.conversations.Inject(conv)
+}
+
 // ActiveConversationCount returns the number of live conversations.
 func (a *Agent) ActiveConversationCount() int {
 	return a.conversations.Count()
