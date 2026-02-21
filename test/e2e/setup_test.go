@@ -108,6 +108,10 @@ func (m *MockServiceProvider) IsRunning(ctx context.Context, serviceID string) b
 	return true
 }
 
+func (m *MockServiceProvider) GetLogs(ctx context.Context, serviceID string, tail int) (string, error) {
+	return "mock log output", nil
+}
+
 type MockInferenceProvider struct{}
 
 func (m *MockInferenceProvider) Chat(ctx context.Context, modelID string, messages []inference.Message, opts inference.ChatOptions) (*inference.ChatResponse, error) {

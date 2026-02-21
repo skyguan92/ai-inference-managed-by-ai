@@ -494,3 +494,53 @@ Every `service stop` invocation finds containers via Docker label lookup (not th
 - **Severity**: Low (P2) — documentation/test expectation mismatch
 - **Problem**: S17 test script used `"message": "..."` (singular string) in the HTTP body, but `inference.chat` command handler requires `"messages": [...]` (array of message objects). The test script sends the wrong format.
 - **Status**: Known — the HTTP API requires the messages array format. The CLI `--message` flag is automatically converted to the array format before calling the gateway.
+
+---
+
+## Scenario 16: Multi-Model Concurrent Deployment
+
+### Bug #61: Both services default to port 8000 — second service kills first
+
+- **Scenario**: 16 (Multi-Model Concurrent Deployment)
+- **Severity**: Critical (P0) — multi-service deployment completely broken
+- **Command**: Create service A (assigned port 8000), then start service B → service B also gets port 8000 → Phase 2 stale cleanup removes service A's running container
+- **Expected**: Each service uses its uniquely-assigned port from creation time
+- **Root Cause (2-part)**:
+  1. `StartAsync()` in `hybrid_engine_provider.go` calls `hybridProvider.Start(engineType, ...)` without reading the service's stored port from the SQLite config. `getDefaultPort("vllm")` always returns 8000.
+  2. `HybridEngineProvider.Start()` did not accept a port override from the config map.
+- **Fix**: Added port override in `HybridEngineProvider.Start()` reading `config["port"]`; `StartAsync()` reads stored port from `serviceStore.Get()` and passes via config. Commit: 3201d56
+- **Status**: FIXED
+
+### Bug #62: Service Config (port + engine settings) not persisted to SQLite on create
+
+- **Scenario**: 16 (Multi-Model Concurrent Deployment)
+- **Severity**: Critical (P0) — blocks Bug #61 fix; port assignment lost between sessions
+- **Root Cause (2-part)**:
+  1. `service.create` command in `commands.go` did not copy `result.Config` and `result.Endpoints` from the provider's `CreateResult` to the `ModelService` saved to the store.
+  2. `ServiceSQLiteStore.Create()` hardcoded `""` for the config column instead of JSON-serializing `svc.Config`. Also `Get()`, `GetByName()`, `List()`, `Update()` did not read/write the config column.
+- **Fix**: Fixed `CreateCommand.Execute()` to copy `Config` and `Endpoints`; fixed all SQLite store CRUD methods to properly serialize/deserialize Config as JSON. Commits: 6e97d31, f976f3f
+- **Status**: FIXED
+
+### Bug #63: `ListContainers` returns running containers — Phase 2 cleanup kills active services
+
+- **Scenario**: 16 (Multi-Model Concurrent Deployment)
+- **Severity**: Critical (P0) — any service start attempt removes other running services
+- **Root Cause**: `SDKClient.ListContainers()` was called in Phase 2 pre-start cleanup to find stale containers for the same engine type. It returned ALL aima-labeled containers including running ones. This caused Service A's running container to be removed when Service B attempted to start.
+- **Fix**: Added state filter in `ListContainers()` — skip containers with `ct.State == "running"` or `ct.State == "restarting"`. Commit: de791ee
+- **Status**: FIXED
+
+### Bug #64: Stop uses default port (8000) in fallback — kills wrong service
+
+- **Scenario**: 16 (Multi-Model Concurrent Deployment)
+- **Severity**: Critical (P0) — stopping any service kills Service A (port 8000)
+- **Root Cause**: `HybridEngineProvider.Stop()` had a port-based fallback that called `p.getDefaultPort(engineType)` (always 8000 for vLLM) when the label-based container search returned empty. When stopping Service B (port 8001, no running container), the fallback found and removed Service A's container at port 8000.
+- **Fix**: Removed the default-port fallback from `HybridEngineProvider.Stop()`. Moved port-based cleanup to `HybridServiceProvider.Stop()`, which reads the service's actual port from the store and targets only the correct container. Commit: 0a85c5d
+- **Status**: FIXED
+
+### Observation: GPU OOM with two vLLM services on NVIDIA GB10
+
+- **Scenario**: 16 (Multi-Model Concurrent Deployment)
+- **Hardware**: NVIDIA GB10 (ARM64, unified LPDDR memory ~136GB shared)
+- **Observation**: Service A (GLM-4.7-Flash, ~75GB model weights + KV cache) uses most of the unified memory (~110GB with `--gpu-memory-utilization 0.9`). Service B (Qwen2.5-Coder-3B-Instruct) fails with `RuntimeError: Engine core initialization failed` due to insufficient remaining memory.
+- **Expected per Criterion 7**: "Document as expected hardware behavior if GPU memory insufficient for two models simultaneously"
+- **Status**: Expected behavior — not a bug. GB10 unified memory cannot run two large vLLM services simultaneously. Criterion 7 documented as PASS (OOM correctly reported).
