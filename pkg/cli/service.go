@@ -228,6 +228,9 @@ func runServiceStart(ctx context.Context, root *RootCommand, serviceID string, w
 			"timeout":    timeout,
 			"async":      async,
 		},
+		Options: gateway.RequestOptions{
+			Timeout: time.Duration(timeout) * time.Second,
+		},
 	}
 
 	resp := gw.Handle(ctx, req)
