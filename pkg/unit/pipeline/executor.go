@@ -37,6 +37,24 @@ func (e *Executor) Execute(ctx context.Context, pipeline *Pipeline, run *Pipelin
 	e.runningRuns[run.ID] = cancel
 	e.mu.Unlock()
 
+	// finishRun updates run status and resets pipeline to idle.
+	finishRun := func(status RunStatus, errMsg string) {
+		run.Status = status
+		if errMsg != "" {
+			run.Error = errMsg
+		}
+		now := time.Now()
+		run.CompletedAt = &now
+		_ = e.store.UpdateRun(context.Background(), run)
+
+		p, err := e.store.GetPipeline(context.Background(), pipeline.ID)
+		if err == nil {
+			p.Status = PipelineStatusIdle
+			p.UpdatedAt = time.Now().Unix()
+			_ = e.store.UpdatePipeline(context.Background(), p)
+		}
+	}
+
 	go func() {
 		defer cancel()
 		defer func() {
@@ -50,21 +68,14 @@ func (e *Executor) Execute(ctx context.Context, pipeline *Pipeline, run *Pipelin
 		for _, step := range pipeline.Steps {
 			select {
 			case <-runCtx.Done():
-				run.Status = RunStatusCancelled
-				now := time.Now()
-				run.CompletedAt = &now
-				_ = e.store.UpdateRun(context.Background(), run)
+				finishRun(RunStatusCancelled, "")
 				return
 			default:
 			}
 
 			for _, dep := range step.DependsOn {
 				if _, ok := executedSteps[dep]; !ok {
-					run.Status = RunStatusFailed
-					run.Error = "dependency not satisfied: " + dep
-					now := time.Now()
-					run.CompletedAt = &now
-					_ = e.store.UpdateRun(context.Background(), run)
+					finishRun(RunStatusFailed, "dependency not satisfied: "+dep)
 					return
 				}
 			}
@@ -87,11 +98,7 @@ func (e *Executor) Execute(ctx context.Context, pipeline *Pipeline, run *Pipelin
 			}
 
 			if err != nil {
-				run.Status = RunStatusFailed
-				run.Error = "step " + step.ID + " failed: " + err.Error()
-				now := time.Now()
-				run.CompletedAt = &now
-				_ = e.store.UpdateRun(context.Background(), run)
+				finishRun(RunStatusFailed, "step "+step.ID+" failed: "+err.Error())
 				return
 			}
 
@@ -99,10 +106,7 @@ func (e *Executor) Execute(ctx context.Context, pipeline *Pipeline, run *Pipelin
 			run.StepResults[step.ID] = output
 		}
 
-		run.Status = RunStatusCompleted
-		now := time.Now()
-		run.CompletedAt = &now
-		_ = e.store.UpdateRun(context.Background(), run)
+		finishRun(RunStatusCompleted, "")
 	}()
 
 	return nil
