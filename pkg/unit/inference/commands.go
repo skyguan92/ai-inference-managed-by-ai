@@ -8,6 +8,57 @@ import (
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/ptrs"
 )
 
+// parseMessages extracts messages from the input map, handling both []any
+// (from JSON HTTP body unmarshalling) and []map[string]string (from CLI direct invocation).
+func parseMessages(inputMap map[string]any) ([]Message, error) {
+	raw, exists := inputMap["messages"]
+	if !exists {
+		return nil, fmt.Errorf("messages are required: %w", ErrInvalidInput)
+	}
+
+	switch v := raw.(type) {
+	case []any:
+		if len(v) == 0 {
+			return nil, fmt.Errorf("messages are required: %w", ErrInvalidInput)
+		}
+		msgs := make([]Message, len(v))
+		for i, m := range v {
+			mMap, ok := m.(map[string]any)
+			if !ok {
+				return nil, fmt.Errorf("invalid message format at index %d: %w", i, ErrInvalidInput)
+			}
+			msgs[i] = Message{
+				Role:    fmt.Sprintf("%v", mMap["role"]),
+				Content: fmt.Sprintf("%v", mMap["content"]),
+			}
+		}
+		return msgs, nil
+	case []map[string]string:
+		if len(v) == 0 {
+			return nil, fmt.Errorf("messages are required: %w", ErrInvalidInput)
+		}
+		msgs := make([]Message, len(v))
+		for i, m := range v {
+			msgs[i] = Message{Role: m["role"], Content: m["content"]}
+		}
+		return msgs, nil
+	case []map[string]any:
+		if len(v) == 0 {
+			return nil, fmt.Errorf("messages are required: %w", ErrInvalidInput)
+		}
+		msgs := make([]Message, len(v))
+		for i, m := range v {
+			msgs[i] = Message{
+				Role:    fmt.Sprintf("%v", m["role"]),
+				Content: fmt.Sprintf("%v", m["content"]),
+			}
+		}
+		return msgs, nil
+	default:
+		return nil, fmt.Errorf("messages are required: %w", ErrInvalidInput)
+	}
+}
+
 type ChatCommand struct {
 	provider InferenceProvider
 	events   unit.EventPublisher
@@ -211,23 +262,10 @@ func (c *ChatCommand) Execute(ctx context.Context, input any) (any, error) {
 		return nil, err
 	}
 
-	msgsRaw, ok := inputMap["messages"].([]any)
-	if !ok || len(msgsRaw) == 0 {
-		err := fmt.Errorf("messages are required: %w", ErrInvalidInput)
+	messages, err := parseMessages(inputMap)
+	if err != nil {
 		ec.PublishFailed(err)
 		return nil, err
-	}
-
-	messages := make([]Message, len(msgsRaw))
-	for i, m := range msgsRaw {
-		mMap, ok := m.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("invalid message format: %w", ErrInvalidInput)
-		}
-		messages[i] = Message{
-			Role:    mMap["role"].(string),
-			Content: mMap["content"].(string),
-		}
 	}
 
 	opts := ChatOptions{}
@@ -313,21 +351,9 @@ func (c *ChatCommand) ExecuteStream(ctx context.Context, input any, stream chan<
 		return ErrModelNotSpecified
 	}
 
-	msgsRaw, ok := inputMap["messages"].([]any)
-	if !ok || len(msgsRaw) == 0 {
-		return fmt.Errorf("messages are required: %w", ErrInvalidInput)
-	}
-
-	messages := make([]Message, len(msgsRaw))
-	for i, m := range msgsRaw {
-		mMap, ok := m.(map[string]any)
-		if !ok {
-			return fmt.Errorf("invalid message format: %w", ErrInvalidInput)
-		}
-		messages[i] = Message{
-			Role:    mMap["role"].(string),
-			Content: mMap["content"].(string),
-		}
+	messages, err := parseMessages(inputMap)
+	if err != nil {
+		return err
 	}
 
 	opts := ChatOptions{Stream: true}
