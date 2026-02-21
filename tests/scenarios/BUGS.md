@@ -222,3 +222,23 @@ Every `service stop` invocation finds containers via Docker label lookup (not th
 - **Root Cause**: `pkg/cli/start.go` `runStart()` creates `http.NewServeMux()` with only 3 handlers (`/api/v2/execute`, `/api/v2/health`, `/api/v2/metrics`). The `gateway.NewRouter()` with 50+ domain routes is never mounted.
 - **Workaround**: Use `POST /api/v2/execute` with `{type, unit, input}` generic envelope — all operations work via this endpoint
 - **Status**: Open — The REST routes exist but are not wired. Functionality is accessible via the generic execute endpoint.
+
+### Bug #37: Pipeline status never resets to idle after run completes or fails
+
+- **Scenario**: 10 (Pipeline DAG Execution)
+- **Severity**: High (P1) — pipelines permanently stuck in "running" state, preventing deletion
+- **Command**: `pipeline.run` followed by `pipeline.get` or `pipeline.list`
+- **Expected**: After a run completes or fails, pipeline status resets to "idle"
+- **Actual**: Pipeline status remains "running" indefinitely after all runs finish; `pipeline.delete` returns "pipeline is running" even after runs complete
+- **Root Cause**: `executor.go` goroutine transitions the `PipelineRun` status (to completed/failed/cancelled) but never updates the parent `Pipeline.Status` back to idle. Only `CancelCommand` reset pipeline status to idle.
+- **Status**: FIXED — Added `finishRun()` helper in executor that atomically updates run status AND resets pipeline to idle at all exit paths. Commit: 50b370b
+
+### Bug #38: CancelCommand returns error for already-failed runs
+
+- **Scenario**: 10 (Pipeline DAG Execution)
+- **Severity**: Low (P2) — cancel should be idempotent for all terminal states
+- **Command**: `pipeline.cancel` on a run that has already failed
+- **Expected**: Cancel returns `{"success": true}` (idempotent, already terminal)
+- **Actual**: Returns `{"error": "run not cancellable"}` — `RunStatusFailed` hit the `default` branch in the switch statement
+- **Root Cause**: `CancelCommand.Execute()` in `commands.go` treated only `RunStatusCompleted` and `RunStatusCancelled` as terminal no-op states; `RunStatusFailed` was sent to the `default` branch which returned `ErrRunNotCancellable`
+- **Status**: FIXED — Added `RunStatusFailed` to the terminal-state case in the cancel switch. Commit: d07f5d2
