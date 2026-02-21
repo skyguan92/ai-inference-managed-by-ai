@@ -160,7 +160,8 @@ func (c *CreateCommand) Execute(ctx context.Context, input any) (any, error) {
 		Status:        ServiceStatusCreating,
 		Replicas:      replicas,
 		ResourceClass: resourceClass,
-		Endpoints:     []string{},
+		Endpoints:     result.Endpoints,
+		Config:        result.Config, // persist port assignment and engine config
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}
