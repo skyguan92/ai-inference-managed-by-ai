@@ -571,3 +571,21 @@ Every `service stop` invocation finds containers via Docker label lookup (not th
 - **Fix**: Added `Details` display in `service.go` for both `runServiceStart()` and `runServiceCreate()` — mirrors the pattern already used in `agent.go` and `inference.go`.
 - **Files changed**: `pkg/cli/service.go`
 - **Status**: FIXED — commit pending
+
+---
+
+## Scenario 21: Timeout Cascade
+
+### Bug #67: HTTP WriteTimeout=30s and IdleTimeout=60s kill long-running API requests
+
+- **Scenario**: 21 (Timeout Cascade)
+- **Severity**: High (P0) — agent chat (10min) and service start (600s) fail when called via HTTP API
+- **Confirmed**: HTTP `WriteTimeout=30s` + `IdleTimeout=60s` in `pkg/gateway/server.go:DefaultServerConfig()`
+  - Before fix: HTTP connections killed at 60s (IdleTimeout) with "Empty reply from server"
+  - Before fix: Any response that takes >30s to write killed by WriteTimeout
+- **Affected operations**:
+  - `POST /api/v2/agent/chat` — agent chat can take up to 10 minutes (multi-turn LLM)
+  - `POST /api/v2/services/{id}/start` with `--wait --timeout 600` — up to 20 min for large models
+- **Fix**: Set `WriteTimeout=longOperationTimeout=25min` and `IdleTimeout=25min` in `DefaultServerConfig()`. Per-handler timeouts via `RequestOptions.Timeout` remain the actual enforcement mechanism.
+- **Files changed**: `pkg/gateway/server.go`, `pkg/gateway/server_test.go`
+- **Status**: FIXED — commit e324126
