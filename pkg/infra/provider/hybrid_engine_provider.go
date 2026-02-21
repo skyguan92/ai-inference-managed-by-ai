@@ -409,6 +409,14 @@ func (p *HybridEngineProvider) Start(ctx context.Context, name string, config ma
 			}
 			slog.Warn("Docker start failed", "attempt", attempt, "error", err)
 		}
+		// If the last error was fatal (non-retriable), surface it directly without
+		// attempting native mode — native mode would also fail for the same reason
+		// (e.g. port occupied), and we'd lose the clear error message.
+		var fatalErr *fatalStartError
+		if errors.As(lastErr, &fatalErr) {
+			slog.Warn("Docker start failed with fatal error, skipping native fallback", "error", lastErr)
+			return nil, lastErr
+		}
 		slog.Warn("Docker start failed after retries, trying native mode", "attempts", startupCfg.MaxRetries, "error", lastErr)
 	}
 
