@@ -437,8 +437,8 @@ Every `service stop` invocation finds containers via Docker label lookup (not th
 - **Expected**: Container log output
 - **Actual**: `Error: UNIT_NOT_FOUND: query not found: service.logs`
 - **Root Cause**: In `pkg/cli/service.go:444`, `runServiceLogs()` dispatches `Unit: "service.logs"`. However, the actual `LogsQuery` in `pkg/unit/app/queries.go:311` has `Name() = "app.logs"`. The CLI unit name is mismatched with the registered query name.
-- **Code to fix**: Change `pkg/cli/service.go` line 444: `Unit: "service.logs"` → `Unit: "app.logs"`. Also verify the input schema of `app.LogsQuery` accepts `service_id`.
-- **Status**: Open
+- **Code to fix**: Added `service.LogsQuery` to `pkg/unit/service/queries.go` with `service_id` input. Added `GetLogs()` to `ServiceProvider` interface with `HybridServiceProvider` implementation via Docker label lookup (`aima.engine` label). Registered in registry. CLI already dispatches `"service.logs"` correctly.
+- **Status**: FIXED — commit b8fda4c + 7789c99. Verified: `aima service logs svc-vllm-*` returns actual container output.
 
 ### Bug #55: EventBus not passed to RegisterAll — domain event delivery is silently skipped
 
@@ -446,9 +446,9 @@ Every `service stop` invocation finds containers via Docker label lookup (not th
 - **Severity**: Medium (P1) — events from commands never delivered to subscribers
 - **Evidence**: `pkg/cli/root.go:150` creates `eventBus` and sets it on `hep` (HybridEngineProvider) via `hep.SetEventBus(bus)`. However, the `RegisterAll()` call at line 188 does NOT include `registry.WithEventBus(bus)`. Thus all domain command handlers receive `nil` for `events`, and every `events.Publish(...)` call is a no-op.
 - **Root Cause**: `WithEventBus()` option exists in `pkg/registry/register.go:69` but is never passed in the CLI invocation of `RegisterAll()`.
-- **Code to fix**: Add `registry.WithEventBus(r.eventBus)` to the `RegisterAll` call in `pkg/cli/root.go`.
-- **Note**: This also means `StartProgressEvent` (from Phase 9.3) is only delivered via the engine's direct `SetEventBus` path, not through the domain registry event system.
-- **Status**: Open
+- **Code to fix**: Added `eventbus.EventPublisherAdapter` in `pkg/infra/eventbus/eventbus.go` bridging `eventbus.EventBus` → `unit.EventPublisher`. Passed via `registry.WithEventBus(eventbus.NewEventPublisherAdapter(r.eventBus))` in `pkg/cli/root.go`.
+- **Note**: `StartProgressEvent` (Phase 9.3) still works via `hep.SetEventBus(bus)` direct path. Now all 10 domain registries also get EventBus.
+- **Status**: FIXED — commit b8fda4c
 
 ### Bug #56: HTTP `GET /api/v2/services/status?service_id=X` returns "service not found"
 
