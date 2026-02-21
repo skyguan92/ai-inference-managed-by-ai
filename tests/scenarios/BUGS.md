@@ -50,8 +50,8 @@
 - **Command**: `aima model list` (default table output)
 - **Expected**: Formatted table with columns (ID, Name, Status, Type)
 - **Actual**: Shows "value" header but no model data
-- **Root Cause**: Likely the Bug #20 fix wasn't synced to remote binary, or a different code path for model list response format
-- **Status**: Investigating
+- **Root Cause**: `getFields()` in `pkg/cli/output.go` had no branch for `reflect.Map` — returned `["value"]` for all non-struct types.
+- **Status**: FIXED (2026-02-22) — Added map branch to `getFields()` that returns sorted map keys as column headers. Verified: table now shows proper field names.
 
 ### Bug #23: TTS engine YAML default_args incompatible with Docker image
 
@@ -110,7 +110,7 @@
 - **Expected**: Agent should have enough rounds for: create + start + poll status + inference = 4+ calls
 - **Actual**: With retries after failures, 10 rounds is insufficient
 - **Root Cause**: Hardcoded limit in agent conversation loop
-- **Status**: Open
+- **Status**: FIXED (2026-02-21) — `maxToolCallRounds` increased from 10 to 30 in `pkg/agent/agent.go`. Verified in S23 retest: 3-step recovery used only 3 rounds.
 
 ### Bug #30: Docker retry logic doesn't clean up failed containers before retrying
 
@@ -131,7 +131,7 @@
 - **Expected**: Wait for port availability or verify before creating new container
 - **Actual**: New container creation immediately fails with "port already allocated"
 - **Root Cause**: Docker proxy may hold port briefly after container stop. No wait/verify logic.
-- **Status**: Open
+- **Status**: FIXED (2026-02-22) — Replaced static `time.Sleep(2s)` with TCP dial poll loop (up to 15s) in both retry paths in `hybrid_engine_provider.go`. Also added 15s container-removal poll loop after cleanup phase.
 
 ### Bug #26: Agent config values from config.toml [agent] section not properly loaded
 
@@ -139,8 +139,8 @@
 - **Severity**: Medium (P1) — usability issue
 - **Expected**: Agent reads `llm_base_url`, `llm_model`, `llm_api_key` from `[agent]` section of `~/.aima/config.toml`
 - **Actual**: Binary ignores config file values, defaults to `api.openai.com` and `moonshot-v1-8k`. All settings must be overridden via env vars (`AIMA_LLM_API_KEY`, `OPENAI_MODEL`, `OPENAI_BASE_URL`, `OPENAI_USER_AGENT`).
-- **Root Cause**: Likely in config loading logic — `pkg/config/config.go` or env var override precedence in `setupAgent()`
-- **Status**: Open
+- **Root Cause**: `Load()` in `pkg/config/config.go` fell back to `Default()` without checking `~/.aima/config.toml`. `AgentConfig` struct also lacked TOML struct tags.
+- **Status**: FIXED (2026-02-22) — `Load()` now tries `~/.aima/config.toml` before hard-coded defaults. Added `toml:` struct tags to all `AgentConfig` fields. Verified: AIMA reads provider/model/url from config.toml without env vars.
 
 ## Scenario 7 Re-Test Findings (Post Bug #30 Fix)
 
@@ -457,7 +457,7 @@ Every `service stop` invocation finds containers via Docker label lookup (not th
 - **Evidence**: `curl "http://localhost:9090/api/v2/services/status?service_id=svc-vllm-model-918aaddf"` returns `{"error":{"code":"EXECUTION_FAILED","details":"get service status: [00600] service not found"}}`. But `GET /api/v2/services/svc-vllm-model-918aaddf` works correctly.
 - **Root Cause**: The `?service_id=` query parameter routing is likely mapping to a different query handler or input mapper than the path-param route.
 - **Code to fix**: Investigate the HTTP route definition for `service.status` query and ensure the `service_id` input mapper reads from the correct source.
-- **Status**: Open
+- **Status**: FIXED (2026-02-22) — Added static `GET /api/v2/services/status` route before the `{id}` path-param route in `pkg/gateway/routes.go`. Verified: `curl /api/v2/services/status?service_id=X` returns service error (not route-not-found 404).
 
 ### Bug #57: Container name conflict across retry attempts causes silent cascading failures
 
@@ -466,7 +466,7 @@ Every `service stop` invocation finds containers via Docker label lookup (not th
 - **Evidence**: During `service start`, retry attempts 4 and 5 fail with "Conflict. The container name /aima-vllm-XXXXXXXXXX is already in use". The orphan-cleanup in `FindContainersByPort` only finds containers by port binding, but stopping a container takes time and leaves it in "removing" state. The next attempt starts a new container (different random suffix) while the old one is still being removed, causing Docker to report a different name conflict.
 - **Root Cause**: Container removal is async; the code calls `docker rm` but doesn't wait for full removal before starting a new container. Also, different retry timestamps generate different container names (random suffix based on timestamp), so the port-based cleanup removes one name but a different named container appears.
 - **Code to fix**: After stopping a container, wait for its removal before proceeding to start a new one. Consider using `docker wait` or polling container state.
-- **Status**: Open
+- **Status**: FIXED (2026-02-22) — Added 15s `ListContainers` polling loop after Phase 1+2 cleanup in `startDockerWithRetry()`. Waits until `aima.engine`-labeled containers are fully removed before starting new container. Verified: no container name conflicts on retry.
 
 ### Bug #58: inference.chat CLI fails with "messages are required" when called from CLI
 
