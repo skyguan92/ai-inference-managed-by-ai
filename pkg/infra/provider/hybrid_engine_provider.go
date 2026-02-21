@@ -348,6 +348,14 @@ func (p *HybridEngineProvider) Start(ctx context.Context, name string, config ma
 				if err := p.waitForHealth(ctx, engineType, result.ProcessID, port, startupCfg.HealthCheckURL, startupCfg.StartupTimeout); err != nil {
 					slog.Warn("health check failed", "error", err)
 
+					// If the request context expired, waitForHealth already cleaned up the
+					// container. No point retrying with an expired context.
+					if ctx.Err() != nil {
+						slog.Warn("request context expired, aborting retries", "engine", name, "error", ctx.Err())
+						lastErr = ctx.Err()
+						break
+					}
+
 					// Bug #3 fix: Check if container is still running before stopping
 					status, statusErr := p.dockerClient.GetContainerStatus(ctx, result.ProcessID)
 					if statusErr == nil && status == "running" {
@@ -401,7 +409,9 @@ func (p *HybridEngineProvider) startDockerWithRetry(ctx context.Context, engineT
 
 	// Phase 1 — Port-based: detect any container occupying the port we need.
 	// This finds externally-created containers that label-based listing would miss.
-	portConflicts, err := p.dockerClient.FindContainersByPort(ctx, port)
+	portScanCtx, portScanCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer portScanCancel()
+	portConflicts, err := p.dockerClient.FindContainersByPort(portScanCtx, port)
 	if err != nil {
 		slog.Warn("port conflict check failed, proceeding without port scan", "port", port, "error", err)
 	}
@@ -424,7 +434,9 @@ func (p *HybridEngineProvider) startDockerWithRetry(ctx context.Context, engineT
 	// Phase 2 — Label-based: catch "created" state containers that haven't bound
 	// their port yet (so FindContainersByPort wouldn't find them).
 	// Note: containers stopped in Phase 1 may also appear here; StopContainer is idempotent.
-	staleIDs, err := p.dockerClient.ListContainers(ctx, map[string]string{"aima.engine": engineType})
+	listCtx, listCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer listCancel()
+	staleIDs, err := p.dockerClient.ListContainers(listCtx, map[string]string{"aima.engine": engineType})
 	if err != nil {
 		slog.Warn("stale container scan failed, proceeding without label cleanup", "engine", engineType, "error", err)
 	}
