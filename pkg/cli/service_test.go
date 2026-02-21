@@ -31,7 +31,7 @@ func TestNewServiceCommand(t *testing.T) {
 	assert.Equal(t, "service", cmd.Use)
 
 	subCommands := cmd.Commands()
-	assert.Len(t, subCommands, 5)
+	assert.Len(t, subCommands, 6)
 
 	names := make([]string, len(subCommands))
 	for i, c := range subCommands {
@@ -42,6 +42,7 @@ func TestNewServiceCommand(t *testing.T) {
 	assert.Contains(t, names, "stop")
 	assert.Contains(t, names, "status")
 	assert.Contains(t, names, "list")
+	assert.Contains(t, names, "logs")
 }
 
 func TestNewServiceCreateCommand_Flags(t *testing.T) {

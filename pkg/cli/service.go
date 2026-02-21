@@ -6,6 +6,9 @@ import (
 	"time"
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/gateway"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/eventbus"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/engine"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/service"
 	"github.com/spf13/cobra"
 )
@@ -29,6 +32,7 @@ This includes starting, stopping, and listing model inference services.`,
 	cmd.AddCommand(NewServiceStatusCommand(root))
 	cmd.AddCommand(NewServiceListCommand(root))
 	cmd.AddCommand(NewServiceCreateCommand(root))
+	cmd.AddCommand(NewServiceLogsCommand(root))
 
 	return cmd
 }
@@ -174,6 +178,46 @@ This will start the Docker container or native process for the model.`,
 func runServiceStart(ctx context.Context, root *RootCommand, serviceID string, wait bool, timeout int, async bool) error {
 	gw := root.Gateway()
 	opts := root.OutputOptions()
+
+	// Subscribe to progress events if waiting synchronously
+	var subID eventbus.SubscriptionID
+	if wait && !async && root.EventBus() != nil {
+		subID, _ = root.EventBus().Subscribe(
+			func(event unit.Event) error {
+				payload, ok := event.Payload().(map[string]any)
+				if !ok {
+					return nil
+				}
+				phase, _ := payload["phase"].(string)
+				message, _ := payload["message"].(string)
+				progress, _ := payload["progress"].(int)
+
+				switch phase {
+				case "pulling":
+					fmt.Printf("  [pull] %s\n", message)
+				case "starting":
+					fmt.Printf("  [start] %s\n", message)
+				case "loading":
+					fmt.Printf("  [load] %s\n", message)
+				case "ready":
+					fmt.Printf("  [ready] %s\n", message)
+				case "failed":
+					fmt.Printf("  [FAIL] %s\n", message)
+				default:
+					if progress >= 0 {
+						fmt.Printf("  [%d%%] %s\n", progress, message)
+					} else {
+						fmt.Printf("  %s\n", message)
+					}
+				}
+				return nil
+			},
+			eventbus.FilterByType(engine.EventTypeStartProgress),
+		)
+		if subID != "" {
+			defer root.EventBus().Unsubscribe(subID) //nolint:errcheck
+		}
+	}
 
 	req := &gateway.Request{
 		Type: gateway.TypeCommand,
@@ -353,5 +397,64 @@ func runServiceList(ctx context.Context, root *RootCommand, status, model string
 		return fmt.Errorf("list services failed: %s", resp.Error.Message)
 	}
 
+	return PrintOutput(resp.Data, opts)
+}
+
+func NewServiceLogsCommand(root *RootCommand) *cobra.Command {
+	var (
+		follow bool
+		tail   int
+	)
+
+	cmd := &cobra.Command{
+		Use:   "logs <service-id>",
+		Short: "View logs for a model inference service",
+		Long:  `View logs for a running inference service container.`,
+		Example: `  # View last 100 lines of logs
+  aima service logs svc-vllm-model-xxx
+
+  # Follow logs in real-time
+  aima service logs svc-vllm-model-xxx --follow
+
+  # View last 50 lines
+  aima service logs svc-vllm-model-xxx --tail 50`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runServiceLogs(cmd.Context(), root, args[0], follow, tail)
+		},
+	}
+
+	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "Follow log output")
+	cmd.Flags().IntVarP(&tail, "tail", "n", 100, "Number of lines to show from the end")
+
+	return cmd
+}
+
+func runServiceLogs(ctx context.Context, root *RootCommand, serviceID string, follow bool, tail int) error {
+	gw := root.Gateway()
+	opts := root.OutputOptions()
+
+	req := &gateway.Request{
+		Type: gateway.TypeQuery,
+		Unit: "service.logs",
+		Input: map[string]any{
+			"service_id": serviceID,
+			"follow":     follow,
+			"tail":       tail,
+		},
+	}
+
+	resp := gw.Handle(ctx, req)
+	if !resp.Success {
+		PrintError(fmt.Errorf("%s: %s", resp.Error.Code, resp.Error.Message), opts)
+		return fmt.Errorf("get logs failed: %s", resp.Error.Message)
+	}
+
+	if data, ok := resp.Data.(map[string]any); ok {
+		if logs, ok := data["logs"].(string); ok {
+			fmt.Print(logs)
+			return nil
+		}
+	}
 	return PrintOutput(resp.Data, opts)
 }
