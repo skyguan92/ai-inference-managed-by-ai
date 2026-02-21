@@ -1214,29 +1214,33 @@ func (p *HybridServiceProvider) IsRunning(ctx context.Context, serviceID string)
 
 // GetLogs returns the last tail lines of logs for the service container.
 func (p *HybridServiceProvider) GetLogs(ctx context.Context, serviceID string, tail int) (string, error) {
+	// First: check in-memory service info (populated when service was started in this session)
 	p.hybridProvider.mu.RLock()
 	info, exists := p.hybridProvider.serviceInfo[serviceID]
 	p.hybridProvider.mu.RUnlock()
 
-	if !exists || info == nil || info.ProcessID == "" {
-		// Try to find container by label if not in memory
-		containers, err := p.hybridProvider.dockerClient.ListContainers(ctx, map[string]string{"aima.service": serviceID})
-		if err != nil || len(containers) == 0 {
-			return "", fmt.Errorf("service %s has no running container", serviceID)
-		}
-		logs, err := p.hybridProvider.dockerClient.GetContainerLogs(ctx, containers[0], tail)
+	if exists && info != nil && info.ProcessID != "" {
+		logs, err := p.hybridProvider.dockerClient.GetContainerLogs(ctx, info.ProcessID, tail)
 		if err != nil {
-			return "", fmt.Errorf("get container logs: %w", err)
+			return "", fmt.Errorf("get container logs for %s: %w", info.ProcessID, err)
 		}
 		return logs, nil
 	}
 
-	// Use the tracked container ID
-	logs, err := p.hybridProvider.dockerClient.GetContainerLogs(ctx, info.ProcessID, tail)
-	if err != nil {
-		return "", fmt.Errorf("get container logs for %s: %w", info.ProcessID, err)
+	// Fallback: parse engine type from service ID and search by label
+	// Service ID format: svc-{engineType}-{modelId}
+	sid, parseErr := service.ParseServiceID(serviceID)
+	if parseErr == nil {
+		containers, listErr := p.hybridProvider.dockerClient.ListContainers(ctx, map[string]string{"aima.engine": sid.EngineType})
+		if listErr == nil && len(containers) > 0 {
+			logs, logErr := p.hybridProvider.dockerClient.GetContainerLogs(ctx, containers[0], tail)
+			if logErr == nil {
+				return logs, nil
+			}
+		}
 	}
-	return logs, nil
+
+	return "", fmt.Errorf("no running container found for service %s", serviceID)
 }
 
 // GetEngineProvider returns the underlying engine provider
