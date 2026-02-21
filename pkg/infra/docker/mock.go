@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 )
 
@@ -104,24 +105,21 @@ func (c *MockClient) StartContainer(ctx context.Context, containerID string) err
 	return nil
 }
 
-// StopContainer 停止容器
-func (c *MockClient) StopContainer(ctx context.Context, containerID string, timeout time.Duration) error {
+// StopContainer implements docker.Client: stops and removes a container. timeout is in seconds.
+func (c *MockClient) StopContainer(ctx context.Context, containerID string, timeout int) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-time.After(timeout):
+	default:
 	}
 
 	container, exists := c.Containers[containerID]
 	if !exists {
-		return fmt.Errorf("container %s not found", containerID)
-	}
-
-	if container.Status != "running" {
-		return fmt.Errorf("container %s is not running", containerID)
+		return nil // idempotent — already gone
 	}
 
 	container.Status = "stopped"
+	delete(c.Containers, containerID)
 	return nil
 }
 
@@ -146,8 +144,9 @@ func (c *MockClient) RemoveContainer(ctx context.Context, containerID string, fo
 	return nil
 }
 
-// ListContainers 列出所有容器
-func (c *MockClient) ListContainers(ctx context.Context, all bool) ([]*MockContainer, error) {
+// ListAllContainers lists all containers (optionally including stopped ones).
+// Use ListContainers (docker.Client interface) for label-filtered listing.
+func (c *MockClient) ListAllContainers(ctx context.Context, all bool) ([]*MockContainer, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -284,10 +283,17 @@ func (c *MockClient) WaitContainer(ctx context.Context, containerID string) (int
 
 // RestartContainer 重启容器
 func (c *MockClient) RestartContainer(ctx context.Context, containerID string, timeout time.Duration) error {
-	if err := c.StopContainer(ctx, containerID, timeout); err != nil {
-		return err
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
 	}
-	return c.StartContainer(ctx, containerID)
+	container, exists := c.Containers[containerID]
+	if !exists {
+		return fmt.Errorf("container %s not found", containerID)
+	}
+	container.Status = "running"
+	return nil
 }
 
 // PauseContainer 暂停容器
@@ -476,3 +482,85 @@ func (c *MockClient) ImportImage(ctx context.Context, source []byte, tag string)
 	}
 	return nil
 }
+
+// ---- docker.Client interface implementation ----
+
+// CreateAndStartContainer implements docker.Client: creates and starts a container atomically.
+func (c *MockClient) CreateAndStartContainer(ctx context.Context, name, image string, opts ContainerOptions) (string, error) {
+	containerID, err := c.CreateContainer(ctx, name, image, opts)
+	if err != nil {
+		return "", err
+	}
+	if err := c.StartContainer(ctx, containerID); err != nil {
+		return "", err
+	}
+	return containerID, nil
+}
+
+// GetContainerStatus implements docker.Client: returns the container status string.
+func (c *MockClient) GetContainerStatus(ctx context.Context, containerID string) (string, error) {
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	default:
+	}
+	container, exists := c.Containers[containerID]
+	if !exists {
+		return "", fmt.Errorf("container %s not found", containerID)
+	}
+	return container.Status, nil
+}
+
+// GetContainerLogs implements docker.Client: returns the last tail lines of container logs.
+func (c *MockClient) GetContainerLogs(ctx context.Context, containerID string, tail int) (string, error) {
+	logs, err := c.ContainerLogs(ctx, containerID)
+	if err != nil {
+		return "", err
+	}
+	_ = strconv.Itoa(tail) // tail ignored in mock; all logs returned
+	return logs, nil
+}
+
+// StreamLogs implements docker.Client: sends a single mock log line and returns.
+func (c *MockClient) StreamLogs(ctx context.Context, containerID string, since string, out chan<- string) error {
+	select {
+	case <-ctx.Done():
+		return nil
+	default:
+	}
+	_, exists := c.Containers[containerID]
+	if !exists {
+		return fmt.Errorf("container %s not found", containerID)
+	}
+	select {
+	case out <- fmt.Sprintf("Mock log line for container %s", containerID):
+	case <-ctx.Done():
+	}
+	return nil
+}
+
+// ListContainers implements docker.Client: returns container IDs matching label filters.
+func (c *MockClient) ListContainers(ctx context.Context, labels map[string]string) ([]string, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	var ids []string
+	for id, ct := range c.Containers {
+		if ct.Status == "running" {
+			ids = append(ids, id)
+		}
+	}
+	return ids, nil
+}
+
+// ContainerEvents implements docker.Client: returns a channel that is immediately closed (no events in mock).
+func (c *MockClient) ContainerEvents(ctx context.Context, filters map[string]string) (<-chan ContainerEvent, error) {
+	ch := make(chan ContainerEvent)
+	close(ch)
+	return ch, nil
+}
+
+// Compile-time assertion: MockClient must implement docker.Client.
+var _ Client = (*MockClient)(nil)

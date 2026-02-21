@@ -12,9 +12,11 @@ type ContainerEvent struct {
 	Status string
 }
 
-// Client is the interface for Docker container lifecycle operations.
-// Image-pull operations belong to RegistryProvider, not here.
+// Client is the interface for Docker container lifecycle and image operations.
 type Client interface {
+	// PullImage pulls a Docker image.
+	PullImage(ctx context.Context, image string) error
+
 	// CreateAndStartContainer creates and starts a container, returning its ID.
 	CreateAndStartContainer(ctx context.Context, name, image string, opts ContainerOptions) (string, error)
 

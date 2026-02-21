@@ -247,34 +247,33 @@ func TestMockClient_StopContainer_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, mc.StartContainer(ctx, id))
 
-	err = mc.StopContainer(ctx, id, time.Millisecond)
+	err = mc.StopContainer(ctx, id, 0)
 	require.NoError(t, err)
 
-	ctr, err := mc.GetContainer(ctx, id)
-	require.NoError(t, err)
-	assert.Equal(t, "stopped", ctr.Status)
+	// Container is removed after stop (idempotent contract matches docker.Client interface).
+	_, err = mc.GetContainer(ctx, id)
+	assert.Error(t, err) // should be gone
 }
 
 func TestMockClient_StopContainer_NotFound(t *testing.T) {
 	mc := NewMockClient()
 	ctx := context.Background()
 
-	err := mc.StopContainer(ctx, "ghost-id", time.Millisecond)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not found")
+	// Idempotent: stopping a non-existent container succeeds (matches real docker.Client contract).
+	err := mc.StopContainer(ctx, "ghost-id", 0)
+	require.NoError(t, err)
 }
 
 func TestMockClient_StopContainer_NotRunning(t *testing.T) {
 	mc := NewMockClient()
 	ctx := context.Background()
 
-	// Container is in "created" state (never started)
+	// Container is in "created" state (never started); StopContainer still removes it.
 	id, err := mc.CreateContainer(ctx, "not-started", "nginx:latest", ContainerOptions{})
 	require.NoError(t, err)
 
-	err = mc.StopContainer(ctx, id, time.Millisecond)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not running")
+	err = mc.StopContainer(ctx, id, 0)
+	require.NoError(t, err) // idempotent — no error even if not running
 }
 
 func TestMockClient_StopContainer_ContextCancelled(t *testing.T) {
@@ -283,7 +282,7 @@ func TestMockClient_StopContainer_ContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err := mc.StopContainer(ctx, "any-id", time.Second)
+	err := mc.StopContainer(ctx, "any-id", 0)
 	assert.ErrorIs(t, err, context.Canceled)
 }
 
@@ -311,11 +310,11 @@ func TestMockClient_GetContainer_Stopped(t *testing.T) {
 	id, err := mc.CreateContainer(ctx, "stop-ctr", "nginx:latest", ContainerOptions{})
 	require.NoError(t, err)
 	require.NoError(t, mc.StartContainer(ctx, id))
-	require.NoError(t, mc.StopContainer(ctx, id, time.Millisecond))
+	require.NoError(t, mc.StopContainer(ctx, id, 0))
 
-	ctr, err := mc.GetContainer(ctx, id)
-	require.NoError(t, err)
-	assert.Equal(t, "stopped", ctr.Status)
+	// Container is removed by StopContainer (matches docker.Client interface contract).
+	_, err = mc.GetContainer(ctx, id)
+	assert.Error(t, err)
 }
 
 func TestMockClient_GetContainer_NotFound(t *testing.T) {
@@ -351,11 +350,11 @@ func TestMockClient_ListContainers_EmptyStore(t *testing.T) {
 	mc := NewMockClient()
 	ctx := context.Background()
 
-	all, err := mc.ListContainers(ctx, true)
+	all, err := mc.ListAllContainers(ctx, true)
 	require.NoError(t, err)
 	assert.Empty(t, all)
 
-	running, err := mc.ListContainers(ctx, false)
+	running, err := mc.ListAllContainers(ctx, false)
 	require.NoError(t, err)
 	assert.Empty(t, running)
 }
@@ -370,12 +369,12 @@ func TestMockClient_ListContainers_AllFlag(t *testing.T) {
 	_, _ = mc.CreateContainer(ctx, "created", "nginx:latest", ContainerOptions{})
 
 	// all=true should return both
-	all, err := mc.ListContainers(ctx, true)
+	all, err := mc.ListAllContainers(ctx, true)
 	require.NoError(t, err)
 	assert.Len(t, all, 2)
 
 	// all=false should return only running
-	running, err := mc.ListContainers(ctx, false)
+	running, err := mc.ListAllContainers(ctx, false)
 	require.NoError(t, err)
 	assert.Len(t, running, 1)
 	assert.Equal(t, "running", running[0].Status)
@@ -392,11 +391,11 @@ func TestMockClient_ListContainers_OnlyRunning(t *testing.T) {
 		require.NoError(t, mc.StartContainer(ctx, id))
 	}
 
-	// Stop one
-	all, _ := mc.ListContainers(ctx, true)
-	require.NoError(t, mc.StopContainer(ctx, all[0].ID, time.Millisecond))
+	// Stop one via label-based ListContainers (interface method returns IDs of running containers).
+	allContainers, _ := mc.ListAllContainers(ctx, true)
+	require.NoError(t, mc.StopContainer(ctx, allContainers[0].ID, 0))
 
-	running, err := mc.ListContainers(ctx, false)
+	running, err := mc.ListAllContainers(ctx, false)
 	require.NoError(t, err)
 	assert.Len(t, running, 2)
 	for _, c := range running {
@@ -409,7 +408,7 @@ func TestMockClient_ListContainers_ContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := mc.ListContainers(ctx, true)
+	_, err := mc.ListAllContainers(ctx, true)
 	assert.ErrorIs(t, err, context.Canceled)
 }
 
@@ -421,9 +420,9 @@ func TestMockClient_RemoveContainer_StoppedContainer(t *testing.T) {
 	mc := NewMockClient()
 	ctx := context.Background()
 
+	// Create and immediately stop (without starting) to keep container in "created" state,
+	// then remove it directly — StopContainer now removes the container so we test RemoveContainer separately.
 	id, _ := mc.CreateContainer(ctx, "rm-me", "alpine:latest", ContainerOptions{})
-	require.NoError(t, mc.StartContainer(ctx, id))
-	require.NoError(t, mc.StopContainer(ctx, id, time.Millisecond))
 
 	err := mc.RemoveContainer(ctx, id, false)
 	require.NoError(t, err)

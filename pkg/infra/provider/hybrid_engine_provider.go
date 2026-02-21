@@ -36,7 +36,7 @@ type StartupConfig struct {
 
 // HybridEngineProvider supports both Docker and Native process modes
 type HybridEngineProvider struct {
-	dockerClient    *docker.SimpleClient
+	dockerClient    docker.Client
 	containers      map[string]string // name -> container ID
 	nativeProcesses map[string]*exec.Cmd
 	serviceInfo     map[string]*ServiceInfo
@@ -61,10 +61,22 @@ type ServiceInfo struct {
 	Endpoint  string
 }
 
-// NewHybridEngineProvider creates a new hybrid engine provider
+// NewHybridEngineProvider creates a new hybrid engine provider.
+// Defaults to SDKClient (Docker Go SDK); falls back to SimpleClient (CLI-based) on error.
 func NewHybridEngineProvider(modelStore model.ModelStore) *HybridEngineProvider {
+	dc, err := docker.NewSDKClient()
+	if err != nil {
+		slog.Warn("failed to create Docker SDK client, falling back to CLI client", "error", err)
+		return newHybridEngineProviderWithClient(modelStore, docker.NewSimpleClient())
+	}
+	return newHybridEngineProviderWithClient(modelStore, dc)
+}
+
+// newHybridEngineProviderWithClient creates a HybridEngineProvider with a specific docker.Client.
+// Used in tests to inject a mock client.
+func newHybridEngineProviderWithClient(modelStore model.ModelStore, dc docker.Client) *HybridEngineProvider {
 	return &HybridEngineProvider{
-		dockerClient:    docker.NewSimpleClient(),
+		dockerClient:    dc,
 		containers:      make(map[string]string),
 		nativeProcesses: make(map[string]*exec.Cmd),
 		serviceInfo:     make(map[string]*ServiceInfo),

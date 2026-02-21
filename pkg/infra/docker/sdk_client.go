@@ -1,10 +1,3 @@
-//go:build docker_sdk
-// +build docker_sdk
-
-// SDKClient requires Go 1.24+ (Docker SDK pulls in otelhttp which requires Go 1.24).
-// Build with: go build -tags docker_sdk ./...
-// When the project upgrades to Go 1.24, remove this build tag.
-
 package docker
 
 import (
@@ -17,6 +10,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/image"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 )
@@ -257,6 +251,18 @@ func (c *SDKClient) ContainerEvents(ctx context.Context, filterMap map[string]st
 	}()
 
 	return ch, nil
+}
+
+// PullImage pulls a Docker image using the SDK.
+func (c *SDKClient) PullImage(ctx context.Context, img string) error {
+	rc, err := c.cli.ImagePull(ctx, img, image.PullOptions{})
+	if err != nil {
+		return fmt.Errorf("docker ImagePull %s: %w", img, err)
+	}
+	defer rc.Close()
+	// Drain the reader to complete the pull; output is JSON progress (discarded).
+	_, _ = io.Copy(io.Discard, rc)
+	return nil
 }
 
 // parseMemory converts strings like "4g", "512m", "1024k" to bytes.
