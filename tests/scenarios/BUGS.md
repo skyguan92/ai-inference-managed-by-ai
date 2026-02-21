@@ -282,3 +282,149 @@ Every `service stop` invocation finds containers via Docker label lookup (not th
 - **Actual**: Recipe appeared in results with reduced score (missing +10 bonus but still score=45 from vendor+OS)
 - **Root Cause**: `scoreRecipe()` skipped the VRAM bonus but did not exclude the recipe when query VRAM < recipe minimum
 - **Status**: FIXED — Added hard filter: if `recipe.profile.vram_min_gb > 0 && query.vram_gb > 0 && query.vram_gb < recipe.vram_min_gb`, return 0. Commit: 6b68a0f
+
+---
+
+## Scenario 13: HTTP REST API Completeness
+
+### Bug #43: `bodyInputMapper` silently drops JSON decode errors — returns `{}` instead of 400
+
+- **Scenario**: 13 (HTTP REST API Completeness)
+- **Severity**: High (P1) — malformed JSON gets silently accepted; clients get confusing 500 errors instead of 400
+- **Command**: `POST /api/v2/models/create` with `Content-Type: application/json` and malformed body `{"this is not valid json`
+- **Expected**: HTTP 400 with `{"error": {"code": "invalid_request", "message": "..."}}`
+- **Actual**: HTTP 500 with `EXECUTION_FAILED: name is required` — the bad JSON was silently swallowed as empty `{}` and the downstream validator raised a different error
+- **Root Cause**: `bodyInputMapper` in `pkg/gateway/routes.go:219` returns empty `map[string]any{}` on JSON decode error (`err != nil`), never signals the error to the caller. The router's `handleRoute` then calls the unit with an empty input map.
+- **Evidence**: `{"this is not valid json` → HTTP 500 `EXECUTION_FAILED: name is required` (not 400 invalid JSON)
+- **Status**: Open — fix requires `bodyInputMapper` to return an error (change signature) or the router to detect and reject decode failures with HTTP 400
+
+### Bug #44: Domain unit errors always return HTTP 500 — no semantic HTTP status mapping
+
+- **Scenario**: 13 (HTTP REST API Completeness)
+- **Severity**: Medium (P1) — API clients can't distinguish validation errors from server errors
+- **Commands affected**: Any domain endpoint with validation errors (missing required fields, invalid input)
+- **Expected**: `inference.chat` with empty body → HTTP 400 (bad request); `resource.status` with no provider → HTTP 503 (service unavailable)
+- **Actual**: All unit errors return HTTP 500 regardless of error type
+- **Root Cause**: `handleRoute` in `pkg/gateway/routes.go` always calls `w.WriteHeader(http.StatusInternalServerError)` when `!resp.Success`. Error codes like `[00009] invalid input` or `EXECUTION_FAILED` are not mapped to appropriate HTTP status codes (400, 404, 503, etc.)
+- **Evidence**:
+  - `inference.chat {}` → HTTP 500 `model not specified` (should be 400)
+  - `resource.status` no provider → HTTP 500 (should be 503)
+  - `model.create` with bad JSON → HTTP 500 (should be 400)
+- **Status**: Open
+
+### Bug #45: No MaxBytesReader on REST domain routes — 10MB+ payloads accepted
+
+- **Scenario**: 13 (HTTP REST API Completeness)
+- **Severity**: Medium (P1) — potential OOM/DoS vector
+- **Command**: `POST /api/v2/models/create` with 10MB body
+- **Expected**: HTTP 413 (Payload Too Large)
+- **Actual**: Request accepted; returns 500 with validation error (body was read into memory)
+- **Root Cause**: `pkg/cli/start.go` applies `http.MaxBytesReader(w, r.Body, 10<<20)` only inside `handleExecute()` for `/api/v2/execute`. The `gateway.NewRouter(gw)` handler (`ServeHTTP` in `routes.go`) has no MaxBytesReader — every domain REST route is vulnerable.
+- **Status**: Open — fix: add `r.Body = http.MaxBytesReader(w, r.Body, 10<<20)` at the start of `handleRoute()` or in a middleware wrapping the router
+
+### Bug #46: CORS not wired — OPTIONS requests return 404
+
+- **Scenario**: 13 (HTTP REST API Completeness)
+- **Severity**: Medium (P1) — web dashboard clients cannot make cross-origin requests
+- **Command**: `OPTIONS /api/v2/models` with Origin header
+- **Expected**: HTTP 200 with `Access-Control-Allow-Origin`, `Access-Control-Allow-Methods` headers
+- **Actual**: HTTP 404 `{"error": {"code": "UNIT_NOT_FOUND", "message": "route not found: OPTIONS /api/v2/models"}}`
+- **Root Cause**: No CORS middleware is registered. The `Router.ServeHTTP` treats OPTIONS as a regular method and fails to find a matching route. No CORS middleware file was found in `pkg/gateway/middleware/`.
+- **Status**: Open
+
+### Bug #47: HEAD requests return 404 on REST routes
+
+- **Scenario**: 13 (HTTP REST API Completeness)
+- **Severity**: Low (P2) — HEAD should work on any GET endpoint per HTTP spec
+- **Command**: `HEAD /api/v2/models`
+- **Expected**: HTTP 200 with headers, no body (mirrors GET /api/v2/models)
+- **Actual**: HTTP 404 — router only finds exact method matches, no HEAD→GET fallback
+- **Root Cause**: `Router.ServeHTTP` in `pkg/gateway/routes.go` does exact method matching; no fallback to respond to HEAD with a GET handler
+- **Status**: Open
+
+---
+
+## Scenario 14: MCP Protocol Compliance
+
+### Bug #48: MCP stdio goroutines can exit before writing response (race at stdin EOF)
+
+- **Scenario**: 14 (MCP Protocol Compliance)
+- **Severity**: High (P1) — parse errors and other single-message responses silently dropped
+- **Command**: `echo 'this is not json' | aima mcp serve`
+- **Expected**: JSONRPC parse error response `{"jsonrpc":"2.0","error":{"code":-32700,"message":"parse error:..."}}`
+- **Actual**: No output — the `Serve()` loop returns (stdin EOF) before the goroutine for the malformed message writes to stdout
+- **Root Cause**: `MCPServer.Serve()` in `pkg/gateway/mcp_server.go` spawns goroutines via `go func() { s.handleLine(...) }()` then returns `nil` when scanner reaches EOF. The goroutines may not have finished writing yet. `s.wg.Wait()` was only called in `Shutdown()`, not at the end of `Serve()`.
+- **Status**: FIXED — Added `s.wg.Wait()` at all three return paths in `Serve()` (context cancelled, scanner error, EOF). Commit: 9d01a11
+
+### Bug #49: Tool not found returns wrong JSONRPC error code (-32002 instead of -32601)
+
+- **Scenario**: 14 (MCP Protocol Compliance)
+- **Severity**: Medium (P1) — MCP protocol violation; clients expecting -32601 for unknown tools
+- **Command**: `tools/call` with `name: "nonexistent.tool"`
+- **Expected**: JSONRPC error with code `-32601` (Method not found) per scenario spec
+- **Actual**: Error code `-32002` (MCPErrorCodeToolExecution) — `handleToolsCall` used the tool-execution error code for a tool-lookup failure
+- **Root Cause**: `ExecuteTool()` in `pkg/gateway/mcp_tools.go` returned a plain `fmt.Errorf("tool not found: %s", name)`; `handleToolsCall` wrapped it with `MCPErrorCodeToolExecution` (-32002). The tool-not-found case should return `MCPErrorCodeMethodNotFound` (-32601) per JSONRPC spec.
+- **Status**: FIXED — `ExecuteTool()` now returns `&MCPError{Code: MCPErrorCodeMethodNotFound, ...}`; `handleToolsCall` uses `errors.As` to detect `*MCPError` and use its code directly. Commit: 9d01a11
+
+### Bug #48: Method Not Allowed returns 404 instead of 405
+
+- **Scenario**: 13 (HTTP REST API Completeness)
+- **Severity**: Low (P2) — incorrect HTTP semantics
+- **Command**: `DELETE /api/v2/models` (only GET is defined for this path)
+- **Expected**: HTTP 405 Method Not Allowed with `Allow: GET` header
+- **Actual**: HTTP 404 `route not found: DELETE /api/v2/models`
+- **Root Cause**: `Router.ServeHTTP` does not distinguish "path exists but wrong method" from "path not found"; both return 404
+- **Status**: Open
+
+### Bug #49: Resource domain has no ResourceProvider wired — resource.status always fails
+
+- **Scenario**: 13 (HTTP REST API Completeness)
+- **Severity**: Medium (P1) — resource endpoint unusable
+- **Command**: `GET /api/v2/resource/status`
+- **Expected**: Resource usage data (CPU, GPU, memory)
+- **Actual**: HTTP 500 `{"error": {"code": "EXECUTION_FAILED", "details": "[00008] resource provider not set"}}`
+- **Root Cause**: `RegisterAll()` does not wire a `ResourceProvider`. The resource domain exists but no provider implementation is registered.
+- **Status**: Open
+
+---
+
+## Scenario 15: Auth Middleware Wiring
+
+### Bug #50 (Arch): Auth middleware not wired into production HTTP server (start.go uses plain mux)
+
+- **Scenario**: 15 (Auth Middleware Wiring)
+- **Severity**: Critical (P0) — all auth enforcement is bypassed in production
+- **Evidence**: `POST /api/v2/models/create` without any token → HTTP 200 (should require auth for commands)
+- **Root Cause**: `pkg/cli/start.go` `runStart()` builds a plain `http.NewServeMux()` and wraps handlers with only `instrumentHandler`. The `gateway.Server` (`pkg/gateway/server.go`) has complete auth middleware in `buildHandler()` (lines 120–124), but `gateway.Server` is never instantiated in production — only in tests. `start.go` never calls `middleware.Auth()`.
+- **Impact**: ALL endpoints bypass auth. `Forced` routes (remote.exec, model.delete) that should ALWAYS require a token are completely unprotected.
+- **Code to fix**: `pkg/cli/start.go` — wrap the router with `middleware.Auth(authCfg)` after constructing the mux.
+- **Status**: Open
+
+### Bug #51: No TOML or env-var mechanism to enable auth or supply API keys
+
+- **Scenario**: 15 (Auth Middleware Wiring)
+- **Severity**: High (P1) — even if auth middleware were wired, there is no way for operators to enable it
+- **Evidence**:
+  - `AIMA_CONFIG=/tmp/aima-auth.toml /tmp/aima start` with `[auth] enabled=true api_keys=[...]` → server ignores the section, all requests still 200
+  - `AIMA_AUTH_ENABLED=true AIMA_API_KEYS="..."` → no such env vars processed in `ApplyEnvOverrides()`
+- **Root Cause**: `pkg/config/config.go` has `SecurityConfig` with only a single `api_key` string and `rate_limit_per_min` integer. There is no `AuthConfig` struct with `enabled bool` and `api_keys []string`. `ApplyEnvOverrides()` has no `AIMA_AUTH_ENABLED` or `AIMA_API_KEYS` handling. The `[auth]` TOML section is silently ignored.
+- **Code to fix**: Add `AuthConfig` struct to `config.go` with `enabled`, `api_keys` fields; add `[auth]` TOML tag; add env var handling; wire it into the auth middleware in `start.go`.
+- **Status**: Open
+
+### Bug #52: `remote.exec` (Forced auth level) not protected — returns 500 instead of 401
+
+- **Scenario**: 15 (Auth Middleware Wiring)
+- **Severity**: Critical (P0) — highest-risk endpoint is completely unprotected
+- **Evidence**: `POST /api/v2/remote/exec -d '{"command":"echo test"}'` without any token → HTTP 500 (remote provider not set), not 401
+- **Root Cause**: Consequence of Bug #50 — auth middleware never runs, so `AuthLevelForced` for `remote.exec` is never evaluated. If auth middleware were wired, `remote.exec` would still fail because no API keys are configured (Bug #51), making it permanently inaccessible.
+- **Note**: The 500 error is from `remote provider not set` (RemoteProvider not wired), not from auth rejection. Both bugs compound.
+- **Status**: Open (blocked by Bug #50 and Bug #51)
+
+### Bug #53: TokenBucketLimiter code exists but is never instantiated as middleware
+
+- **Scenario**: 15 (Auth Middleware Wiring)
+- **Severity**: Low (P2) — rate limiting is effectively disabled
+- **Evidence**: 50 rapid requests to `GET /api/v2/models` all return HTTP 200 with no throttling
+- **Root Cause**: `pkg/infra/ratelimit/ratelimit.go` implements `TokenBucketLimiter` with `Allow()` and `Reset()` methods, and tests exist in `ratelimit_test.go`. However, it is never instantiated or registered as HTTP middleware anywhere. `SecurityConfig.RateLimitPerMin` (config field) is read but never used to create a limiter.
+- **Code to fix**: Create a rate limiter middleware in `pkg/gateway/middleware/`, instantiate `TokenBucketLimiter` in `start.go` using `cfg.Security.RateLimitPerMin`, and register it in the handler chain.
+- **Status**: Open
