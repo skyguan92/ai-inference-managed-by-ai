@@ -505,6 +505,12 @@ func runServiceCleanup(ctx context.Context, root *RootCommand, force bool) error
 		}
 	}
 
+	// Bail early with a clear message when Docker is not running.
+	if err := docker.CheckDocker(); err != nil {
+		fmt.Fprintln(opts.Writer, "Docker is not available — nothing to clean up.")
+		return nil
+	}
+
 	// Create a Docker client to list and stop AIMA containers directly.
 	var dc docker.Client
 	if sdkClient, err := docker.NewSDKClient(); err == nil {

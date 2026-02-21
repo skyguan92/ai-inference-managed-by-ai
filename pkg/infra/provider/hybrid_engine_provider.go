@@ -401,7 +401,10 @@ func (p *HybridEngineProvider) startDockerWithRetry(ctx context.Context, engineT
 
 	// Phase 1 — Port-based: detect any container occupying the port we need.
 	// This finds externally-created containers that label-based listing would miss.
-	portConflicts, _ := p.dockerClient.FindContainersByPort(ctx, port)
+	portConflicts, err := p.dockerClient.FindContainersByPort(ctx, port)
+	if err != nil {
+		slog.Warn("port conflict check failed, proceeding without port scan", "port", port, "error", err)
+	}
 	for _, conflict := range portConflicts {
 		if !conflict.IsAIMA {
 			// Non-AIMA container: we cannot safely remove it; surface an actionable error.
@@ -420,7 +423,11 @@ func (p *HybridEngineProvider) startDockerWithRetry(ctx context.Context, engineT
 
 	// Phase 2 — Label-based: catch "created" state containers that haven't bound
 	// their port yet (so FindContainersByPort wouldn't find them).
-	staleIDs, _ := p.dockerClient.ListContainers(ctx, map[string]string{"aima.engine": engineType})
+	// Note: containers stopped in Phase 1 may also appear here; StopContainer is idempotent.
+	staleIDs, err := p.dockerClient.ListContainers(ctx, map[string]string{"aima.engine": engineType})
+	if err != nil {
+		slog.Warn("stale container scan failed, proceeding without label cleanup", "engine", engineType, "error", err)
+	}
 	for _, cid := range staleIDs {
 		slog.Info("removing stale AIMA container before start", "container_id", cid, "engine", engineType)
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -686,17 +693,17 @@ func (p *HybridEngineProvider) Stop(ctx context.Context, name string, force bool
 		// misses them (e.g., started without aima.engine label from a previous AIMA version).
 		port := p.getDefaultPort(name)
 		if portConflicts, portErr := p.dockerClient.FindContainersByPort(ctx, port); portErr == nil {
-			stopped := 0
+			found := 0
 			for _, conflict := range portConflicts {
 				if conflict.IsAIMA {
 					slog.Info("stopping AIMA container found by port", "container_id", conflict.ContainerID, "port", port, "engine", name)
 					if stopErr := p.dockerClient.StopContainer(ctx, conflict.ContainerID, timeout); stopErr != nil {
 						slog.Warn("failed to stop container found by port", "container_id", conflict.ContainerID, "error", stopErr)
 					}
-					stopped++
+					found++
 				}
 			}
-			if stopped > 0 {
+			if found > 0 {
 				return &engine.StopResult{Success: true}, nil
 			}
 		}

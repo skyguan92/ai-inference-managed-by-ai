@@ -178,11 +178,16 @@ func (c *SimpleClient) FindContainersByPort(ctx context.Context, port int) ([]Po
 		if len(parts) == 4 {
 			labels = parts[3]
 		}
+		// docker ps --format {{.Labels}} uses "key=value,key=value" (Docker CLI >=20)
+		// but may fall back to Go's map format "map[key:value key:value]" on older
+		// versions. Check both separator styles to be version-resilient.
+		isAIMA := strings.Contains(labels, "aima.managed=true") ||
+			strings.Contains(labels, "aima.managed:true")
 		conflicts = append(conflicts, PortConflict{
 			ContainerID: parts[0],
 			Name:        parts[1],
 			Image:       parts[2],
-			IsAIMA:      strings.Contains(labels, "aima.managed=true"),
+			IsAIMA:      isAIMA,
 		})
 	}
 	return conflicts, nil
