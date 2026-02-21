@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/docker"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/eventbus"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/catalog"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/engine"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/model"
@@ -49,6 +50,9 @@ type HybridEngineProvider struct {
 
 	// Engine assets loaded from YAML files (keyed by engine type)
 	engineAssets map[string]catalog.EngineAsset
+
+	// Event publishing (optional)
+	eventBus eventbus.EventBus
 
 	// Concurrency protection
 	mu sync.RWMutex
@@ -97,6 +101,25 @@ func newHybridEngineProviderWithClient(modelStore model.ModelStore, dc docker.Cl
 		startupConfigs:  getDefaultStartupConfigs(),
 		engineAssets:    assets,
 	}
+}
+
+// SetEventBus injects an event bus so the provider can publish progress events.
+func (p *HybridEngineProvider) SetEventBus(bus eventbus.EventBus) {
+	p.mu.Lock()
+	p.eventBus = bus
+	p.mu.Unlock()
+}
+
+// publishProgress fires a StartProgressEvent if an event bus is configured.
+// It is fire-and-forget; errors are silently ignored.
+func (p *HybridEngineProvider) publishProgress(serviceID, phase, message string, progress int) {
+	p.mu.RLock()
+	bus := p.eventBus
+	p.mu.RUnlock()
+	if bus == nil {
+		return
+	}
+	_ = bus.Publish(engine.NewStartProgressEvent(serviceID, phase, message, progress))
 }
 
 // getDefaultResourceLimits returns default resource limits for each engine type
@@ -309,7 +332,7 @@ func (p *HybridEngineProvider) Start(ctx context.Context, name string, config ma
 				}
 
 				// Wait for health check
-				if err := p.waitForHealth(ctx, result.ProcessID, port, startupCfg.HealthCheckURL, startupCfg.StartupTimeout); err != nil {
+				if err := p.waitForHealth(ctx, engineType, result.ProcessID, port, startupCfg.HealthCheckURL, startupCfg.StartupTimeout); err != nil {
 					slog.Warn("health check failed", "error", err)
 
 					// Bug #3 fix: Check if container is still running before stopping
@@ -343,12 +366,18 @@ func (p *HybridEngineProvider) Start(ctx context.Context, name string, config ma
 
 // startDockerWithRetry starts engine in Docker container with resource limits
 func (p *HybridEngineProvider) startDockerWithRetry(ctx context.Context, engineType, modelPath string, port int, useGPU bool, config map[string]any, limits ResourceLimits) (*engine.StartResult, error) {
+	p.publishProgress(engineType, "pulling", "Checking image for "+engineType, 0)
+
 	image := p.getDockerImage(engineType, "")
 
 	// Check if image exists
 	if !p.imageExists(image) {
-		return nil, fmt.Errorf("Docker image not found: %s", image)
+		err := fmt.Errorf("Docker image not found: %s", image)
+		p.publishProgress(engineType, "failed", err.Error(), -1)
+		return nil, err
 	}
+
+	p.publishProgress(engineType, "pulling", "Image found: "+image, 50)
 
 	opts := docker.ContainerOptions{
 		Ports: map[string]string{
@@ -396,6 +425,7 @@ func (p *HybridEngineProvider) startDockerWithRetry(ctx context.Context, engineT
 
 	containerID, err := p.dockerClient.CreateAndStartContainer(ctx, containerName, image, opts)
 	if err != nil {
+		p.publishProgress(engineType, "failed", err.Error(), -1)
 		return nil, err
 	}
 
@@ -403,7 +433,12 @@ func (p *HybridEngineProvider) startDockerWithRetry(ctx context.Context, engineT
 	p.containers[engineType] = containerID
 	p.mu.Unlock()
 
-	slog.Info("container started", "container_id", containerID[:12], "endpoint", fmt.Sprintf("http://localhost:%d", port))
+	shortID := containerID
+	if len(containerID) > 12 {
+		shortID = containerID[:12]
+	}
+	slog.Info("container started", "container_id", shortID, "endpoint", fmt.Sprintf("http://localhost:%d", port))
+	p.publishProgress(engineType, "starting", "Container started: "+shortID, 70)
 
 	return &engine.StartResult{
 		ProcessID: containerID,
@@ -412,13 +447,14 @@ func (p *HybridEngineProvider) startDockerWithRetry(ctx context.Context, engineT
 }
 
 // waitForHealth waits for service to become healthy
-func (p *HybridEngineProvider) waitForHealth(ctx context.Context, containerID string, port int, healthPath string, timeout time.Duration) error {
+func (p *HybridEngineProvider) waitForHealth(ctx context.Context, engineType, containerID string, port int, healthPath string, timeout time.Duration) error {
 	if healthPath == "" {
 		healthPath = "/health"
 	}
 
 	endpoint := fmt.Sprintf("http://localhost:%d%s", port, healthPath)
 	slog.Info("waiting for health check", "endpoint", endpoint, "timeout", timeout)
+	p.publishProgress(engineType, "loading", "Waiting for health check...", 75)
 
 	deadline := time.Now().Add(timeout)
 	checkInterval := 2 * time.Second
@@ -441,6 +477,7 @@ func (p *HybridEngineProvider) waitForHealth(ctx context.Context, containerID st
 				}
 			}()
 			if resp.StatusCode == http.StatusOK {
+				p.publishProgress(engineType, "ready", "Engine ready at port "+strconv.Itoa(port), 100)
 				return nil
 			}
 		}

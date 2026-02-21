@@ -11,6 +11,7 @@ const (
 	EventTypeStopped       = "engine.stopped"
 	EventTypeError         = "engine.error"
 	EventTypeHealthChanged = "engine.health_changed"
+	EventTypeStartProgress = "engine.start_progress"
 )
 
 type StartedEvent struct {
@@ -142,3 +143,33 @@ func (e *HealthChangedEvent) Domain() string        { return e.domain }
 func (e *HealthChangedEvent) Payload() any          { return e.payload }
 func (e *HealthChangedEvent) Timestamp() time.Time  { return e.timestamp }
 func (e *HealthChangedEvent) CorrelationID() string { return e.correlationID }
+
+type StartProgressEvent struct {
+	eventType     string
+	domain        string
+	payload       any
+	timestamp     time.Time
+	correlationID string
+}
+
+func NewStartProgressEvent(serviceID, phase, message string, progress int) *StartProgressEvent {
+	return &StartProgressEvent{
+		eventType: EventTypeStartProgress,
+		domain:    "engine",
+		payload: map[string]any{
+			"service_id": serviceID,
+			"phase":      phase,
+			"message":    message,
+			"progress":   progress,
+			"timestamp":  time.Now().Unix(),
+		},
+		timestamp:     time.Now(),
+		correlationID: uuid.New().String(),
+	}
+}
+
+func (e *StartProgressEvent) Type() string          { return e.eventType }
+func (e *StartProgressEvent) Domain() string        { return e.domain }
+func (e *StartProgressEvent) Payload() any          { return e.payload }
+func (e *StartProgressEvent) Timestamp() time.Time  { return e.timestamp }
+func (e *StartProgressEvent) CorrelationID() string { return e.correlationID }

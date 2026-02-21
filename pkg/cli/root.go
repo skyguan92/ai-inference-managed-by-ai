@@ -14,6 +14,7 @@ import (
 	agentllm "github.com/jguan/ai-inference-managed-by-ai/pkg/agent/llm"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/config"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/gateway"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/eventbus"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/provider"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/provider/huggingface"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/store"
@@ -38,6 +39,7 @@ type RootCommand struct {
 	gateway      *gateway.Gateway
 	registry     *unit.Registry
 	serviceStore service.ServiceStore
+	eventBus     eventbus.EventBus
 	opts         *OutputOptions
 	formatStr    string
 }
@@ -138,6 +140,13 @@ func (r *RootCommand) persistentPreRunE(cmd *cobra.Command, args []string) error
 	slog.Info("initializing hybrid engine provider", "mode", "Docker + Native")
 	serviceProvider := provider.NewHybridServiceProvider(modelStore, serviceStore)
 	engineProvider := serviceProvider.GetEngineProvider()
+
+	// Create event bus and wire it to the engine provider for progress events
+	bus := eventbus.NewInMemoryEventBus()
+	r.eventBus = bus
+	if hep, ok := engineProvider.(*provider.HybridEngineProvider); ok {
+		hep.SetEventBus(bus)
+	}
 
 	// Create engine store (memory-based for now)
 	engineStore := engine.NewMemoryStore()
@@ -277,6 +286,10 @@ func (r *RootCommand) OutputOptions() *OutputOptions {
 
 func (r *RootCommand) SetOutputWriter(w interface{ Write([]byte) (int, error) }) {
 	r.opts.Writer = w
+}
+
+func (r *RootCommand) EventBus() eventbus.EventBus {
+	return r.eventBus
 }
 
 func (r *RootCommand) Execute() error {
