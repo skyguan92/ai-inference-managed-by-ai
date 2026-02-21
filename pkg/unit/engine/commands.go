@@ -44,15 +44,29 @@ func (c *StartCommand) InputSchema() unit.Schema {
 				Name: "name",
 				Schema: unit.Schema{
 					Type:        "string",
-					Description: "Engine name",
+					Description: "Engine name (e.g. vllm, ollama, tts, asr)",
 					MinLength:   ptrs.Int(1),
+				},
+			},
+			"model_id": {
+				Name: "model_id",
+				Schema: unit.Schema{
+					Type:        "string",
+					Description: "Model ID to serve (looked up from model store for path and metadata)",
+				},
+			},
+			"model_path": {
+				Name: "model_path",
+				Schema: unit.Schema{
+					Type:        "string",
+					Description: "Direct path to model files (alternative to model_id)",
 				},
 			},
 			"config": {
 				Name: "config",
 				Schema: unit.Schema{
 					Type:        "object",
-					Description: "Engine configuration",
+					Description: "Additional engine configuration (gpu, device, gpu_memory_utilization, etc.)",
 				},
 			},
 		},
@@ -79,14 +93,14 @@ func (c *StartCommand) OutputSchema() unit.Schema {
 func (c *StartCommand) Examples() []unit.Example {
 	return []unit.Example{
 		{
-			Input:       map[string]any{"name": "ollama"},
+			Input:       map[string]any{"name": "vllm", "model_id": "model-abc123"},
 			Output:      map[string]any{"process_id": "proc-abc123", "status": "running"},
-			Description: "Start Ollama engine",
+			Description: "Start vLLM engine for a specific model",
 		},
 		{
-			Input:       map[string]any{"name": "vllm", "config": map[string]any{"gpu_memory_utilization": 0.9}},
+			Input:       map[string]any{"name": "vllm", "model_path": "/mnt/data/models/Qwen3-8B", "config": map[string]any{"gpu_memory_utilization": 0.9}},
 			Output:      map[string]any{"process_id": "proc-def456", "status": "running"},
-			Description: "Start vLLM engine with config",
+			Description: "Start vLLM engine with explicit model path and config",
 		},
 	}
 }
@@ -130,6 +144,22 @@ func (c *StartCommand) Execute(ctx context.Context, input any) (any, error) {
 	var config map[string]any
 	if cfg, ok := inputMap["config"].(map[string]any); ok {
 		config = cfg
+	}
+	if config == nil {
+		config = map[string]any{}
+	}
+
+	// Merge top-level model_id/model_path into config so the engine provider
+	// can look up the model path and mount it into Docker containers.
+	if mid, ok := inputMap["model_id"].(string); ok && mid != "" {
+		if _, exists := config["model_id"]; !exists {
+			config["model_id"] = mid
+		}
+	}
+	if mp, ok := inputMap["model_path"].(string); ok && mp != "" {
+		if _, exists := config["model_path"]; !exists {
+			config["model_path"] = mp
+		}
 	}
 
 	result, err := c.provider.Start(ctx, name, config)
