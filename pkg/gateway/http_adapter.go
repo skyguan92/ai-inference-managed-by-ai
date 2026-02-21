@@ -102,11 +102,10 @@ func errorToStatusCode(err *ErrorInfo) int {
 }
 
 func writeJSONError(w http.ResponseWriter, statusCode int, code string, message string) {
-	w.Header().Set("Content-Type", ContentTypeJSON)
-	w.WriteHeader(statusCode)
-
 	requestID := generateRequestIDSimple()
+	w.Header().Set("Content-Type", ContentTypeJSON)
 	w.Header().Set(HeaderRequestID, requestID)
+	w.WriteHeader(statusCode)
 
 	resp := &Response{
 		Success: false,

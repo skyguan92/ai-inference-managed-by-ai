@@ -16,6 +16,12 @@ import (
 func RateLimit(limiter ratelimit.Limiter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// CORS preflight requests should not consume rate-limit tokens.
+			if r.Method == http.MethodOptions {
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			key := r.RemoteAddr
 			if key == "" {
 				key = "unknown"

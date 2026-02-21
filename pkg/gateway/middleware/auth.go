@@ -93,6 +93,13 @@ func Auth(cfg AuthConfig) func(http.Handler) http.Handler {
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// CORS preflight requests must bypass auth so browsers can
+			// discover allowed methods/headers before sending credentials.
+			if r.Method == http.MethodOptions {
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			unit := r.Header.Get("X-Unit")
 			level := resolveAuthLevel(unit, cfg.UnitAuthLevels)
 

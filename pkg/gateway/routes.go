@@ -74,7 +74,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 
 		if isHEAD {
-			// For HEAD, delegate to GET handler but suppress body via http.ResponseWriter wrapper.
+			// For HEAD, delegate to GET handler; net/http strips the body automatically.
 			r.handleRoute(w, req, route, pathParams)
 			return
 		}
