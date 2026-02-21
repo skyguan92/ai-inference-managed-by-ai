@@ -1,8 +1,10 @@
 package docker
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"os/exec"
 	"strings"
 )
@@ -157,4 +159,99 @@ func CheckDocker() error {
 		return fmt.Errorf("docker is not available: %w", err)
 	}
 	return nil
+}
+
+// StreamLogs streams container log lines to out, starting from since (RFC3339 or relative like "1h").
+// Blocks until ctx is cancelled or the container exits.
+func (c *SimpleClient) StreamLogs(ctx context.Context, containerID string, since string, out chan<- string) error {
+	args := []string{"logs", "-f", "--tail", "0"}
+	if since != "" {
+		args = append(args, "--since", since)
+	}
+	args = append(args, containerID)
+
+	cmd := exec.CommandContext(ctx, "docker", args...)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("docker logs pipe failed: %w", err)
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return fmt.Errorf("docker logs stderr pipe failed: %w", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("docker logs start failed: %w", err)
+	}
+
+	forward := func(r io.Reader) {
+		scanner := bufio.NewScanner(r)
+		for scanner.Scan() {
+			select {
+			case out <- scanner.Text():
+			case <-ctx.Done():
+				return
+			}
+		}
+	}
+
+	go forward(stdout)
+	go forward(stderr)
+
+	if err := cmd.Wait(); err != nil {
+		// Context cancellation is expected; treat it as a clean exit.
+		if ctx.Err() != nil {
+			return nil
+		}
+		return fmt.Errorf("docker logs exited: %w", err)
+	}
+	return nil
+}
+
+// ContainerEvents returns a channel of Docker container events matching filters.
+// The channel is closed when ctx is cancelled.
+func (c *SimpleClient) ContainerEvents(ctx context.Context, filters map[string]string) (<-chan ContainerEvent, error) {
+	args := []string{"events", "--format", "{{.ID}} {{.Action}} {{.Status}}", "--filter", "type=container"}
+	for k, v := range filters {
+		args = append(args, "--filter", fmt.Sprintf("%s=%s", k, v))
+	}
+
+	cmd := exec.CommandContext(ctx, "docker", args...)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("docker events pipe failed: %w", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("docker events start failed: %w", err)
+	}
+
+	ch := make(chan ContainerEvent, 16)
+	go func() {
+		defer close(ch)
+		defer cmd.Wait() //nolint:errcheck
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			parts := strings.SplitN(scanner.Text(), " ", 3)
+			if len(parts) < 2 {
+				continue
+			}
+			ev := ContainerEvent{
+				ContainerID: parts[0],
+				Action:      parts[1],
+			}
+			if len(parts) == 3 {
+				ev.Status = parts[2]
+			} else {
+				ev.Status = parts[1]
+			}
+			select {
+			case ch <- ev:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return ch, nil
 }
