@@ -589,3 +589,32 @@ Every `service stop` invocation finds containers via Docker label lookup (not th
 - **Fix**: Set `WriteTimeout=longOperationTimeout=25min` and `IdleTimeout=25min` in `DefaultServerConfig()`. Per-handler timeouts via `RequestOptions.Timeout` remain the actual enforcement mechanism.
 - **Files changed**: `pkg/gateway/server.go`, `pkg/gateway/server_test.go`
 - **Status**: FIXED — commit e324126
+
+---
+
+## Scenario 23: Agent Diagnostics & Self-Healing
+
+### Bug #68: `aima agent chat --message` flag does not exist — positional arg required
+
+- **Scenario**: 23 (Agent Diagnostics & Self-Healing)
+- **Severity**: Low (P2) — documentation/test procedure issue; not a code bug
+- **Evidence**: `aima agent chat --message "..."` returns `unknown flag: --message`. The correct syntax is `aima agent chat "<message>"` (positional argument).
+- **Root Cause**: The scenario test procedure (from team-lead instructions) used `--message` flag, but the CLI uses a positional argument.
+- **Status**: Observation only — CLI syntax is correct, scenario test procedure had wrong flag syntax.
+
+### Bug #29 (Re-confirmed & Fixed): Agent max tool call rounds (10) too low for multi-service recovery
+
+- **Scenario**: 23 (Agent Diagnostics & Self-Healing)
+- **Severity**: Medium (P2) — confirmed in Test 4 and Test 6
+- **Evidence**: Test 4 output: `Error: EXECUTION_FAILED: command execution failed / details: [01301] LLM error: exceeded maximum tool call rounds (10)`. The recovery flow (service.stop → service.start × multiple services → service.list verify) exceeded 10 rounds.
+- **Test 6 Details**: Agent attempted to restart ALL failed services (5 services), each service.start requiring ~2-3 tool call rounds (stop + start + check). 10 rounds exhausted after 3-4 services.
+- **Fix**: Changed `maxToolCallRounds = 10` to `maxToolCallRounds = 30` in `pkg/agent/agent.go`. For 5-service batch operation: 1 (list) + 5×2 (stop) + 5×2 (start) + 1 (verify) = 22 rounds minimum.
+- **Status**: FIXED — updated constant in `pkg/agent/agent.go`, all agent tests pass.
+
+### Observation: nvidia-smi returns exit code 255 on NVIDIA GB10
+
+- **Scenario**: 23 (Agent Diagnostics & Self-Healing), Test 2 and Test 7
+- **Evidence**: `device.detect` returns GPU status "Not Detected" with "nvidia-smi failed (exit code 255)". However, Docker containers DO start with GPU labels and GLM-4.7-Flash was successfully run on this machine in earlier scenarios.
+- **Root Cause**: nvidia-smi may not be installed in PATH on this DGX Spark machine, or requires a specific environment. The GPU works via Docker's GPU passthrough even without nvidia-smi.
+- **Impact**: Agent incorrectly concludes "No GPU present" when GPU is available.
+- **Status**: Environment issue — not a code bug in AIMA. nvidia-smi is not reliably available on this ARM64 machine.

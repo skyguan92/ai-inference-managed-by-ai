@@ -42,7 +42,8 @@ type ToolExecutor interface {
 
 const (
 	// maxToolCallRounds prevents infinite loops in the tool-call cycle.
-	maxToolCallRounds = 10
+	// Set to 30 to allow complex multi-step operations (e.g., stop + restart + verify for 5+ services).
+	maxToolCallRounds = 30
 
 	baseSystemPrompt = `You are AIMA (AI Inference Managed by AI), an intelligent assistant that manages AI inference infrastructure. You help users deploy models, manage inference engines, monitor resources, and optimize their AI workloads.
 

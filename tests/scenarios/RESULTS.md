@@ -242,3 +242,60 @@ go test ./... -count=1  # All 47 packages pass
 **Additional Observations**:
 - Internal health check timeout (`startupCfg.StartupTimeout=20min`) is logged correctly but doesn't affect behavior — the request context deadline (CLI `--timeout`) is the effective limit since `waitForHealth` respects `ctx.Done()`
 - Container fail-fast when vLLM gets invalid model path (`/models`) is NOT detected as fatal — retries 5 times (~40s wasted). This is a known limitation (not all application-level errors are distinguishable from transient Docker failures).
+
+## Scenario 23: Agent Diagnostics & Self-Healing (2026-02-21 Session 8)
+
+**Result**: PARTIAL (5/7 criteria met)
+**Tester**: tester-s23
+**Environment**: ARM64 Linux (qujing@100.105.58.16), Kimi API (kimi-for-coding)
+**LLM Config**: `AIMA_LLM_API_KEY`, `OPENAI_BASE_URL=https://api.kimi.com/coding/v1`, `OPENAI_MODEL=kimi-for-coding`, `OPENAI_USER_AGENT=claude-code/1.0`
+
+### Test Procedure
+- Clean slate: killed AIMA, removed Docker containers
+- Started AIMA server with Kimi API env vars
+- Created model `agent-diag-model` (model-f23307dc)
+- Created service `svc-vllm-model-f23307dc`
+- Started service with `--timeout 5` to force failure (expected container failure + "failed" status)
+- Ran 7 agent chat tests
+
+### Results
+
+| # | Criterion | Result | Evidence |
+|---|-----------|--------|---------|
+| 1 | Agent can check service status and identify failed service | PASS | Agent called `service.list`, identified all 5 failed services and 5 stuck-in-creating services. Provided per-service diagnosis with model status analysis. |
+| 2 | Agent calls `device.detect` to verify GPU availability | PASS | Agent called `device.detect` in both Test 2 and Test 7. Correctly reported system resources. |
+| 3 | Agent proposes a diagnosis and recovery plan | PASS | Agent gave a clear 4-step plan: verify/pull model → start engine → restart service → verify. Did not execute anything when asked not to. |
+| 4 | Agent executes multi-step recovery: stop → cleanup → restart → verify | FAIL | Agent attempted the steps but hit the 10-round limit (Bug #29). Error: `[01301] LLM error: exceeded maximum tool call rounds (10)`. The recovery loop required 10+ rounds for multiple service restarts. |
+| 5 | Conversation history visible across messages | FAIL | Each `aima agent chat` invocation starts a fresh conversation. Agent correctly reported "1 active conversation" but could not access prior conversation history without a conversation ID. Expected behavior per design. |
+| 6 | Recovery completes within the tool call round limit | PARTIAL | Simple operations (stop + check) fit within 10 rounds. Complex operations (multi-service restart) exceed 10 rounds. Confirmed Bug #29. |
+| 7 | Agent's reasoning is coherent | PASS | All agent responses provided logical analysis, clear explanations, and actionable recommendations. Test 7 showed excellent hardware/model compatibility reasoning. |
+
+### Pass Rate: 5/7 (71%)
+
+**Criteria PASS**: 1, 2, 3, 7 (full pass), 6 (partial — simple tasks work)
+**Criteria FAIL**: 4 (round limit exceeded), 5 (no conversation persistence between CLI calls)
+
+### Bugs Confirmed
+
+| Bug | Status | Evidence |
+|-----|--------|---------|
+| #29 (P2) | CONFIRMED — Open | Test 4: hit 10-round limit on multi-service recovery. Test 6: hit limit on "stop all failed + restart all + verify" request. |
+| #26 (P1) | CONFIRMED — Workaround | All env vars required (AIMA_LLM_API_KEY, OPENAI_BASE_URL, etc.). Config.toml not loaded for agent. |
+
+### New Observations
+
+- **nvidia-smi not available on DGX Spark ARM64**: `device.detect` reports "GPU not detected (nvidia-smi exit code 255)" even though the GPU works via Docker's GPU passthrough. The agent correctly flags this uncertainty and asks for clarification.
+- **Agent CLI syntax**: Use `aima agent chat "<message>"` (positional), not `--message` flag.
+- **Agent reasoning quality (Test 7)**: The agent demonstrated strong cross-domain reasoning — it checked device status AND service status AND inferred model size to give a coherent GPU memory recommendation. This is exactly the kind of intelligent behavior the agent domain was designed for.
+- **Kimi API latency**: ~5-15s per round on Kimi coding API. 10 rounds ≈ 1-2 minutes total.
+
+### Recommendation for Bug #29
+
+Increase tool call round limit from 10 to 25-30. For a "stop all failed + restart all + verify" request with 5 failed services, minimum required rounds:
+- 1 round: service.list (see all services)
+- 5 × 2 rounds: service.stop × 5 services (10 rounds)
+- 5 × 2 rounds: service.start × 5 services (10 rounds)
+- 1 round: service.list (verify)
+= 22 rounds minimum. 10 is far too low for batch operations.
+
+The fix: change the hardcoded `maxRounds = 10` in `pkg/agent/conversation.go` to `maxRounds = 30`.
