@@ -69,10 +69,13 @@ func runStart(ctx context.Context, root *RootCommand, addr string, port int, tls
 	sysCollector.Start(ctx)
 	defer sysCollector.Stop()
 
+	router := gateway.NewRouter(gw)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v2/execute", instrumentHandler(handleExecute(gw), reqMetrics))
 	mux.HandleFunc("/api/v2/health", instrumentHandler(handleHealth(gw), reqMetrics))
 	mux.HandleFunc("/api/v2/metrics", handlePrometheusMetrics(reqMetrics, sysCollector))
+	mux.Handle("/api/v2/", router)
 
 	server := &http.Server{
 		Addr:         listenAddr,
