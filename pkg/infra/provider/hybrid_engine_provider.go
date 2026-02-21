@@ -724,24 +724,6 @@ func (p *HybridEngineProvider) Stop(ctx context.Context, name string, force bool
 			return &engine.StopResult{Success: true}, nil
 		}
 
-		// Port-based fallback: find AIMA containers by default port when label lookup
-		// misses them (e.g., started without aima.engine label from a previous AIMA version).
-		port := p.getDefaultPort(name)
-		if portConflicts, portErr := p.dockerClient.FindContainersByPort(ctx, port); portErr == nil {
-			found := 0
-			for _, conflict := range portConflicts {
-				if conflict.IsAIMA {
-					slog.Info("stopping AIMA container found by port", "container_id", conflict.ContainerID, "port", port, "engine", name)
-					if stopErr := p.dockerClient.StopContainer(ctx, conflict.ContainerID, timeout); stopErr != nil {
-						slog.Warn("failed to stop container found by port", "container_id", conflict.ContainerID, "error", stopErr)
-					}
-					found++
-				}
-			}
-			if found > 0 {
-				return &engine.StopResult{Success: true}, nil
-			}
-		}
 	}
 
 	slog.Debug("service not found, nothing to stop", "name", name)
@@ -1148,6 +1130,39 @@ func (p *HybridServiceProvider) Stop(ctx context.Context, serviceID string, forc
 	if sid, parseErr := service.ParseServiceID(serviceID); parseErr == nil {
 		engineType = sid.EngineType
 	}
+
+	// Port-based cleanup: read the service's stored port and stop any container
+	// bound to that specific port. This handles orphaned containers from previous
+	// sessions that may have lost their labels, without accidentally killing
+	// other running services on different ports (Bug #35).
+	if svc, svcErr := p.serviceStore.Get(ctx, serviceID); svcErr == nil && svc.Config != nil {
+		if portVal, ok := svc.Config["port"]; ok {
+			var port int
+			switch v := portVal.(type) {
+			case int:
+				port = v
+			case int64:
+				port = int(v)
+			case float64:
+				port = int(v)
+			}
+			if port > 0 {
+				portScanCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				if conflicts, portErr := p.hybridProvider.dockerClient.FindContainersByPort(portScanCtx, port); portErr == nil {
+					for _, conflict := range conflicts {
+						if conflict.IsAIMA {
+							slog.Info("stopping AIMA container found by port", "container_id", conflict.ContainerID[:12], "port", port, "service", serviceID)
+							stopCtx, stopCancel := context.WithTimeout(context.Background(), 30*time.Second)
+							_ = p.hybridProvider.dockerClient.StopContainer(stopCtx, conflict.ContainerID, 10)
+							stopCancel()
+						}
+					}
+				}
+			}
+		}
+	}
+
 	_, err := p.hybridProvider.Stop(ctx, engineType, force, 30)
 	return err
 }
