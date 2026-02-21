@@ -212,7 +212,7 @@ func (r *RootCommand) setupAgent(ctx context.Context) error {
 		default: // "openai" and OpenAI-compatible endpoints (e.g. Kimi, Azure OpenAI)
 			// Strip trailing slash so url construction (baseURL + "/chat/completions") is correct.
 			baseURL := strings.TrimRight(cfg.LLMBaseURL, "/")
-			llmClient = agentllm.NewOpenAIClient(cfg.LLMModel, cfg.LLMAPIKey, baseURL)
+			llmClient = agentllm.NewOpenAIClient(cfg.LLMModel, cfg.LLMAPIKey, baseURL, cfg.LLMUserAgent)
 		}
 	}
 

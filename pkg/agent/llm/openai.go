@@ -24,9 +24,10 @@ type OpenAIClient struct {
 // NewOpenAIClient creates a new OpenAI-compatible client.
 // baseURL defaults to the official OpenAI endpoint if empty.
 // The API key is read from OPENAI_API_KEY if apiKey is empty.
-// The user agent is read from OPENAI_USER_AGENT if not set; some
-// API endpoints (e.g. Kimi For Coding) restrict access by User-Agent.
-func NewOpenAIClient(model, apiKey, baseURL string) *OpenAIClient {
+// userAgent is used as-is if non-empty; otherwise falls back to
+// OPENAI_USER_AGENT env var. Some endpoints (e.g. Kimi For Coding)
+// restrict access by User-Agent.
+func NewOpenAIClient(model, apiKey, baseURL, userAgent string) *OpenAIClient {
 	if apiKey == "" {
 		apiKey = os.Getenv("OPENAI_API_KEY")
 	}
@@ -36,7 +37,9 @@ func NewOpenAIClient(model, apiKey, baseURL string) *OpenAIClient {
 	if baseURL == "" {
 		baseURL = defaultOpenAIBaseURL
 	}
-	userAgent := os.Getenv("OPENAI_USER_AGENT")
+	if userAgent == "" {
+		userAgent = os.Getenv("OPENAI_USER_AGENT")
+	}
 	return &OpenAIClient{
 		apiKey:     apiKey,
 		model:      model,

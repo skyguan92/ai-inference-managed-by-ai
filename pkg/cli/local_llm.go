@@ -89,7 +89,7 @@ func detectLocalLLM(ctx context.Context, services []service.ModelService, ollama
 			}
 			// Use "local" as placeholder so OpenAIClient doesn't reject the request.
 			// Most local inference servers (e.g. vLLM --no-auth) accept any non-empty key.
-			client := agentllm.NewOpenAIClient(model, "local", endpoint)
+			client := agentllm.NewOpenAIClient(model, "local", endpoint, "")
 			return client, fmt.Sprintf("local service %q at %s (model: %s)", svc.Name, endpoint, model), nil
 		}
 

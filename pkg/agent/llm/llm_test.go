@@ -122,14 +122,14 @@ func TestMessagesToAnthropic(t *testing.T) {
 // --- OpenAI client tests ---
 
 func TestOpenAIClient_Metadata(t *testing.T) {
-	c := NewOpenAIClient("gpt-4o-mini", "test-key", "")
+	c := NewOpenAIClient("gpt-4o-mini", "test-key", "", "")
 	assert.Equal(t, "openai", c.Name())
 	assert.Equal(t, "gpt-4o-mini", c.ModelName())
 }
 
 func TestOpenAIClient_NoAPIKey(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "")
-	c := NewOpenAIClient("gpt-4o-mini", "", "")
+	c := NewOpenAIClient("gpt-4o-mini", "", "", "")
 	_, err := c.Chat(context.Background(), []Message{{Role: "user", Content: "hi"}}, nil, ChatOptions{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "OPENAI_API_KEY")
