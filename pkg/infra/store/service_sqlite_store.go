@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -56,9 +57,15 @@ func (s *ServiceSQLiteStore) Create(ctx context.Context, svc *service.ModelServi
 	if len(svc.Endpoints) > 0 {
 		endpoints = svc.Endpoints[0]
 	}
+	configJSON := ""
+	if len(svc.Config) > 0 {
+		if b, jerr := json.Marshal(svc.Config); jerr == nil {
+			configJSON = string(b)
+		}
+	}
 	_, err := s.db.ExecContext(ctx, query,
 		svc.ID, svc.Name, svc.ModelID, string(svc.Status), svc.Replicas,
-		string(svc.ResourceClass), endpoints, svc.ActiveReplicas, "",
+		string(svc.ResourceClass), endpoints, svc.ActiveReplicas, configJSON,
 		svc.CreatedAt, svc.UpdatedAt,
 	)
 	if err != nil {
@@ -69,16 +76,16 @@ func (s *ServiceSQLiteStore) Create(ctx context.Context, svc *service.ModelServi
 
 // GetByName implements ServiceStore.GetByName
 func (s *ServiceSQLiteStore) GetByName(ctx context.Context, name string) (*service.ModelService, error) {
-	query := `SELECT id, name, model_id, status, replicas, resource_class, endpoints, active_replicas, created_at, updated_at FROM services WHERE name = ?`
+	query := `SELECT id, name, model_id, status, replicas, resource_class, endpoints, active_replicas, config, created_at, updated_at FROM services WHERE name = ?`
 	row := s.db.QueryRowContext(ctx, query, name)
 
 	svc := &service.ModelService{}
 	var statusStr, resourceClassStr string
-	var endpoints string
+	var endpoints, configJSON string
 
 	err := row.Scan(
 		&svc.ID, &svc.Name, &svc.ModelID, &statusStr, &svc.Replicas,
-		&resourceClassStr, &endpoints, &svc.ActiveReplicas,
+		&resourceClassStr, &endpoints, &svc.ActiveReplicas, &configJSON,
 		&svc.CreatedAt, &svc.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
@@ -92,6 +99,9 @@ func (s *ServiceSQLiteStore) GetByName(ctx context.Context, name string) (*servi
 	svc.ResourceClass = service.ResourceClass(resourceClassStr)
 	if endpoints != "" {
 		svc.Endpoints = []string{endpoints}
+	}
+	if configJSON != "" {
+		_ = json.Unmarshal([]byte(configJSON), &svc.Config)
 	}
 
 	return svc, nil
@@ -99,16 +109,16 @@ func (s *ServiceSQLiteStore) GetByName(ctx context.Context, name string) (*servi
 
 // Get implements ServiceStore.Get
 func (s *ServiceSQLiteStore) Get(ctx context.Context, id string) (*service.ModelService, error) {
-	query := `SELECT id, name, model_id, status, replicas, resource_class, endpoints, active_replicas, created_at, updated_at FROM services WHERE id = ?`
+	query := `SELECT id, name, model_id, status, replicas, resource_class, endpoints, active_replicas, config, created_at, updated_at FROM services WHERE id = ?`
 	row := s.db.QueryRowContext(ctx, query, id)
 
 	svc := &service.ModelService{}
 	var statusStr, resourceClassStr string
-	var endpoints string
+	var endpoints, configJSON string
 
 	err := row.Scan(
 		&svc.ID, &svc.Name, &svc.ModelID, &statusStr, &svc.Replicas,
-		&resourceClassStr, &endpoints, &svc.ActiveReplicas,
+		&resourceClassStr, &endpoints, &svc.ActiveReplicas, &configJSON,
 		&svc.CreatedAt, &svc.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
@@ -122,6 +132,9 @@ func (s *ServiceSQLiteStore) Get(ctx context.Context, id string) (*service.Model
 	svc.ResourceClass = service.ResourceClass(resourceClassStr)
 	if endpoints != "" {
 		svc.Endpoints = []string{endpoints}
+	}
+	if configJSON != "" {
+		_ = json.Unmarshal([]byte(configJSON), &svc.Config)
 	}
 
 	return svc, nil
@@ -150,7 +163,7 @@ func (s *ServiceSQLiteStore) List(ctx context.Context, filter service.ServiceFil
 
 	// Get paginated results
 	query := fmt.Sprintf(`
-		SELECT id, name, model_id, status, replicas, resource_class, endpoints, active_replicas, created_at, updated_at
+		SELECT id, name, model_id, status, replicas, resource_class, endpoints, active_replicas, config, created_at, updated_at
 		FROM services
 		WHERE %s
 		ORDER BY created_at DESC
@@ -173,11 +186,11 @@ func (s *ServiceSQLiteStore) List(ctx context.Context, filter service.ServiceFil
 	for rows.Next() {
 		svc := service.ModelService{}
 		var statusStr, resourceClassStr string
-		var endpoints string
+		var endpoints, configJSON string
 
 		err := rows.Scan(
 			&svc.ID, &svc.Name, &svc.ModelID, &statusStr, &svc.Replicas,
-			&resourceClassStr, &endpoints, &svc.ActiveReplicas,
+			&resourceClassStr, &endpoints, &svc.ActiveReplicas, &configJSON,
 			&svc.CreatedAt, &svc.UpdatedAt,
 		)
 		if err != nil {
@@ -188,6 +201,9 @@ func (s *ServiceSQLiteStore) List(ctx context.Context, filter service.ServiceFil
 		svc.ResourceClass = service.ResourceClass(resourceClassStr)
 		if endpoints != "" {
 			svc.Endpoints = []string{endpoints}
+		}
+		if configJSON != "" {
+			_ = json.Unmarshal([]byte(configJSON), &svc.Config)
 		}
 
 		services = append(services, svc)
@@ -216,16 +232,22 @@ func (s *ServiceSQLiteStore) Update(ctx context.Context, svc *service.ModelServi
 	query := `
 		UPDATE services SET
 			name = ?, model_id = ?, status = ?, replicas = ?, resource_class = ?,
-			endpoints = ?, active_replicas = ?, updated_at = ?
+			endpoints = ?, active_replicas = ?, config = ?, updated_at = ?
 		WHERE id = ?
 	`
 	endpoints := ""
 	if len(svc.Endpoints) > 0 {
 		endpoints = svc.Endpoints[0]
 	}
+	configJSON := ""
+	if len(svc.Config) > 0 {
+		if b, jerr := json.Marshal(svc.Config); jerr == nil {
+			configJSON = string(b)
+		}
+	}
 	result, err := s.db.ExecContext(ctx, query,
 		svc.Name, svc.ModelID, string(svc.Status), svc.Replicas, string(svc.ResourceClass),
-		endpoints, svc.ActiveReplicas, time.Now().Unix(),
+		endpoints, svc.ActiveReplicas, configJSON, time.Now().Unix(),
 		svc.ID,
 	)
 	if err != nil {
