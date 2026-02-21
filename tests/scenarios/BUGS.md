@@ -428,3 +428,69 @@ Every `service stop` invocation finds containers via Docker label lookup (not th
 - **Root Cause**: `pkg/infra/ratelimit/ratelimit.go` implements `TokenBucketLimiter` with `Allow()` and `Reset()` methods, and tests exist in `ratelimit_test.go`. However, it is never instantiated or registered as HTTP middleware anywhere. `SecurityConfig.RateLimitPerMin` (config field) is read but never used to create a limiter.
 - **Code to fix**: Create a rate limiter middleware in `pkg/gateway/middleware/`, instantiate `TokenBucketLimiter` in `start.go` using `cfg.Security.RateLimitPerMin`, and register it in the handler chain.
 - **Status**: Open
+
+### Bug #54: `service logs` fails — CLI sends "service.logs" but query is registered as "app.logs"
+
+- **Scenario**: 18 (Service Monitoring & Events)
+- **Severity**: Medium (P1) — `aima service logs` completely non-functional
+- **Command**: `aima service logs svc-vllm-model-918aaddf`
+- **Expected**: Container log output
+- **Actual**: `Error: UNIT_NOT_FOUND: query not found: service.logs`
+- **Root Cause**: In `pkg/cli/service.go:444`, `runServiceLogs()` dispatches `Unit: "service.logs"`. However, the actual `LogsQuery` in `pkg/unit/app/queries.go:311` has `Name() = "app.logs"`. The CLI unit name is mismatched with the registered query name.
+- **Code to fix**: Change `pkg/cli/service.go` line 444: `Unit: "service.logs"` → `Unit: "app.logs"`. Also verify the input schema of `app.LogsQuery` accepts `service_id`.
+- **Status**: Open
+
+### Bug #55: EventBus not passed to RegisterAll — domain event delivery is silently skipped
+
+- **Scenario**: 18 (Service Monitoring & Events)
+- **Severity**: Medium (P1) — events from commands never delivered to subscribers
+- **Evidence**: `pkg/cli/root.go:150` creates `eventBus` and sets it on `hep` (HybridEngineProvider) via `hep.SetEventBus(bus)`. However, the `RegisterAll()` call at line 188 does NOT include `registry.WithEventBus(bus)`. Thus all domain command handlers receive `nil` for `events`, and every `events.Publish(...)` call is a no-op.
+- **Root Cause**: `WithEventBus()` option exists in `pkg/registry/register.go:69` but is never passed in the CLI invocation of `RegisterAll()`.
+- **Code to fix**: Add `registry.WithEventBus(r.eventBus)` to the `RegisterAll` call in `pkg/cli/root.go`.
+- **Note**: This also means `StartProgressEvent` (from Phase 9.3) is only delivered via the engine's direct `SetEventBus` path, not through the domain registry event system.
+- **Status**: Open
+
+### Bug #56: HTTP `GET /api/v2/services/status?service_id=X` returns "service not found"
+
+- **Scenario**: 18 (Service Monitoring & Events)
+- **Severity**: Low (P2) — query-param based status endpoint broken
+- **Evidence**: `curl "http://localhost:9090/api/v2/services/status?service_id=svc-vllm-model-918aaddf"` returns `{"error":{"code":"EXECUTION_FAILED","details":"get service status: [00600] service not found"}}`. But `GET /api/v2/services/svc-vllm-model-918aaddf` works correctly.
+- **Root Cause**: The `?service_id=` query parameter routing is likely mapping to a different query handler or input mapper than the path-param route.
+- **Code to fix**: Investigate the HTTP route definition for `service.status` query and ensure the `service_id` input mapper reads from the correct source.
+- **Status**: Open
+
+### Bug #57: Container name conflict across retry attempts causes silent cascading failures
+
+- **Scenario**: 18 (Service Monitoring & Events)
+- **Severity**: Medium (P1) — retry loop degrades instead of recovering
+- **Evidence**: During `service start`, retry attempts 4 and 5 fail with "Conflict. The container name /aima-vllm-XXXXXXXXXX is already in use". The orphan-cleanup in `FindContainersByPort` only finds containers by port binding, but stopping a container takes time and leaves it in "removing" state. The next attempt starts a new container (different random suffix) while the old one is still being removed, causing Docker to report a different name conflict.
+- **Root Cause**: Container removal is async; the code calls `docker rm` but doesn't wait for full removal before starting a new container. Also, different retry timestamps generate different container names (random suffix based on timestamp), so the port-based cleanup removes one name but a different named container appears.
+- **Code to fix**: After stopping a container, wait for its removal before proceeding to start a new one. Consider using `docker wait` or polling container state.
+- **Status**: Open
+
+### Bug #58: inference.chat CLI fails with "messages are required" when called from CLI
+
+- **Scenario**: 17 (Inference Proxy Routing)
+- **Severity**: High (P0) — `aima inference chat` completely non-functional via CLI
+- **Command**: `aima inference chat --model smollm2:1.7b --message "hello"`
+- **Expected**: Chat response from the model
+- **Actual**: `Error: EXECUTION_FAILED: command execution failed` / `Error: chat completion failed: command execution failed`
+- **Root Cause**: `pkg/cli/inference.go` passes `messages` as `[]map[string]string` (Go typed slice) to the gateway. But `ChatCommand.Execute()` in `pkg/unit/inference/commands.go` does `inputMap["messages"].([]any)` — this type assertion always fails because `[]map[string]string` is not `[]any`. The HTTP path works because JSON unmarshaling always produces `[]any` for arrays.
+- **Status**: FIXED — Added `parseMessages()` helper that handles `[]any`, `[]map[string]string`, and `[]map[string]any` via type switch. Commit: ccf2abf
+
+### Bug #59: inference.chat CLI shows generic error, not specific failure reason
+
+- **Scenario**: 17 (Inference Proxy Routing)
+- **Severity**: Medium (P1) — operator cannot diagnose why inference failed
+- **Command**: `aima inference chat --model nonexistent --message "hello"`
+- **Expected**: Clear error like "no running services found for model nonexistent"
+- **Actual**: `Error: EXECUTION_FAILED: command execution failed` (no detail on what failed)
+- **Root Cause**: `runInferenceChat()` in `pkg/cli/inference.go` printed only `resp.Error.Message` ("command execution failed"), not `resp.Error.Details` which contains the actual cause.
+- **Status**: FIXED — Now shows `resp.Error.Details` when present. Commit: ccf2abf
+
+### Bug #60 (Doc): HTTP inference/chat API uses `messages` array, not `message` string
+
+- **Scenario**: 17 (Inference Proxy Routing)
+- **Severity**: Low (P2) — documentation/test expectation mismatch
+- **Problem**: S17 test script used `"message": "..."` (singular string) in the HTTP body, but `inference.chat` command handler requires `"messages": [...]` (array of message objects). The test script sends the wrong format.
+- **Status**: Known — the HTTP API requires the messages array format. The CLI `--message` flag is automatically converted to the array format before calling the gateway.

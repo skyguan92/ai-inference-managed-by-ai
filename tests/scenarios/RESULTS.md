@@ -4,6 +4,12 @@
 **Environment**: ARM64 Linux (NVIDIA GB10 GPU), `qujing@100.105.58.16`
 **Team**: Opus (lead) + 4 testers + 5 bugfixers (Sonnet)
 
+---
+
+## Session 3 Update (Scenarios 9–17)
+
+Additional scenarios executed with more testers in a subsequent session. **10+ additional bugs found and fixed**.
+
 ## Executive Summary
 
 8 acceptance test scenarios executed against a live AIMA deployment. **14 bugs found, 9 fixed in-session**. The core platform (model management, service lifecycle, AI agent, multi-interface state sharing) works end-to-end. Critical gaps in container lifecycle management were identified and resolved. Scenario 6 (lifecycle stress) was re-tested after Bug #30 fix and now **passes all 5 criteria**.
@@ -87,6 +93,26 @@
 - `pkg/infra/docker/simple_client.go` — ListContainers -a flag, removed restart policy
 - `pkg/infra/docker/mock.go` — Updated ListContainers for consistency
 - `pkg/unit/service/commands.go` — Failed status transition, idempotent stop, timeout param
+
+## Scenario 17: Inference Proxy Routing (2026-02-21 Session 3)
+
+**Result**: PASS (7/7 criteria met after bug fixes)
+**Tester**: tester-s17
+**Environment**: Ollama with smollm2:1.7b (Ollama running on port 11434)
+
+| # | Test | Result | Notes |
+|---|------|--------|-------|
+| 1 | CLI `inference chat` returns response | PASS | Python hello world returned |
+| 2 | HTTP API `inference.chat` returns same format | PASS | Uses messages array |
+| 3 | Non-existent model → clear error | PASS | "no running services found for model X" |
+| 4 | No running services → clear error | PASS | "no running services found" (not timeout) |
+| 5 | max_tokens parameter respected | PASS | completion_tokens=20 for max_tokens=20 |
+| 6 | temperature=0 deterministic | PASS | Both responses: "4" for "2+2" |
+| 7 | Proxy correctly routes to service | PASS | Both direct Ollama and AIMA proxy: "Hello" |
+
+**Bugs Found & Fixed**: #58 (P0 - CLI message type mismatch), #59 (P1 - CLI error details), #60 (P2 - doc mismatch)
+
+**Infrastructure Note**: vLLM Docker containers failed to start (NVIDIA driver not detected in container env). Used Ollama endpoint (port 11434, smollm2:1.7b) manually registered as a "running" service. The ProxyInferenceProvider correctly routed to Ollama format and returned valid responses.
 
 ## Verification
 
