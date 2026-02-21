@@ -12,6 +12,15 @@ type ContainerEvent struct {
 	Status string
 }
 
+// PortConflict describes a container that is occupying a specific host port.
+type PortConflict struct {
+	ContainerID string
+	Name        string
+	Image       string
+	// IsAIMA is true when the container has the label aima.managed=true.
+	IsAIMA bool
+}
+
 // Client is the interface for Docker container lifecycle and image operations.
 type Client interface {
 	// PullImage pulls a Docker image.
@@ -39,6 +48,10 @@ type Client interface {
 	// ContainerEvents returns a channel of container events matching filters.
 	// The channel is closed when ctx is cancelled.
 	ContainerEvents(ctx context.Context, filters map[string]string) (<-chan ContainerEvent, error)
+
+	// FindContainersByPort returns all containers (any labels) that publish the
+	// given host port. IsAIMA is set when aima.managed=true is present.
+	FindContainersByPort(ctx context.Context, port int) ([]PortConflict, error)
 }
 
 // Compile-time assertion: SimpleClient must implement Client.

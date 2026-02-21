@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/gateway"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/docker"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/eventbus"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/engine"
@@ -33,6 +34,7 @@ This includes starting, stopping, and listing model inference services.`,
 	cmd.AddCommand(NewServiceListCommand(root))
 	cmd.AddCommand(NewServiceCreateCommand(root))
 	cmd.AddCommand(NewServiceLogsCommand(root))
+	cmd.AddCommand(NewServiceCleanupCommand(root))
 
 	return cmd
 }
@@ -460,4 +462,116 @@ func runServiceLogs(ctx context.Context, root *RootCommand, serviceID string, fo
 		}
 	}
 	return PrintOutput(resp.Data, opts)
+}
+
+// NewServiceCleanupCommand creates the `aima service cleanup` command which stops
+// and removes all AIMA-managed Docker containers and resets service status.
+func NewServiceCleanupCommand(root *RootCommand) *cobra.Command {
+	var force bool
+
+	cmd := &cobra.Command{
+		Use:   "cleanup",
+		Short: "Stop and remove all AIMA-managed containers",
+		Long: `Stop and remove all Docker containers managed by AIMA (aima.managed=true label).
+Also stops any running services tracked in the service store.
+
+Use --force to skip confirmation.`,
+		Example: `  # Cleanup all AIMA containers (with confirmation)
+  aima service cleanup
+
+  # Force cleanup without confirmation
+  aima service cleanup --force`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runServiceCleanup(cmd.Context(), root, force)
+		},
+	}
+
+	cmd.Flags().BoolVarP(&force, "force", "f", false, "Skip confirmation prompt")
+	return cmd
+}
+
+func runServiceCleanup(ctx context.Context, root *RootCommand, force bool) error {
+	opts := root.OutputOptions()
+	gw := root.Gateway()
+
+	if !force {
+		fmt.Fprintln(opts.Writer, "This will stop and remove all AIMA-managed Docker containers.")
+		fmt.Fprint(opts.Writer, "Continue? [y/N]: ")
+		var answer string
+		fmt.Scanln(&answer) //nolint:errcheck
+		if answer != "y" && answer != "Y" {
+			fmt.Fprintln(opts.Writer, "Aborted.")
+			return nil
+		}
+	}
+
+	// Bail early with a clear message when Docker is not running.
+	if err := docker.CheckDocker(); err != nil {
+		fmt.Fprintln(opts.Writer, "Docker is not available — nothing to clean up.")
+		return nil
+	}
+
+	// Create a Docker client to list and stop AIMA containers directly.
+	var dc docker.Client
+	if sdkClient, err := docker.NewSDKClient(); err == nil {
+		dc = sdkClient
+	} else {
+		dc = docker.NewSimpleClient()
+	}
+
+	containerIDs, err := dc.ListContainers(ctx, map[string]string{})
+	if err != nil {
+		PrintError(fmt.Errorf("failed to list containers: %w", err), opts)
+		return err
+	}
+
+	containerCount := 0
+	for _, cid := range containerIDs {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		if stopErr := dc.StopContainer(cleanupCtx, cid, 10); stopErr != nil {
+			fmt.Fprintf(opts.Writer, "Warning: failed to stop container %s: %v\n", cid, stopErr)
+		} else {
+			containerCount++
+		}
+		cancel()
+	}
+
+	// Also stop running services tracked in the gateway.
+	svcResp := gw.Handle(ctx, &gateway.Request{
+		Type:  gateway.TypeQuery,
+		Unit:  "service.list",
+		Input: map[string]any{},
+	})
+	serviceCount := 0
+	if svcResp.Success {
+		if data, ok := svcResp.Data.(map[string]any); ok {
+			if items, ok := data["items"].([]any); ok {
+				for _, item := range items {
+					svc, ok := item.(map[string]any)
+					if !ok {
+						continue
+					}
+					svcID, _ := svc["id"].(string)
+					svcStatus, _ := svc["status"].(string)
+					if svcID == "" || svcStatus == "stopped" {
+						continue
+					}
+					stopResp := gw.Handle(ctx, &gateway.Request{
+						Type:  gateway.TypeCommand,
+						Unit:  "service.stop",
+						Input: map[string]any{"service_id": svcID},
+						Options: gateway.RequestOptions{
+							Timeout: serviceStopTimeout,
+						},
+					})
+					if stopResp.Success {
+						serviceCount++
+					}
+				}
+			}
+		}
+	}
+
+	fmt.Fprintf(opts.Writer, "Cleaned up %d container(s), reset %d service(s).\n", containerCount, serviceCount)
+	return nil
 }

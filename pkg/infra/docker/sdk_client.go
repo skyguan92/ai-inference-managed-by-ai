@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 	"time"
 
 	cerrdefs "github.com/containerd/errdefs"
@@ -259,6 +260,34 @@ func (c *SDKClient) ContainerEvents(ctx context.Context, filterMap map[string]st
 	}()
 
 	return ch, nil
+}
+
+// FindContainersByPort returns all containers (regardless of labels) that
+// publish the given host port. Uses Docker's "publish" filter so it finds
+// externally-created containers that AIMA's label filter would miss.
+func (c *SDKClient) FindContainersByPort(ctx context.Context, port int) ([]PortConflict, error) {
+	f := filters.NewArgs()
+	f.Add("publish", strconv.Itoa(port))
+
+	containers, err := c.cli.ContainerList(ctx, container.ListOptions{All: true, Filters: f})
+	if err != nil {
+		return nil, fmt.Errorf("docker ContainerList (port filter): %w", err)
+	}
+
+	conflicts := make([]PortConflict, 0, len(containers))
+	for _, ct := range containers {
+		name := ""
+		if len(ct.Names) > 0 {
+			name = strings.TrimPrefix(ct.Names[0], "/")
+		}
+		conflicts = append(conflicts, PortConflict{
+			ContainerID: ct.ID,
+			Name:        name,
+			Image:       ct.Image,
+			IsAIMA:      ct.Labels["aima.managed"] == "true",
+		})
+	}
+	return conflicts, nil
 }
 
 // PullImage pulls a Docker image using the SDK.

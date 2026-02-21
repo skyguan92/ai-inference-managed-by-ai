@@ -149,6 +149,50 @@ func (c *SimpleClient) ListContainers(ctx context.Context, labels map[string]str
 	return containers, nil
 }
 
+// FindContainersByPort returns all containers publishing the given host port.
+// Uses `docker ps -a --filter publish=PORT` which finds ANY container on that
+// port regardless of labels, enabling orphan detection.
+func (c *SimpleClient) FindContainersByPort(ctx context.Context, port int) ([]PortConflict, error) {
+	args := []string{
+		"ps", "-a",
+		"--filter", fmt.Sprintf("publish=%d", port),
+		"--format", "{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Labels}}",
+	}
+
+	cmd := exec.CommandContext(ctx, "docker", args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("docker ps (port filter): %w\nOutput: %s", err, string(output))
+	}
+
+	var conflicts []PortConflict
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "\t", 4)
+		if len(parts) < 3 {
+			continue
+		}
+		labels := ""
+		if len(parts) == 4 {
+			labels = parts[3]
+		}
+		// docker ps --format {{.Labels}} uses "key=value,key=value" (Docker CLI >=20)
+		// but may fall back to Go's map format "map[key:value key:value]" on older
+		// versions. Check both separator styles to be version-resilient.
+		isAIMA := strings.Contains(labels, "aima.managed=true") ||
+			strings.Contains(labels, "aima.managed:true")
+		conflicts = append(conflicts, PortConflict{
+			ContainerID: parts[0],
+			Name:        parts[1],
+			Image:       parts[2],
+			IsAIMA:      isAIMA,
+		})
+	}
+	return conflicts, nil
+}
+
 // CheckDocker checks if Docker is available
 func CheckDocker() error {
 	cmd := exec.Command("docker", "version")
