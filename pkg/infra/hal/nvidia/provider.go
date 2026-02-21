@@ -1,8 +1,10 @@
 package nvidia
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -11,6 +13,50 @@ import (
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/hal"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/device"
 )
+
+// systemMemoryBytes reads the total physical RAM from /proc/meminfo.
+// Returns 0 if the file is not available (non-Linux or permission error).
+func systemMemoryBytes() uint64 {
+	f, err := os.Open("/proc/meminfo")
+	if err != nil {
+		return 0
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "MemTotal:") {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				kb, _ := strconv.ParseUint(fields[1], 10, 64)
+				return kb * 1024
+			}
+		}
+	}
+	return 0
+}
+
+// effectiveMemory returns mem if it is non-zero, otherwise falls back to the
+// total system RAM. NVIDIA Grace Blackwell (and other unified-memory) GPUs
+// report "N/A" for fb_memory_usage because the GPU and CPU share a single
+// memory pool; in that case system RAM is the best available approximation.
+func effectiveMemory(mem uint64) uint64 {
+	if mem > 0 {
+		return mem
+	}
+	return systemMemoryBytes()
+}
+
+// gpuArchitecture returns the GPU architecture string. It prefers the
+// product_architecture XML field (e.g. "Blackwell", "Ampere") over the
+// product_brand field (e.g. "NVIDIA RTX") which is less informative.
+func gpuArchitecture(arch, brand string) string {
+	if arch != "" && arch != "N/A" {
+		return arch
+	}
+	return brand
+}
 
 type smiInterface interface {
 	Available(ctx context.Context) bool
@@ -88,8 +134,8 @@ func (p *Provider) Detect(ctx context.Context) ([]device.DeviceInfo, error) {
 			Name:         gpu.ProductName,
 			Vendor:       hal.VendorNVIDIA,
 			Type:         hal.DeviceTypeGPU,
-			Architecture: gpu.ProductBrand,
-			Memory:       parseMemory(gpu.FBMemoryUsage.Total),
+			Architecture: gpuArchitecture(gpu.ProductArchitecture, gpu.ProductBrand),
+			Memory:       effectiveMemory(parseMemory(gpu.FBMemoryUsage.Total)),
 			DiscoveredAt: time.Now(),
 		}
 
@@ -136,8 +182,8 @@ func (p *Provider) GetDevice(ctx context.Context, deviceID string) (*device.Devi
 		Name:         gpu.ProductName,
 		Vendor:       hal.VendorNVIDIA,
 		Type:         hal.DeviceTypeGPU,
-		Architecture: gpu.ProductBrand,
-		Memory:       parseMemory(gpu.FBMemoryUsage.Total),
+		Architecture: gpuArchitecture(gpu.ProductArchitecture, gpu.ProductBrand),
+		Memory:       effectiveMemory(parseMemory(gpu.FBMemoryUsage.Total)),
 		DiscoveredAt: time.Now(),
 	}
 
@@ -171,7 +217,7 @@ func (p *Provider) GetMetrics(ctx context.Context, deviceID string) (*device.Dev
 		Temperature: parseTemperature(gpu.Temperature.GPUTemp),
 		Power:       parsePower(gpu.PowerReadings.PowerDraw),
 		MemoryUsed:  parseMemory(gpu.FBMemoryUsage.Used),
-		MemoryTotal: parseMemory(gpu.FBMemoryUsage.Total),
+		MemoryTotal: effectiveMemory(parseMemory(gpu.FBMemoryUsage.Total)),
 	}, nil
 }
 
@@ -214,7 +260,7 @@ func (p *Provider) GetHealth(ctx context.Context, deviceID string) (*device.Devi
 	}
 
 	memUsed := parseMemory(gpu.FBMemoryUsage.Used)
-	memTotal := parseMemory(gpu.FBMemoryUsage.Total)
+	memTotal := effectiveMemory(parseMemory(gpu.FBMemoryUsage.Total))
 	if memTotal > 0 {
 		memPercent := float64(memUsed) / float64(memTotal) * 100
 		if memPercent > 95 {

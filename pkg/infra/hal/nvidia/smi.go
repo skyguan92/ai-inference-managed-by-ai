@@ -14,8 +14,34 @@ import (
 const (
 	defaultSMIPath = "nvidia-smi"
 	queryFlag      = "--query-gpu="
-	formatFlag     = "--format=xml"
+	// formatFlag is the flag for XML output. nvidia-smi uses "-x" (not "--format=xml")
+	// to emit a structured XML report that includes per-GPU memory, utilization, etc.
+	formatFlag = "-x"
 )
+
+// wellKnownSMIPaths lists common installation paths for nvidia-smi on Linux.
+// When the process inherits a minimal PATH (e.g. from systemd or nohup), the
+// binary may not be discoverable via exec.LookPath even though it exists.
+var wellKnownSMIPaths = []string{
+	"/usr/bin/nvidia-smi",
+	"/usr/local/bin/nvidia-smi",
+	"/opt/nvidia/bin/nvidia-smi",
+}
+
+// resolveSMIPath resolves the absolute path to nvidia-smi. It first tries
+// exec.LookPath (honours the process PATH), then falls back to well-known
+// absolute paths so that the binary is found even under a minimal daemon PATH.
+func resolveSMIPath() string {
+	if p, err := exec.LookPath(defaultSMIPath); err == nil {
+		return p
+	}
+	for _, p := range wellKnownSMIPaths {
+		if cmd := exec.Command(p, "--version"); cmd.Run() == nil {
+			return p
+		}
+	}
+	return defaultSMIPath
+}
 
 type SMI struct {
 	path    string
@@ -24,7 +50,7 @@ type SMI struct {
 
 func NewSMI(path string) *SMI {
 	if path == "" {
-		path = defaultSMIPath
+		path = resolveSMIPath()
 	}
 	return &SMI{
 		path:    path,
@@ -39,10 +65,11 @@ func (s *SMI) SetTimeout(d time.Duration) {
 type smiOutput struct {
 	AttachedGPUs int `xml:"attached_gpus"`
 	GPUs         []struct {
-		ID           string `xml:"id,attr"`
-		ProductName  string `xml:"product_name"`
-		ProductBrand string `xml:"product_brand"`
-		UUID         string `xml:"uuid"`
+		ID                  string `xml:"id,attr"`
+		ProductName         string `xml:"product_name"`
+		ProductBrand        string `xml:"product_brand"`
+		ProductArchitecture string `xml:"product_architecture"`
+		UUID                string `xml:"uuid"`
 		FanSpeed     string `xml:"fan_speed"`
 		Performance  string `xml:"performance_state"`
 		Utilization  struct {
