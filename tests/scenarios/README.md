@@ -54,7 +54,9 @@ export AIMA_LLM_API_KEY="<your-kimi-api-key>"
 
 ## Execution Order
 
-Scenarios must be executed sequentially, 1 through 8. Each builds on context and state from previous ones:
+### Phase 0 — Original Scenarios (S01-S08)
+
+Scenarios 1 through 8 are the original acceptance tests focused on CLI operations and single-service Docker lifecycle. Execute sequentially:
 
 | # | Scenario | Difficulty | Duration | File |
 |---|----------|-----------|----------|------|
@@ -66,6 +68,72 @@ Scenarios must be executed sequentially, 1 through 8. Each builds on context and
 | 6 | Service Lifecycle Stress -- Container Churn | Medium | 10 min | `06_lifecycle_stress.md` |
 | 7 | Recovery from Chaos -- Orphan Containers | Medium | 10 min | `07_recovery_from_chaos.md` |
 | 8 | Full-Stack Integration -- All Interfaces | Hard | 20 min | `08_full_stack_integration.md` |
+
+### Phase A — Foundation (S09-S12)
+
+Tests domain logic, config, and persistence. Needs only the AIMA binary (no Docker/GPU for S09, HTTP server for S10-S12).
+
+| # | Scenario | Difficulty | Duration | File |
+|---|----------|-----------|----------|------|
+| 9 | Config & Persistence Resilience | Easy | 5 min | `09_config_persistence.md` |
+| 10 | Pipeline DAG Execution | Medium | 5 min | `10_pipeline_dag.md` |
+| 11 | Catalog Recipe Matching Algorithm | Medium | 5 min | `11_catalog_matching.md` |
+| 12 | Skill Registry and Search | Easy | 3 min | `12_skill_registry.md` |
+
+### Phase B — API Surface (S13-S15)
+
+Tests HTTP REST API, MCP protocol, and auth middleware. Needs the HTTP server running.
+
+| # | Scenario | Difficulty | Duration | File |
+|---|----------|-----------|----------|------|
+| 13 | HTTP REST API Completeness | Medium | 8 min | `13_http_api_surface.md` |
+| 14 | MCP Protocol Compliance | Medium | 8 min | `14_mcp_protocol.md` |
+| 15 | Auth Middleware Wiring | Easy | 5 min | `15_auth_security.md` |
+
+### Phase C — Production (S16-S18)
+
+Tests multi-service deployment, inference proxy, and monitoring. Needs Docker + GPU.
+
+| # | Scenario | Difficulty | Duration | File |
+|---|----------|-----------|----------|------|
+| 16 | Multi-Model Concurrent Deployment | Hard | 20 min | `16_multi_service.md` |
+| 17 | Inference Proxy Routing | Medium | 15 min | `17_inference_quality.md` |
+| 18 | Service Monitoring & Events | Medium | 10 min | `18_service_monitoring.md` |
+
+### Phase D — Resilience (S19-S22)
+
+Tests failure modes, recovery, and shutdown behavior. Needs Docker (GPU for some).
+
+| # | Scenario | Difficulty | Duration | File |
+|---|----------|-----------|----------|------|
+| 19 | Process Restart Data Survival | Medium | 10 min | `19_restart_survival.md` |
+| 20 | Port Contention & Resource Exhaustion | Medium | 10 min | `20_port_contention.md` |
+| 21 | Timeout Cascade | Medium | 10 min | `21_timeout_cascade.md` |
+| 22 | Graceful Shutdown Under Load | Medium | 10 min | `22_graceful_shutdown.md` |
+
+### Phase E — Agent Intelligence (S23-S24)
+
+Tests AI agent autonomy. Needs Docker + GPU + LLM API access.
+
+| # | Scenario | Difficulty | Duration | File |
+|---|----------|-----------|----------|------|
+| 23 | Agent Diagnostics & Self-Healing | Hard | 20 min | `23_agent_diagnostics.md` |
+| 24 | Catalog-Driven Autonomous Setup | Hard | 25 min | `24_agent_catalog_setup.md` |
+
+### High-Confidence Bug Predictions (S09-S24)
+
+These bugs have >80% probability of being found during testing:
+
+| # | Scenario | Bug | Severity |
+|---|----------|-----|----------|
+| 1 | S11/S24 | `catalog.match` GET passes vram_gb as string → `toInt()` silent fail | P1 |
+| 2 | S13 | `bodyInputMapper` returns `{}` on JSON error (not 400) | P1 |
+| 3 | S15 | No TOML field to enable auth — `EnableAuth` only in code | P0 |
+| 4 | S18 | EventBus never passed to RegisterAll — events dropped | P1 |
+| 5 | S19 | 5/13 domains memory-only — data lost on restart | P1 |
+| 6 | S21 | WriteTimeout=30s kills agent chat (10min timeout) | P0 |
+| 7 | S15 | Forced auth routes permanently locked with no API keys | P1 |
+| 8 | S10 | pipeline.cancel URL maps {id} to run_id (user passes pipeline_id) | P2 |
 
 ## Bug Report Format
 
