@@ -677,6 +677,34 @@ git commit -m "feat(model): implement model.pull command"
 | Phase 6 | Catalog 领域 (硬件最佳实践 + 一键部署) | ✅ 完成 |
 | Phase 7 | Skill 领域 (AI Agent 技能知识库) | ✅ 完成 |
 | Phase 8 | Agent 领域 (AI Agent Operator) | ✅ 完成 |
+| Phase 9 | Docker 集成架构改进 | 📋 待开发 |
+
+### Phase 9 详细任务清单
+
+> Docker 集成重构，解决 CLI 子进程脆弱性、硬编码配置、用户进度不可见等问题。
+> 核心依赖: `github.com/docker/docker/client`（Apache 2.0）
+> 详细设计见: `docs/ARCHITECTURE.md` → "Docker 集成架构（目标态）"
+
+| 子阶段 | 任务 | 优先级 | 预计文件变更 | 状态 |
+|--------|------|--------|-------------|------|
+| 9.0 | 删除 `docker_engine_provider.go` 死代码 (476行, 与 Hybrid 重复) | P2 | 1 文件删除 | ⬜ |
+| 9.1 | 定义 `docker.Client` 接口 (`pkg/infra/docker/client.go`) | P0 | 1 新建 | ⬜ |
+| 9.1 | 基于 Docker Go SDK 实现 `SDKClient` (`pkg/infra/docker/sdk_client.go`) | P0 | 1 新建 + go.mod | ⬜ |
+| 9.1 | `MockClient` 实现 `docker.Client` 接口 | P0 | 1 更新 | ⬜ |
+| 9.1 | `HybridEngineProvider.dockerClient` 改为接口类型 | P0 | 1 更新 | ⬜ |
+| 9.2 | 新建 `EngineAssetLoader`: 解析 Engine YAML → RecipeEngine | P1 | 1 新建 | ⬜ |
+| 9.2 | `HybridEngineProvider` 从 RecipeStore 读取引擎配置 | P1 | 1 重构 | ⬜ |
+| 9.2 | 消除 `getDockerImages()` / `buildDockerCommand()` 硬编码 | P1 | 1 重构 | ⬜ |
+| 9.3 | 添加 `engine.start_progress` 事件类型 | P1 | 1 更新 | ⬜ |
+| 9.3 | `startDockerWithRetry` 发布进度事件 + 使用 RegistryProvider 流式拉取 | P1 | 1 更新 | ⬜ |
+| 9.3 | CLI `aima service start --wait` 展示实时进度 | P1 | 1 更新 | ⬜ |
+| 9.3 | 新增 `aima service logs --follow` 命令 | P1 | 2 新建/更新 | ⬜ |
+| 9.4 | `ServiceID` 结构体替代字符串分割 | P2 | 1 更新 | ⬜ |
+| 9.4 | `portCounter` 从 ServiceStore 恢复 | P2 | 2 更新 | ⬜ |
+| 9.4 | 新增 `[docker]` 配置节 (host, tls, timeout) | P2 | 1 更新 | ⬜ |
+
+**执行顺序**: 9.0 → 9.1 → 9.2 → 9.3 → 9.4（9.0 和 9.4 可独立执行）
+**验证**: `go test ./... -count=1` 全通过；远程 ARM64 机器 E2E 验证
 
 详细计划见: `docs/ARCHITECTURE.md`
 

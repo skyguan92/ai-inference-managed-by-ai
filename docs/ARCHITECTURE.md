@@ -1291,6 +1291,90 @@ catalog.apply_recipe(recipe_id):
 
 ---
 
+## Docker 集成架构（目标态）
+
+> **当前状态**: 待重构（Phase 9）。本节描述目标架构，当前实现见 `pkg/infra/docker/simple_client.go`。
+
+### 设计原则
+
+Docker 是 AIMA 的**基础设施层组件**，不是领域概念。Engine 域和 Service 域通过接口与 Docker 交互，不直接耦合容器实现细节。
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                     CLI / Gateway                             │
+│  aima service start --wait  →  显示拉取 + 加载进度            │
+│  aima service logs --follow →  流式容器日志                    │
+├──────────────────────────────────────────────────────────────┤
+│                     Service Layer                             │
+│  HybridServiceProvider                                       │
+│    ├── ServiceID (结构化解析, 非字符串分割)                    │
+│    └── portCounter (从 ServiceStore 恢复, 持久化)             │
+├──────────────────────────────────────────────────────────────┤
+│                     Engine Provider                            │
+│  HybridEngineProvider                                        │
+│    ├── RecipeStore.Match(profile) → 获取引擎配置              │
+│    ├── docker.Client.Create/Start/Stop (容器生命周期)         │
+│    ├── RegistryProvider.PullImage(progress) (镜像拉取+进度)   │
+│    └── EventBus.Publish(engine.start_progress) (进度事件)     │
+├──────────────────────────────────────────────────────────────┤
+│                     Infrastructure                            │
+│  docker.Client (接口)                                        │
+│    ├── SDKClient (Docker Go SDK, 首选)                       │
+│    └── SimpleClient (CLI fallback)                           │
+│  RegistryProvider (接口, 已有)                                │
+│    ├── DockerHub / GHCR / 国内镜像                           │
+│    └── PullImage(ctx, image, progress chan<- PullProgress)    │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### docker.Client vs RegistryProvider 职责划分
+
+| 接口 | 职责 | 方法 |
+|------|------|------|
+| `docker.Client` | **容器生命周期** | Create, Start, Stop, Logs, Events, Status |
+| `RegistryProvider` | **镜像仓库操作** | PullImage (带进度), ImageExists |
+
+两者互补、不重叠。`HybridEngineProvider` 同时依赖两者：先通过 `RegistryProvider` 拉取镜像，再通过 `docker.Client` 创建容器。
+
+### Catalog Engine YAML → RecipeEngine 桥接
+
+Catalog Engine YAML 文件（`catalog/engines/*/`）使用丰富的文档格式，包含镜像详情、启动参数、健康检查、API 端点等。`RecipeEngine` struct 是精简的运行时模型。两者通过 `EngineAssetLoader` 桥接：
+
+```
+catalog/engines/vllm/vllm-0.14.0-cu131-gb10.yaml
+  ├── image.full_name          → RecipeEngine.Image
+  ├── image.alternative_names  → RecipeEngine.FallbackImages
+  ├── startup.default_args     → RecipeEngine.Config["cmd"]
+  ├── startup.health_check     → RecipeEngine.Config["health_path", "health_timeout"]
+  ├── endpoints[*].path        → RecipeEngine.Config["port"] (从端点推断)
+  └── requirements.*           → Recipe.ResourceLimits
+```
+
+### Docker 配置
+
+```toml
+[docker]
+host = ""           # 默认 unix:///var/run/docker.sock (或 DOCKER_HOST 环境变量)
+tls_verify = false  # 启用 TLS 验证
+cert_path = ""      # TLS 证书路径
+api_version = ""    # Docker API 版本 (默认自动协商)
+timeout = "120s"    # 默认操作超时
+```
+
+### 进度事件流
+
+```
+engine.start_progress 事件 (Phase: pulling → starting → loading → ready)
+  ↓
+EventBus.Subscribe("engine.start_progress")
+  ↓
+CLI: 实时渲染 pull 进度条 + 容器启动日志 + 模型加载状态
+  ↓
+engine.started 事件 (已有定义) → 通知 Service 层更新状态
+```
+
+---
+
 ## 服务层
 
 服务层聚合多个原子单元，提供更高级别的业务逻辑。
@@ -2840,6 +2924,71 @@ AI Agent 检查执行结果，决定下一步：
 - 会话管理
 - `agent.chat`, `agent.status` 原子单元
 - CLI `aima agent chat` / `aima agent ask`
+
+### Phase 9: Docker 集成架构改进 (PLANNED)
+
+> **状态**: 待开发 | **优先级**: P0 | **预计工作量**: 5 个子阶段
+
+**背景**: 当前 Docker 集成存在架构级问题 — `SimpleClient` 使用 CLI 子进程调用（无流式能力），`HybridEngineProvider` 硬编码了所有镜像和命令（未使用 Catalog Recipe），用户启动大模型时无任何进度反馈（20 分钟黑屏等待）。
+
+**核心依赖**: `github.com/docker/docker/client`（Apache 2.0，Docker 官方 Go SDK）
+
+#### Phase 9.1: Docker 客户端接口层
+- 定义 `docker.Client` 接口（容器生命周期：create/start/stop/logs/events）
+- 基于 Docker Go SDK 实现 `SDKClient`（替代 CLI 子进程）
+- `SimpleClient` 保留作 fallback
+- `MockClient` 实现接口，解锁测试注入
+- `HybridEngineProvider.dockerClient` 字段改为接口类型
+- **关键**: `docker.Client` 管容器生命周期，`RegistryProvider` 管镜像拉取 — 职责不重叠
+
+```go
+// pkg/infra/docker/client.go — 容器生命周期接口
+type Client interface {
+    CreateAndStartContainer(ctx context.Context, name, image string, opts ContainerOptions) (string, error)
+    StopContainer(ctx context.Context, containerID string, timeout int) error
+    GetContainerStatus(ctx context.Context, containerID string) (string, error)
+    GetContainerLogs(ctx context.Context, containerID string, tail int) (string, error)
+    StreamLogs(ctx context.Context, containerID string, since time.Time, out chan<- string) error
+    ListContainers(ctx context.Context, labels map[string]string) ([]string, error)
+    ContainerEvents(ctx context.Context, filters map[string]string) (<-chan ContainerEvent, error)
+}
+
+// RegistryProvider（已有）— 镜像仓库操作
+// PullImage(ctx, image, progress chan<- PullProgress) 已支持流式进度
+```
+
+#### Phase 9.2: Catalog Engine YAML → RecipeEngine 桥接
+- Catalog Engine YAML（`catalog/engines/*/`) 已包含完整的引擎配置（image.full_name, startup.default_args, startup.health_check）
+- 但其 schema 与 `RecipeEngine` struct 不同 — 需要 Loader 适配层
+- 新建 `EngineAssetLoader`: 解析 Engine YAML → 填充 `RecipeEngine` 字段
+- `HybridEngineProvider` 通过 `RecipeStore` 获取引擎配置 → 消除 `getDockerImages()` / `buildDockerCommand()` 硬编码
+
+```
+catalog/engines/vllm/vllm-0.14.0-cu131-gb10.yaml  (丰富的引擎资产文档)
+         ↓ EngineAssetLoader.Load()
+RecipeEngine{Image: "zhiwen-vllm:0128", Config: {cmd: [...], health_path: "/health", ...}}
+         ↓ RecipeStore.Match(hardwareProfile)
+HybridEngineProvider.Start() → 从 Recipe 读取镜像 + 命令 + 端口 + 资源限制
+```
+
+#### Phase 9.3: 实时启动进度流
+- 利用 `RegistryProvider.PullImage(ctx, image, progress)` 已有的进度通道
+- 利用 `SDKClient.StreamLogs()` 流式容器日志
+- 发布 `engine.started` / `engine.health_changed` 等已定义的领域事件
+- 新增 `engine.start_progress` 事件（Phase: pulling → starting → loading → ready）
+- CLI `aima service start --wait` 展示实时进度
+- 新增 `aima service logs --follow` 命令
+
+#### Phase 9.4: 端口分配持久化 + ServiceID 结构化
+- `NewHybridServiceProvider` 启动时从 ServiceStore 查询已分配端口 → `portCounter = maxPort + 1`
+- 替代 `svc-{engineType}-{modelId}` 字符串分割: 引入 `ServiceID` 结构体 + `ParseServiceID()`
+- 新增 `[docker]` 配置节（docker_host, tls, timeout 等可选配置）
+
+#### Phase 9.5: 清理冗余代码
+- 删除 `docker_engine_provider.go`（476 行死代码，与 HybridEngineProvider 重复）
+- 确认 `NewDockerServiceProvider` 无主路径引用
+
+**验证标准**: `go test ./... -count=1` 全通过；`aima service start svc-vllm-* --wait` 显示拉取进度 + 模型加载日志
 
 ---
 
