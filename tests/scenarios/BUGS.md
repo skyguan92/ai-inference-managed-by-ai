@@ -191,3 +191,34 @@ Every `service stop` invocation finds containers via Docker label lookup (not th
 - **Severity**: Low (P2) — documentation bug only
 - **Problem**: Test 4 in scenario file uses `[storage]\ndata_dir = ...` but the actual config struct has `data_dir` under `[general]`
 - **Status**: FIXED — Updated scenario 9 test script to use `[general]` section. Commit: e91955d
+
+### Bug #34: skill.add rejects flat JSON input — requires YAML front-matter format
+
+- **Scenario**: 12 (Skill Registry and Search)
+- **Severity**: High (P1) — user-facing API unusable for normal JSON clients
+- **Command**: `POST /api/v2/execute` with `unit: "skill.add"` and flat JSON fields (name, description, keywords, category, content)
+- **Expected**: Skill created from JSON fields
+- **Actual**: `Error: parse skill: [01202] skill is invalid` — `AddCommand.Execute()` called `ParseSkillFile(content)` which requires YAML front-matter (`---\nid: ...\n---`) and rejects plain content
+- **Root Cause**: `AddCommand.Execute()` in `pkg/unit/skill/commands.go` only accepted YAML front-matter format. Scenario test sends flat JSON fields as separate top-level keys.
+- **Status**: FIXED — `AddCommand.Execute()` now supports both formats: flat JSON fields (name, description, keywords, category, content) and YAML front-matter. Also added `buildSkillFromFields()` helper. Commit: bfcc18c
+
+### Bug #35: skill.search returns disabled skills
+
+- **Scenario**: 12 (Skill Registry and Search)
+- **Severity**: Medium (P1) — wrong search results undermine skill filtering
+- **Command**: Search after disabling a skill
+- **Expected**: Disabled skills excluded from search results
+- **Actual**: `MemoryStore.Search()` returned all matching skills regardless of `enabled` flag
+- **Root Cause**: `Search()` in `pkg/unit/skill/store.go` did not check `sk.Enabled` — unlike `List()` which has an `EnabledOnly` filter option, `Search()` always included disabled skills
+- **Status**: FIXED — Added `if !sk.Enabled { continue }` check at start of `Search()` loop. Commit: bfcc18c
+
+### Bug #36 (Arch): HTTP REST routes from routes.go not wired into HTTP server
+
+- **Scenario**: 12 (Skill Registry and Search) — also affects all scenarios
+- **Severity**: High (P1) — REST API endpoints like `/api/v2/skills` return 404
+- **Command**: `GET /api/v2/skills`, `POST /api/v2/skills`, any of the 50+ routes in `pkg/gateway/routes.go`
+- **Expected**: Routes registered and serving requests
+- **Actual**: All return `404 page not found` — the `Router` and `defaultRoutes()` in `pkg/gateway/routes.go` are defined but never registered in the HTTP server
+- **Root Cause**: `pkg/cli/start.go` `runStart()` creates `http.NewServeMux()` with only 3 handlers (`/api/v2/execute`, `/api/v2/health`, `/api/v2/metrics`). The `gateway.NewRouter()` with 50+ domain routes is never mounted.
+- **Workaround**: Use `POST /api/v2/execute` with `{type, unit, input}` generic envelope — all operations work via this endpoint
+- **Status**: Open — The REST routes exist but are not wired. Functionality is accessible via the generic execute endpoint.
