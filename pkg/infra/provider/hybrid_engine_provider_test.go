@@ -796,7 +796,7 @@ func TestHybridEngineProvider_ConcurrentMapAccess(t *testing.T) {
 
 func TestNewHybridServiceProvider(t *testing.T) {
 	store := newMockModelStore()
-	p := NewHybridServiceProvider(store)
+	p := NewHybridServiceProvider(store, service.NewMemoryStore())
 
 	if p == nil {
 		t.Fatal("expected provider, got nil")
@@ -833,7 +833,7 @@ func TestHybridServiceProvider_Create(t *testing.T) {
 		Path: "/models/my-tts",
 	})
 
-	p := NewHybridServiceProvider(store)
+	p := NewHybridServiceProvider(store, service.NewMemoryStore())
 	ctx := context.Background()
 
 	tests := []struct {
@@ -908,7 +908,7 @@ func TestHybridServiceProvider_Create(t *testing.T) {
 
 func TestHybridServiceProvider_Create_ModelNotFound(t *testing.T) {
 	store := newMockModelStore()
-	p := NewHybridServiceProvider(store)
+	p := NewHybridServiceProvider(store, service.NewMemoryStore())
 	ctx := context.Background()
 
 	_, err := p.Create(ctx, "nonexistent-model-id", service.ResourceClassSmall, 1, false)
@@ -922,7 +922,7 @@ func TestHybridServiceProvider_Create_PortIncrement(t *testing.T) {
 	store.addModel(&model.Model{ID: "m1", Name: "model1", Type: model.ModelTypeLLM})
 	store.addModel(&model.Model{ID: "m2", Name: "model2", Type: model.ModelTypeLLM})
 
-	p := NewHybridServiceProvider(store)
+	p := NewHybridServiceProvider(store, service.NewMemoryStore())
 	ctx := context.Background()
 
 	svc1, err := p.Create(ctx, "m1", service.ResourceClassMedium, 1, false)
@@ -945,7 +945,7 @@ func TestHybridServiceProvider_Create_PortIncrement(t *testing.T) {
 
 func TestHybridServiceProvider_Stop(t *testing.T) {
 	store := newMockModelStore()
-	p := NewHybridServiceProvider(store)
+	p := NewHybridServiceProvider(store, service.NewMemoryStore())
 	ctx := context.Background()
 
 	// Stop for a non-existent service should not panic
@@ -956,7 +956,7 @@ func TestHybridServiceProvider_Stop(t *testing.T) {
 
 func TestHybridServiceProvider_Scale(t *testing.T) {
 	store := newMockModelStore()
-	p := NewHybridServiceProvider(store)
+	p := NewHybridServiceProvider(store, service.NewMemoryStore())
 	ctx := context.Background()
 
 	err := p.Scale(ctx, "svc-any", 3)
@@ -970,7 +970,7 @@ func TestHybridServiceProvider_Scale(t *testing.T) {
 
 func TestHybridServiceProvider_GetMetrics(t *testing.T) {
 	store := newMockModelStore()
-	p := NewHybridServiceProvider(store)
+	p := NewHybridServiceProvider(store, service.NewMemoryStore())
 	ctx := context.Background()
 
 	metrics, err := p.GetMetrics(ctx, "any-service-id")
@@ -1000,7 +1000,7 @@ func TestHybridServiceProvider_GetRecommendation(t *testing.T) {
 		Type: model.ModelTypeTTS,
 	})
 
-	p := NewHybridServiceProvider(store)
+	p := NewHybridServiceProvider(store, service.NewMemoryStore())
 	ctx := context.Background()
 
 	tests := []struct {
@@ -1060,7 +1060,7 @@ func TestHybridServiceProvider_GetRecommendation(t *testing.T) {
 
 func TestHybridServiceProvider_GetRecommendation_ModelNotFound(t *testing.T) {
 	store := newMockModelStore()
-	p := NewHybridServiceProvider(store)
+	p := NewHybridServiceProvider(store, service.NewMemoryStore())
 	ctx := context.Background()
 
 	_, err := p.GetRecommendation(ctx, "does-not-exist", "")
@@ -1071,7 +1071,7 @@ func TestHybridServiceProvider_GetRecommendation_ModelNotFound(t *testing.T) {
 
 func TestHybridServiceProvider_IsRunning_NoInfo(t *testing.T) {
 	store := newMockModelStore()
-	p := NewHybridServiceProvider(store)
+	p := NewHybridServiceProvider(store, service.NewMemoryStore())
 	ctx := context.Background()
 
 	// serviceInfo is empty, so IsRunning should return false
@@ -1083,7 +1083,7 @@ func TestHybridServiceProvider_IsRunning_NoInfo(t *testing.T) {
 
 func TestHybridServiceProvider_IsRunning_WithInfo(t *testing.T) {
 	store := newMockModelStore()
-	p := NewHybridServiceProvider(store)
+	p := NewHybridServiceProvider(store, service.NewMemoryStore())
 	ctx := context.Background()
 
 	// Inject service info with short ProcessID (not a Docker container ID)
@@ -1106,7 +1106,7 @@ func TestHybridServiceProvider_IsRunning_WithInfo(t *testing.T) {
 
 func TestHybridServiceProvider_IsRunning_EmptyProcessID(t *testing.T) {
 	store := newMockModelStore()
-	p := NewHybridServiceProvider(store)
+	p := NewHybridServiceProvider(store, service.NewMemoryStore())
 	ctx := context.Background()
 
 	p.hybridProvider.mu.Lock()
@@ -1124,7 +1124,7 @@ func TestHybridServiceProvider_IsRunning_EmptyProcessID(t *testing.T) {
 
 func TestHybridServiceProvider_GetEngineProvider(t *testing.T) {
 	store := newMockModelStore()
-	p := NewHybridServiceProvider(store)
+	p := NewHybridServiceProvider(store, service.NewMemoryStore())
 
 	ep := p.GetEngineProvider()
 	if ep == nil {
@@ -1144,7 +1144,7 @@ func TestHybridEngineProvider_ImplementsInterface(t *testing.T) {
 
 func TestHybridServiceProvider_ImplementsInterface(t *testing.T) {
 	store := newMockModelStore()
-	p := NewHybridServiceProvider(store)
+	p := NewHybridServiceProvider(store, service.NewMemoryStore())
 	var _ service.ServiceProvider = p
 }
 
@@ -1230,7 +1230,7 @@ func TestHybridServiceProvider_ConcurrentCreate(t *testing.T) {
 		Type: model.ModelTypeLLM,
 	})
 
-	p := NewHybridServiceProvider(store)
+	p := NewHybridServiceProvider(store, service.NewMemoryStore())
 	ctx := context.Background()
 
 	const numGoroutines = 20
@@ -1279,7 +1279,7 @@ func TestHybridServiceProvider_ConcurrentCreate(t *testing.T) {
 
 func TestHybridServiceProvider_Start_InvalidServiceID(t *testing.T) {
 	store := newMockModelStore()
-	p := NewHybridServiceProvider(store)
+	p := NewHybridServiceProvider(store, service.NewMemoryStore())
 	ctx := context.Background()
 
 	// Service ID with too few parts
@@ -1291,7 +1291,7 @@ func TestHybridServiceProvider_Start_InvalidServiceID(t *testing.T) {
 
 func TestHybridServiceProvider_StartAsync_ModelNotFound(t *testing.T) {
 	store := newMockModelStore()
-	p := NewHybridServiceProvider(store)
+	p := NewHybridServiceProvider(store, service.NewMemoryStore())
 	ctx := context.Background()
 
 	// Valid format but model doesn't exist

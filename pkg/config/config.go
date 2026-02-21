@@ -10,6 +10,12 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
+// DockerConfig holds Docker daemon connection settings.
+type DockerConfig struct {
+	Host    string `toml:"host"`    // e.g. "unix:///var/run/docker.sock" or "tcp://remote:2375"; empty means auto-detect from env
+	Timeout string `toml:"timeout"` // e.g. "30s"
+}
+
 type Config struct {
 	General  GeneralConfig  `toml:"general"`
 	API      APIConfig      `toml:"api"`
@@ -23,6 +29,7 @@ type Config struct {
 	Security SecurityConfig `toml:"security"`
 	Logging  LoggingConfig  `toml:"logging"`
 	Agent    AgentConfig    `toml:"agent"`
+	Docker   DockerConfig   `toml:"docker"`
 }
 
 type GeneralConfig struct {
@@ -173,6 +180,10 @@ func Default() *Config {
 			LLMAPIKey:   "",
 			LLMModel:    "moonshot-v1-8k",
 			MaxTokens:   4096,
+		},
+		Docker: DockerConfig{
+			Host:    "",    // auto-detect from DOCKER_HOST env or platform default
+			Timeout: "30s",
 		},
 	}
 }
@@ -337,6 +348,13 @@ func ApplyEnvOverrides(cfg *Config) {
 	}
 	if v := os.Getenv("AIMA_LLM_USER_AGENT"); v != "" {
 		cfg.Agent.LLMUserAgent = v
+	}
+	// Docker settings.
+	if v := os.Getenv("DOCKER_HOST"); v != "" {
+		cfg.Docker.Host = v
+	}
+	if v := os.Getenv("AIMA_DOCKER_TIMEOUT"); v != "" {
+		cfg.Docker.Timeout = v
 	}
 }
 

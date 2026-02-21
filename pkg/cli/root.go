@@ -136,7 +136,7 @@ func (r *RootCommand) persistentPreRunE(cmd *cobra.Command, args []string) error
 
 	// Create hybrid engine provider (supports Docker + Native modes)
 	slog.Info("initializing hybrid engine provider", "mode", "Docker + Native")
-	serviceProvider := provider.NewHybridServiceProvider(modelStore)
+	serviceProvider := provider.NewHybridServiceProvider(modelStore, serviceStore)
 	engineProvider := serviceProvider.GetEngineProvider()
 
 	// Create engine store (memory-based for now)

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/docker"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/catalog"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/engine"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/model"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/service"
@@ -46,6 +47,9 @@ type HybridEngineProvider struct {
 	resourceLimits map[string]ResourceLimits
 	startupConfigs map[string]StartupConfig
 
+	// Engine assets loaded from YAML files (keyed by engine type)
+	engineAssets map[string]catalog.EngineAsset
+
 	// Concurrency protection
 	mu sync.RWMutex
 }
@@ -75,6 +79,14 @@ func NewHybridEngineProvider(modelStore model.ModelStore) *HybridEngineProvider 
 // newHybridEngineProviderWithClient creates a HybridEngineProvider with a specific docker.Client.
 // Used in tests to inject a mock client.
 func newHybridEngineProviderWithClient(modelStore model.ModelStore, dc docker.Client) *HybridEngineProvider {
+	assets, err := catalog.LoadEngineAssets("catalog/engines")
+	if err != nil {
+		slog.Warn("failed to load engine assets, using hardcoded defaults", "error", err)
+		assets = make(map[string]catalog.EngineAsset)
+	} else {
+		slog.Info("loaded engine assets from YAML", "count", len(assets))
+	}
+
 	return &HybridEngineProvider{
 		dockerClient:    dc,
 		containers:      make(map[string]string),
@@ -83,6 +95,7 @@ func newHybridEngineProviderWithClient(modelStore model.ModelStore, dc docker.Cl
 		modelStore:      modelStore,
 		resourceLimits:  getDefaultResourceLimits(),
 		startupConfigs:  getDefaultStartupConfigs(),
+		engineAssets:    assets,
 	}
 }
 
@@ -617,6 +630,14 @@ func (p *HybridEngineProvider) getDockerImages(name, version string) []string {
 		version = "latest"
 	}
 
+	// Use YAML-loaded asset when available.
+	if asset, ok := p.engineAssets[name]; ok && asset.ImageFullName != "" {
+		images := []string{asset.ImageFullName}
+		images = append(images, asset.AlternativeNames...)
+		return images
+	}
+
+	// Hardcoded fallback.
 	switch name {
 	case "vllm":
 		// Priority: GB10 compatible (general) > Qwen3-Omni specific > official image
@@ -661,6 +682,12 @@ func (p *HybridEngineProvider) getDockerImage(name, version string) string {
 }
 
 func (p *HybridEngineProvider) getDefaultPort(engineType string) int {
+	// Prefer port from YAML asset when available.
+	if asset, ok := p.engineAssets[engineType]; ok && asset.DefaultPort > 0 {
+		return asset.DefaultPort
+	}
+
+	// Hardcoded fallback.
 	switch engineType {
 	case "vllm":
 		return 8000
@@ -706,7 +733,27 @@ func (p *HybridEngineProvider) getEngineTypeForModel(modelType model.ModelType) 
 	}
 }
 
+// applyPortToArgs replaces the value after "--port" in args (or appends it) and
+// returns the modified slice. The input slice is not modified.
+func applyPortToArgs(args []string, port int) []string {
+	result := make([]string, len(args))
+	copy(result, args)
+	portStr := strconv.Itoa(port)
+	for i, arg := range result {
+		if arg == "--port" && i+1 < len(result) {
+			result[i+1] = portStr
+			return result
+		}
+	}
+	return append(result, "--port", portStr)
+}
+
 func (p *HybridEngineProvider) buildDockerCommand(engineType string, image string, config map[string]any, port int) []string {
+	// Use YAML-asset DefaultArgs when available (with port substitution).
+	if asset, ok := p.engineAssets[engineType]; ok && len(asset.DefaultArgs) > 0 {
+		return applyPortToArgs(asset.DefaultArgs, port)
+	}
+
 	switch engineType {
 	case "vllm":
 		// Check which image is being used
@@ -772,16 +819,48 @@ type HybridServiceProvider struct {
 	mu             sync.Mutex
 	hybridProvider *HybridEngineProvider
 	modelStore     model.ModelStore
+	serviceStore   service.ServiceStore
 	portCounter    int
 	startupOrder   []string // Track startup order
 }
 
-// NewHybridServiceProvider creates a new hybrid service provider
-func NewHybridServiceProvider(modelStore model.ModelStore) *HybridServiceProvider {
+// NewHybridServiceProvider creates a new hybrid service provider.
+// It scans existing services in serviceStore to resume port assignment after
+// the previous port used, avoiding port collisions on restart.
+func NewHybridServiceProvider(modelStore model.ModelStore, serviceStore service.ServiceStore) *HybridServiceProvider {
+	portCounter := 8000
+
+	// Scan existing services to find the highest port in use.
+	services, _, err := serviceStore.List(context.Background(), service.ServiceFilter{})
+	if err == nil {
+		for _, svc := range services {
+			if svc.Config == nil {
+				continue
+			}
+			portVal, ok := svc.Config["port"]
+			if !ok {
+				continue
+			}
+			var port int
+			switch v := portVal.(type) {
+			case int:
+				port = v
+			case int64:
+				port = int(v)
+			case float64:
+				port = int(v)
+			}
+			if port >= portCounter {
+				portCounter = port + 1
+			}
+		}
+	}
+
 	return &HybridServiceProvider{
 		hybridProvider: NewHybridEngineProvider(modelStore),
 		modelStore:     modelStore,
-		portCounter:    8000,
+		serviceStore:   serviceStore,
+		portCounter:    portCounter,
 		startupOrder:   []string{},
 	}
 }
@@ -835,48 +914,49 @@ func (p *HybridServiceProvider) Start(ctx context.Context, serviceID string) err
 // For large models like Qwen3-Omni, async mode allows starting without waiting for health check
 func (p *HybridServiceProvider) StartAsync(ctx context.Context, serviceID string, async bool) error {
 	// Parse service ID to extract engine type and model ID
-	// Format: svc-{engine_type}-{model_id}
-	parts := strings.Split(serviceID, "-")
-	if len(parts) >= 3 {
-		engineType := parts[1]
-		modelID := strings.Join(parts[2:], "-")
-
-		// Get model info
-		m, err := p.modelStore.Get(ctx, modelID)
-		if err == nil {
-			// Build config for engine start with resource limits
-			limits := p.hybridProvider.resourceLimits[engineType]
-			config := map[string]any{
-				"model_id":   modelID,
-				"model_path": m.Path,
-				"device":     "cpu", // Default to CPU for safety
-				"gpu":        limits.GPU,
-				"async":      async, // Pass async flag to engine
-			}
-
-			// Only vLLM gets GPU by default
-			if engineType == "vllm" {
-				config["device"] = "gpu"
-				config["gpu"] = true
-				config["gpu_memory_utilization"] = 0.75 // Limit GPU memory
-			}
-
-			// Start the engine with retry and health check
-			result, err := p.hybridProvider.Start(ctx, engineType, config)
-			if err != nil {
-				return fmt.Errorf("start engine %s: %w", engineType, err)
-			}
-
-			if async {
-				slog.Info("engine started in async mode", "engine", engineType, "container_id", result.ProcessID[:12])
-			} else {
-				slog.Info("engine started", "engine", engineType, "process_id", result.ProcessID)
-			}
-			return nil
-		}
+	sid, parseErr := service.ParseServiceID(serviceID)
+	if parseErr != nil {
+		return fmt.Errorf("cannot parse service ID: %w", parseErr)
 	}
 
-	return fmt.Errorf("cannot parse service ID or find model: %s", serviceID)
+	engineType := sid.EngineType
+	modelID := sid.ModelID
+
+	// Get model info
+	m, err := p.modelStore.Get(ctx, modelID)
+	if err != nil {
+		return fmt.Errorf("cannot find model %s: %w", modelID, err)
+	}
+
+	// Build config for engine start with resource limits
+	limits := p.hybridProvider.resourceLimits[engineType]
+	config := map[string]any{
+		"model_id":   modelID,
+		"model_path": m.Path,
+		"device":     "cpu", // Default to CPU for safety
+		"gpu":        limits.GPU,
+		"async":      async, // Pass async flag to engine
+	}
+
+	// Only vLLM gets GPU by default
+	if engineType == "vllm" {
+		config["device"] = "gpu"
+		config["gpu"] = true
+		config["gpu_memory_utilization"] = 0.75 // Limit GPU memory
+	}
+
+	// Start the engine with retry and health check
+	result, err := p.hybridProvider.Start(ctx, engineType, config)
+	if err != nil {
+		return fmt.Errorf("start engine %s: %w", engineType, err)
+	}
+
+	if async {
+		slog.Info("engine started in async mode", "engine", engineType, "container_id", result.ProcessID[:12])
+	} else {
+		slog.Info("engine started", "engine", engineType, "process_id", result.ProcessID)
+	}
+	return nil
 }
 
 // Stop stops the service
@@ -884,8 +964,8 @@ func (p *HybridServiceProvider) Stop(ctx context.Context, serviceID string, forc
 	// Parse engine type from service ID: svc-{engine_type}-{model_id}
 	// hybridProvider.Stop is keyed by engineType, not serviceID.
 	engineType := serviceID
-	if parts := strings.Split(serviceID, "-"); len(parts) >= 3 {
-		engineType = parts[1]
+	if sid, parseErr := service.ParseServiceID(serviceID); parseErr == nil {
+		engineType = sid.EngineType
 	}
 	_, err := p.hybridProvider.Stop(ctx, engineType, force, 30)
 	return err
