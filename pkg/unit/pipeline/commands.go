@@ -557,8 +557,8 @@ func (c *CancelCommand) Execute(ctx context.Context, input any) (any, error) {
 	switch run.Status {
 	case RunStatusPending, RunStatusRunning:
 		// cancellable
-	case RunStatusCompleted, RunStatusCancelled:
-		// already done — cancel is a no-op, return success (idempotent)
+	case RunStatusCompleted, RunStatusCancelled, RunStatusFailed:
+		// already in a terminal state — cancel is a no-op, return success (idempotent)
 		output := map[string]any{"success": true}
 		ec.PublishCompleted(output)
 		return output, nil
