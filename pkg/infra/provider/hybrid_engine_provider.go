@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -483,6 +484,17 @@ func (p *HybridEngineProvider) startDockerWithRetry(ctx context.Context, engineT
 	if len(portConflicts) > 0 || len(staleIDs) > 0 {
 		// Brief wait for Docker to fully release ports after container removal.
 		time.Sleep(2 * time.Second)
+	}
+
+	// Phase 3 — Native port check: verify port is not occupied by a non-Docker process.
+	// FindContainersByPort only scans Docker containers; a plain OS process (e.g. Python socket)
+	// would only be caught here after Docker fails ContainerStart. Detect it early to fast-fail.
+	if conn, dialErr := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 200*time.Millisecond); dialErr == nil {
+		conn.Close()
+		return nil, &fatalStartError{cause: fmt.Errorf(
+			"port %d is already in use by a non-Docker process. Free the port and retry",
+			port,
+		)}
 	}
 
 	opts := docker.ContainerOptions{

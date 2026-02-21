@@ -544,3 +544,30 @@ Every `service stop` invocation finds containers via Docker label lookup (not th
 - **Observation**: Service A (GLM-4.7-Flash, ~75GB model weights + KV cache) uses most of the unified memory (~110GB with `--gpu-memory-utilization 0.9`). Service B (Qwen2.5-Coder-3B-Instruct) fails with `RuntimeError: Engine core initialization failed` due to insufficient remaining memory.
 - **Expected per Criterion 7**: "Document as expected hardware behavior if GPU memory insufficient for two models simultaneously"
 - **Status**: Expected behavior — not a bug. GB10 unified memory cannot run two large vLLM services simultaneously. Criterion 7 documented as PASS (OOM correctly reported).
+
+---
+
+## Scenario 20: Port Contention & Resource Exhaustion
+
+### Bug #65: Non-Docker process blocking port triggers 5 retries instead of fast-failing
+
+- **Scenario**: 20 (Port Contention & Resource Exhaustion)
+- **Severity**: Medium (P1) — wastes ~41s retrying before failing when port is blocked by a native process
+- **Command**: `aima service start` when a non-Docker process (e.g. Python socket) holds the port
+- **Expected**: Fast-fail (<1s) with clear error "port X is in use by a non-Docker process"
+- **Actual**: Docker tries to bind port, fails with "address already in use", retries 5 times (~41s total), then returns generic error
+- **Root Cause**: The existing `fatalStartError` path in Phase 1 (`FindContainersByPort`) only detects Docker containers blocking the port. A native OS process is invisible to Docker's container API. After Phase 1+2 cleanup finds nothing, the code attempts `ContainerCreate`/`ContainerStart` which fails on Docker's network layer. The "address already in use" error from Docker daemon is NOT wrapped in `fatalStartError`, so the outer retry loop retries 5 times.
+- **Fix**: Added Phase 3 TCP port check after Phase 1+2 cleanup in `startDockerWithRetry()`. Uses `net.DialTimeout("tcp", "127.0.0.1:PORT", 200ms)` — if the dial succeeds, the port is still occupied by a non-Docker process → return `fatalStartError` immediately. `net` package added to imports.
+- **Files changed**: `pkg/infra/provider/hybrid_engine_provider.go`
+- **Status**: FIXED — commit pending
+
+### Bug #66: service.start error response omits "details" — CLI shows only "command execution failed"
+
+- **Scenario**: 20 (Port Contention & Resource Exhaustion)
+- **Severity**: Low (P2) — usability issue; operator cannot diagnose failure reason from CLI output
+- **Command**: `aima service start <id>` when Docker start fails
+- **Expected**: CLI shows the actual error, e.g. "address already in use" or "image not found"
+- **Actual**: CLI shows "EXECUTION_FAILED: command execution failed" — the `resp.Error.Details` field (which contains the real error) is never displayed. The gateway DOES set `Details` via `NewErrorInfoWithDetails(ErrCodeExecutionFailed, "command execution failed", err.Error())` (gateway.go:181), but `pkg/cli/service.go:runServiceStart()` only formats `resp.Error.Code + resp.Error.Message`.
+- **Fix**: Added `Details` display in `service.go` for both `runServiceStart()` and `runServiceCreate()` — mirrors the pattern already used in `agent.go` and `inference.go`.
+- **Files changed**: `pkg/cli/service.go`
+- **Status**: FIXED — commit pending

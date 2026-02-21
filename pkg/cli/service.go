@@ -131,7 +131,11 @@ func runServiceCreate(ctx context.Context, root *RootCommand, name, modelID, dev
 	resp := gw.Handle(ctx, req)
 
 	if !resp.Success {
-		PrintError(fmt.Errorf("%s: %s", resp.Error.Code, resp.Error.Message), opts)
+		errMsg := fmt.Sprintf("%s: %s", resp.Error.Code, resp.Error.Message)
+		if resp.Error.Details != nil {
+			errMsg = fmt.Sprintf("%s\ndetails: %v", errMsg, resp.Error.Details)
+		}
+		PrintError(fmt.Errorf("%s", errMsg), opts)
 		return fmt.Errorf("create service failed: %s", resp.Error.Message)
 	}
 
@@ -238,7 +242,11 @@ func runServiceStart(ctx context.Context, root *RootCommand, serviceID string, w
 	resp := gw.Handle(ctx, req)
 
 	if !resp.Success {
-		PrintError(fmt.Errorf("%s: %s", resp.Error.Code, resp.Error.Message), opts)
+		errMsg := fmt.Sprintf("%s: %s", resp.Error.Code, resp.Error.Message)
+		if resp.Error.Details != nil {
+			errMsg = fmt.Sprintf("%s\ndetails: %v", errMsg, resp.Error.Details)
+		}
+		PrintError(fmt.Errorf("%s", errMsg), opts)
 		return fmt.Errorf("start service failed: %s", resp.Error.Message)
 	}
 
