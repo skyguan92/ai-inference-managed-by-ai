@@ -3,6 +3,7 @@ package skill
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
@@ -34,7 +35,36 @@ func (c *AddCommand) InputSchema() unit.Schema {
 				Name: "content",
 				Schema: unit.Schema{
 					Type:        "string",
-					Description: "Skill file content (YAML front-matter + Markdown body)",
+					Description: "Skill file content (YAML front-matter + Markdown body), or plain Markdown body when other fields are provided",
+				},
+			},
+			"name": {
+				Name: "name",
+				Schema: unit.Schema{
+					Type:        "string",
+					Description: "Skill name (alternative to YAML front-matter)",
+				},
+			},
+			"description": {
+				Name: "description",
+				Schema: unit.Schema{
+					Type:        "string",
+					Description: "Skill description",
+				},
+			},
+			"category": {
+				Name: "category",
+				Schema: unit.Schema{
+					Type:        "string",
+					Description: "Skill category",
+					Enum:        []any{CategorySetup, CategoryTroubleshoot, CategoryOptimize, CategoryManage},
+				},
+			},
+			"keywords": {
+				Name: "keywords",
+				Schema: unit.Schema{
+					Type:        "array",
+					Description: "Trigger keywords for skill activation",
 				},
 			},
 			"source": {
@@ -47,7 +77,6 @@ func (c *AddCommand) InputSchema() unit.Schema {
 				},
 			},
 		},
-		Required: []string{"content"},
 	}
 }
 
@@ -84,16 +113,29 @@ func (c *AddCommand) Execute(ctx context.Context, input any) (any, error) {
 		return nil, err
 	}
 
+	var sk *Skill
+	var err error
+
 	content, _ := inputMap["content"].(string)
-	if content == "" {
+	name, _ := inputMap["name"].(string)
+
+	if name != "" {
+		// Flat JSON format: build Skill directly from fields
+		sk = buildSkillFromFields(inputMap)
+	} else if content != "" && strings.HasPrefix(content, "---") {
+		// YAML front-matter format
+		sk, err = ParseSkillFile(content)
+		if err != nil {
+			ec.PublishFailed(err)
+			return nil, fmt.Errorf("parse skill: %w", err)
+		}
+	} else if content != "" {
+		// Plain content without name — invalid
 		ec.PublishFailed(ErrInvalidInput)
 		return nil, ErrInvalidInput
-	}
-
-	sk, err := ParseSkillFile(content)
-	if err != nil {
-		ec.PublishFailed(err)
-		return nil, fmt.Errorf("parse skill: %w", err)
+	} else {
+		ec.PublishFailed(ErrInvalidInput)
+		return nil, ErrInvalidInput
 	}
 
 	// Override source if provided; ensure not builtin
@@ -126,6 +168,34 @@ func (c *AddCommand) Execute(ctx context.Context, input any) (any, error) {
 	output := map[string]any{"skill_id": sk.ID}
 	ec.PublishCompleted(output)
 	return output, nil
+}
+
+// buildSkillFromFields creates a Skill from flat JSON fields (name, description, keywords, category, content).
+func buildSkillFromFields(m map[string]any) *Skill {
+	name, _ := m["name"].(string)
+	description, _ := m["description"].(string)
+	category, _ := m["category"].(string)
+	content, _ := m["content"].(string)
+
+	var keywords []string
+	if kws, ok := m["keywords"].([]any); ok {
+		for _, kw := range kws {
+			if s, ok := kw.(string); ok {
+				keywords = append(keywords, s)
+			}
+		}
+	}
+
+	return &Skill{
+		Name:        name,
+		Description: description,
+		Category:    category,
+		Content:     content,
+		Enabled:     true,
+		Trigger: SkillTrigger{
+			Keywords: keywords,
+		},
+	}
 }
 
 // RemoveCommand implements skill.remove.

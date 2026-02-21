@@ -126,6 +126,9 @@ func (s *MemoryStore) Search(ctx context.Context, query string, category string)
 	q := strings.ToLower(query)
 	var result []Skill
 	for _, sk := range s.skills {
+		if !sk.Enabled {
+			continue
+		}
 		if category != "" && sk.Category != category {
 			continue
 		}
