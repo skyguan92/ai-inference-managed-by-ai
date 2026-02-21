@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/docker"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/engine"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/model"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/service"
@@ -718,7 +719,10 @@ func TestHybridEngineProvider_Stop_DockerContainer(t *testing.T) {
 }
 
 func TestHybridEngineProvider_Stop_ConcurrentSafety(t *testing.T) {
-	p := NewHybridEngineProvider(newMockModelStore())
+	// Use mock Docker client to avoid data race inside Docker SDK's
+	// API version negotiation (negotiateAPIVersionPing) when multiple
+	// goroutines hit the real client concurrently.
+	p := newHybridEngineProviderWithClient(newMockModelStore(), docker.NewMockClient())
 	ctx := context.Background()
 
 	var wg sync.WaitGroup
@@ -752,7 +756,7 @@ func TestHybridEngineProvider_Install_FallbackBestEffort(t *testing.T) {
 // ---- Tests for concurrent access to containers and nativeProcesses maps ----
 
 func TestHybridEngineProvider_ConcurrentMapAccess(t *testing.T) {
-	p := NewHybridEngineProvider(newMockModelStore())
+	p := newHybridEngineProviderWithClient(newMockModelStore(), docker.NewMockClient())
 
 	var wg sync.WaitGroup
 
