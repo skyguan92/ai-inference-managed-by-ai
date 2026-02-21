@@ -23,12 +23,20 @@ type ServerConfig struct {
 	Logger          *slog.Logger
 }
 
+// longOperationTimeout is the maximum duration allowed for long-running HTTP
+// operations such as service start (up to 20 min for large model loading) and
+// agent chat (up to 10 min for multi-turn LLM conversations). The server-level
+// WriteTimeout and IdleTimeout must exceed this to avoid killing in-flight
+// requests. Per-handler timeouts (via RequestOptions.Timeout) provide the
+// actual deadline enforcement.
+const longOperationTimeout = 25 * time.Minute
+
 func DefaultServerConfig() ServerConfig {
 	return ServerConfig{
 		Addr:            ":9090",
 		ReadTimeout:     15 * time.Second,
-		WriteTimeout:    30 * time.Second,
-		IdleTimeout:     60 * time.Second,
+		WriteTimeout:    longOperationTimeout,
+		IdleTimeout:     longOperationTimeout,
 		ShutdownTimeout: 10 * time.Second,
 		EnableCORS:      false,
 		CORSConfig:      middleware.DefaultCORSConfig(),
@@ -54,10 +62,10 @@ func NewServer(gateway *Gateway, config ServerConfig) *Server {
 		config.ReadTimeout = 15 * time.Second
 	}
 	if config.WriteTimeout == 0 {
-		config.WriteTimeout = 30 * time.Second
+		config.WriteTimeout = longOperationTimeout
 	}
 	if config.IdleTimeout == 0 {
-		config.IdleTimeout = 60 * time.Second
+		config.IdleTimeout = longOperationTimeout
 	}
 	if config.ShutdownTimeout == 0 {
 		config.ShutdownTimeout = 10 * time.Second

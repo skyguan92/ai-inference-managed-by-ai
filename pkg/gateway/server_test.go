@@ -188,11 +188,11 @@ func TestDefaultServerConfig(t *testing.T) {
 	if cfg.ReadTimeout != 15*time.Second {
 		t.Errorf("expected read timeout 15s, got %v", cfg.ReadTimeout)
 	}
-	if cfg.WriteTimeout != 30*time.Second {
-		t.Errorf("expected write timeout 30s, got %v", cfg.WriteTimeout)
+	if cfg.WriteTimeout != longOperationTimeout {
+		t.Errorf("expected write timeout %v (longOperationTimeout), got %v", longOperationTimeout, cfg.WriteTimeout)
 	}
-	if cfg.IdleTimeout != 60*time.Second {
-		t.Errorf("expected idle timeout 60s, got %v", cfg.IdleTimeout)
+	if cfg.IdleTimeout != longOperationTimeout {
+		t.Errorf("expected idle timeout %v (longOperationTimeout), got %v", longOperationTimeout, cfg.IdleTimeout)
 	}
 	if cfg.ShutdownTimeout != 10*time.Second {
 		t.Errorf("expected shutdown timeout 10s, got %v", cfg.ShutdownTimeout)
