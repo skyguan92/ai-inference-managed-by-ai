@@ -348,7 +348,14 @@ func (p *HybridEngineProvider) Start(ctx context.Context, name string, config ma
 						return result, nil
 					}
 
+					// Bug #14 fix: Capture container logs before cleanup to aid debugging.
+					if logs, logErr := p.dockerClient.GetContainerLogs(ctx, result.ProcessID, 10); logErr == nil && logs != "" {
+						slog.Warn("container failed, last logs", "container_id", result.ProcessID[:12], "logs", logs)
+					}
+
 					_, _ = p.Stop(ctx, engineType, true, 10)
+					// Wait briefly for port to be released before retrying.
+					time.Sleep(2 * time.Second)
 					lastErr = err
 					continue
 				}

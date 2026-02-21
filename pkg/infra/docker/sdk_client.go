@@ -71,7 +71,9 @@ func (c *SDKClient) CreateAndStartContainer(ctx context.Context, name, image str
 	hostCfg := &container.HostConfig{
 		Binds:        binds,
 		PortBindings: portBindings,
-		RestartPolicy: container.RestartPolicy{Name: "unless-stopped"},
+		// No automatic restart — AIMA handles retries in HybridEngineProvider.
+		// Using "unless-stopped" caused false "restarting" status during health
+		// checks when port binding failed between retries.
 	}
 
 	// Memory limit.
