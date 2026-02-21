@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -20,6 +21,12 @@ import (
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/model"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/service"
 )
+
+// fatalStartError wraps an error that should not be retried (e.g. non-AIMA port conflict).
+type fatalStartError struct{ cause error }
+
+func (e *fatalStartError) Error() string { return e.cause.Error() }
+func (e *fatalStartError) Unwrap() error  { return e.cause }
 
 // ResourceLimits defines resource constraints for containers
 type ResourceLimits struct {
@@ -383,6 +390,11 @@ func (p *HybridEngineProvider) Start(ctx context.Context, name string, config ma
 				return result, nil
 			}
 			lastErr = err
+			var fatal *fatalStartError
+			if errors.As(err, &fatal) {
+				slog.Warn("Docker start failed (fatal, aborting retries)", "attempt", attempt, "error", err)
+				break
+			}
 			slog.Warn("Docker start failed", "attempt", attempt, "error", err)
 		}
 		slog.Warn("Docker start failed after retries, trying native mode", "attempts", startupCfg.MaxRetries, "error", lastErr)
@@ -418,10 +430,10 @@ func (p *HybridEngineProvider) startDockerWithRetry(ctx context.Context, engineT
 	for _, conflict := range portConflicts {
 		if !conflict.IsAIMA {
 			// Non-AIMA container: we cannot safely remove it; surface an actionable error.
-			return nil, fmt.Errorf(
+			return nil, &fatalStartError{cause: fmt.Errorf(
 				"port %d is occupied by non-AIMA container %q (image: %s). Remove it with: docker rm -f %s",
 				port, conflict.Name, conflict.Image, conflict.ContainerID,
-			)
+			)}
 		}
 		slog.Info("removing AIMA container blocking port", "container_id", conflict.ContainerID, "port", port, "engine", engineType)
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
