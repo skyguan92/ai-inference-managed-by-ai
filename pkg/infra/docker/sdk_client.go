@@ -1,0 +1,289 @@
+//go:build docker_sdk
+// +build docker_sdk
+
+// SDKClient requires Go 1.24+ (Docker SDK pulls in otelhttp which requires Go 1.24).
+// Build with: go build -tags docker_sdk ./...
+// When the project upgrades to Go 1.24, remove this build tag.
+
+package docker
+
+import (
+	"bufio"
+	"context"
+	"fmt"
+	"io"
+	"strconv"
+
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/events"
+	"github.com/docker/docker/api/types/filters"
+	dockerclient "github.com/docker/docker/client"
+	"github.com/docker/go-connections/nat"
+)
+
+// SDKClient implements Client using the official Docker Go SDK.
+type SDKClient struct {
+	cli *dockerclient.Client
+}
+
+// NewSDKClient creates an SDKClient configured from environment variables
+// (DOCKER_HOST, DOCKER_TLS_VERIFY, DOCKER_CERT_PATH, DOCKER_API_VERSION).
+func NewSDKClient() (*SDKClient, error) {
+	cli, err := dockerclient.NewClientWithOpts(
+		dockerclient.FromEnv,
+		dockerclient.WithAPIVersionNegotiation(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("docker sdk client: %w", err)
+	}
+	return &SDKClient{cli: cli}, nil
+}
+
+// CreateAndStartContainer creates and starts a container, returning its ID.
+func (c *SDKClient) CreateAndStartContainer(ctx context.Context, name, image string, opts ContainerOptions) (string, error) {
+	// Build port bindings from opts.Ports (hostPort -> containerPort).
+	portBindings := nat.PortMap{}
+	exposedPorts := nat.PortSet{}
+	for hostPort, containerPort := range opts.Ports {
+		p := nat.Port(containerPort + "/tcp")
+		exposedPorts[p] = struct{}{}
+		portBindings[p] = []nat.PortBinding{{HostPort: hostPort}}
+	}
+
+	// Build volume bindings from opts.Volumes (hostPath -> containerPath).
+	binds := make([]string, 0, len(opts.Volumes))
+	for hostPath, containerPath := range opts.Volumes {
+		binds = append(binds, hostPath+":"+containerPath)
+	}
+
+	// Build label map.
+	labels := make(map[string]string, len(opts.Labels))
+	for k, v := range opts.Labels {
+		labels[k] = v
+	}
+
+	// Container config.
+	cfg := &container.Config{
+		Image:        image,
+		Cmd:          opts.Cmd,
+		Env:          opts.Env,
+		Labels:       labels,
+		ExposedPorts: exposedPorts,
+		WorkingDir:   opts.WorkingDir,
+	}
+
+	// Host config.
+	hostCfg := &container.HostConfig{
+		Binds:        binds,
+		PortBindings: portBindings,
+		RestartPolicy: container.RestartPolicy{Name: "unless-stopped"},
+	}
+
+	// Memory limit.
+	if opts.Memory != "" {
+		mem, err := parseMemory(opts.Memory)
+		if err == nil {
+			hostCfg.Memory = mem
+		}
+	}
+
+	// CPU limit.
+	if opts.CPU != "" {
+		if cpus, err := strconv.ParseFloat(opts.CPU, 64); err == nil {
+			hostCfg.NanoCPUs = int64(cpus * 1e9)
+		}
+	}
+
+	// GPU support — equivalent to `--gpus all`.
+	if opts.GPU {
+		hostCfg.DeviceRequests = []container.DeviceRequest{
+			{
+				Driver:       "nvidia",
+				Count:        -1, // all GPUs
+				Capabilities: [][]string{{"gpu"}},
+			},
+		}
+	}
+
+	resp, err := c.cli.ContainerCreate(ctx, cfg, hostCfg, nil, nil, name)
+	if err != nil {
+		return "", fmt.Errorf("docker ContainerCreate: %w", err)
+	}
+
+	if err := c.cli.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
+		return "", fmt.Errorf("docker ContainerStart: %w", err)
+	}
+
+	return resp.ID, nil
+}
+
+// StopContainer stops and removes a container. timeout is in seconds.
+func (c *SDKClient) StopContainer(ctx context.Context, containerID string, timeout int) error {
+	stopOpts := container.StopOptions{Timeout: &timeout}
+	if err := c.cli.ContainerStop(ctx, containerID, stopOpts); err != nil {
+		// Ignore "not found" or "not running" errors — container may already be gone.
+		if !dockerclient.IsErrNotFound(err) {
+			return fmt.Errorf("docker ContainerStop: %w", err)
+		}
+	}
+
+	if err := c.cli.ContainerRemove(context.Background(), containerID, container.RemoveOptions{Force: true}); err != nil {
+		if !dockerclient.IsErrNotFound(err) {
+			return fmt.Errorf("docker ContainerRemove: %w", err)
+		}
+	}
+	return nil
+}
+
+// GetContainerStatus returns the container state string (e.g. "running", "exited").
+func (c *SDKClient) GetContainerStatus(ctx context.Context, containerID string) (string, error) {
+	info, err := c.cli.ContainerInspect(ctx, containerID)
+	if err != nil {
+		return "", fmt.Errorf("docker ContainerInspect: %w", err)
+	}
+	return info.State.Status, nil
+}
+
+// GetContainerLogs returns the last tail lines of container logs (stdout+stderr combined).
+func (c *SDKClient) GetContainerLogs(ctx context.Context, containerID string, tail int) (string, error) {
+	logOpts := container.LogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Tail:       strconv.Itoa(tail),
+	}
+	rc, err := c.cli.ContainerLogs(ctx, containerID, logOpts)
+	if err != nil {
+		return "", fmt.Errorf("docker ContainerLogs: %w", err)
+	}
+	defer rc.Close()
+
+	data, err := io.ReadAll(rc)
+	if err != nil {
+		return "", fmt.Errorf("reading container logs: %w", err)
+	}
+	return string(data), nil
+}
+
+// StreamLogs streams container log lines to out, starting from since.
+// Blocks until ctx is cancelled or the container exits.
+func (c *SDKClient) StreamLogs(ctx context.Context, containerID string, since string, out chan<- string) error {
+	logOpts := container.LogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Follow:     true,
+		Tail:       "0",
+		Since:      since,
+	}
+	rc, err := c.cli.ContainerLogs(ctx, containerID, logOpts)
+	if err != nil {
+		return fmt.Errorf("docker ContainerLogs (stream): %w", err)
+	}
+	defer rc.Close()
+
+	scanner := bufio.NewScanner(rc)
+	for scanner.Scan() {
+		select {
+		case out <- scanner.Text():
+		case <-ctx.Done():
+			return nil
+		}
+	}
+	if err := scanner.Err(); err != nil && ctx.Err() == nil {
+		return fmt.Errorf("reading streamed logs: %w", err)
+	}
+	return nil
+}
+
+// ListContainers returns container IDs matching the given label filters.
+func (c *SDKClient) ListContainers(ctx context.Context, labels map[string]string) ([]string, error) {
+	f := filters.NewArgs()
+	f.Add("label", "aima.managed=true")
+	for k, v := range labels {
+		f.Add("label", fmt.Sprintf("%s=%s", k, v))
+	}
+
+	containers, err := c.cli.ContainerList(ctx, container.ListOptions{Filters: f})
+	if err != nil {
+		return nil, fmt.Errorf("docker ContainerList: %w", err)
+	}
+
+	ids := make([]string, 0, len(containers))
+	for _, ct := range containers {
+		ids = append(ids, ct.ID)
+	}
+	return ids, nil
+}
+
+// ContainerEvents returns a channel of Docker container events matching filters.
+// The channel is closed when ctx is cancelled.
+func (c *SDKClient) ContainerEvents(ctx context.Context, filterMap map[string]string) (<-chan ContainerEvent, error) {
+	f := filters.NewArgs()
+	f.Add("type", "container")
+	for k, v := range filterMap {
+		f.Add(k, v)
+	}
+
+	msgCh, errCh := c.cli.Events(ctx, events.ListOptions{Filters: f})
+
+	ch := make(chan ContainerEvent, 16)
+	go func() {
+		defer close(ch)
+		for {
+			select {
+			case msg, ok := <-msgCh:
+				if !ok {
+					return
+				}
+				ev := ContainerEvent{
+					ContainerID: msg.Actor.ID,
+					Action:      string(msg.Action),
+					Status:      msg.Status,
+				}
+				select {
+				case ch <- ev:
+				case <-ctx.Done():
+					return
+				}
+			case err := <-errCh:
+				if err != nil && ctx.Err() == nil {
+					// Non-cancellation error — close silently; caller checks ctx.
+					_ = err
+				}
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return ch, nil
+}
+
+// parseMemory converts strings like "4g", "512m", "1024k" to bytes.
+func parseMemory(s string) (int64, error) {
+	if len(s) == 0 {
+		return 0, fmt.Errorf("empty memory string")
+	}
+	suffix := s[len(s)-1]
+	numStr := s[:len(s)-1]
+	num, err := strconv.ParseInt(numStr, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid memory %q: %w", s, err)
+	}
+	switch suffix {
+	case 'g', 'G':
+		return num * 1024 * 1024 * 1024, nil
+	case 'm', 'M':
+		return num * 1024 * 1024, nil
+	case 'k', 'K':
+		return num * 1024, nil
+	case 'b', 'B':
+		return num, nil
+	default:
+		// Try treating whole string as bytes.
+		return strconv.ParseInt(s, 10, 64)
+	}
+}
+
+// Compile-time assertion: SDKClient must implement Client.
+var _ Client = (*SDKClient)(nil)
