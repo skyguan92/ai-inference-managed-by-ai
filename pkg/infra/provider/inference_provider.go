@@ -163,7 +163,37 @@ func (p *ProxyInferenceProvider) Chat(ctx context.Context, modelName string, mes
 	if isOllamaEndpoint(endpoint) {
 		return p.chatOllama(ctx, endpoint, modelName, messages, opts)
 	}
-	return p.chatOpenAI(ctx, endpoint, modelName, messages, opts)
+	// For vLLM endpoints, query /v1/models to get the actual model ID that vLLM knows.
+	// vLLM names the model by its container mount path (e.g. "/models"), not by the AIMA model name.
+	vllmModel := p.resolveVLLMModelName(ctx, endpoint, modelName)
+	return p.chatOpenAI(ctx, endpoint, vllmModel, messages, opts)
+}
+
+// resolveVLLMModelName queries the vLLM /v1/models endpoint to get the actual
+// model identifier. Falls back to modelName if the query fails.
+func (p *ProxyInferenceProvider) resolveVLLMModelName(ctx context.Context, endpoint, fallback string) string {
+	url := strings.TrimRight(endpoint, "/") + "/v1/models"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fallback
+	}
+	resp, err := p.httpClient.Do(req)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		return fallback
+	}
+	defer resp.Body.Close()
+	var result struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1024*1024)).Decode(&result); err != nil {
+		return fallback
+	}
+	if len(result.Data) > 0 {
+		return result.Data[0].ID
+	}
+	return fallback
 }
 
 func (p *ProxyInferenceProvider) chatOpenAI(ctx context.Context, endpoint, modelName string, messages []inference.Message, opts inference.ChatOptions) (*inference.ChatResponse, error) {
