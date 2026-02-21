@@ -178,10 +178,13 @@ func (p *ProxyInferenceProvider) resolveVLLMModelName(ctx context.Context, endpo
 		return fallback
 	}
 	resp, err := p.httpClient.Do(req)
-	if err != nil || resp.StatusCode != http.StatusOK {
+	if err != nil {
 		return fallback
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fallback
+	}
 	var result struct {
 		Data []struct {
 			ID string `json:"id"`
