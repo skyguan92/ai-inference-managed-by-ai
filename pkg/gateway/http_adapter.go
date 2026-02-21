@@ -96,21 +96,9 @@ func errorToStatusCode(err *ErrorInfo) int {
 	if err == nil {
 		return http.StatusInternalServerError
 	}
-
-	switch err.Code {
-	case ErrCodeInvalidRequest, ErrCodeValidationFailed:
-		return http.StatusBadRequest
-	case ErrCodeUnauthorized:
-		return http.StatusUnauthorized
-	case ErrCodeRateLimited:
-		return http.StatusTooManyRequests
-	case ErrCodeUnitNotFound, ErrCodeResourceNotFound:
-		return http.StatusNotFound
-	case ErrCodeTimeout:
-		return http.StatusRequestTimeout
-	default:
-		return http.StatusInternalServerError
-	}
+	// Bug #44: delegate to ErrorCodeToHTTPStatus which handles both legacy string
+	// codes (e.g. "INVALID_REQUEST") and numeric UnitError codes (e.g. "00004").
+	return ErrorCodeToHTTPStatus(err.Code)
 }
 
 func writeJSONError(w http.ResponseWriter, statusCode int, code string, message string) {

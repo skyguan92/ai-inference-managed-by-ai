@@ -90,8 +90,9 @@ func TestRouter_ServeHTTP(t *testing.T) {
 
 		router.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusNotFound {
-			t.Errorf("expected status 404, got %d", rec.Code)
+		// Bug #48: path exists but method doesn't match → 405 Method Not Allowed.
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Errorf("expected status 405, got %d", rec.Code)
 		}
 	})
 }

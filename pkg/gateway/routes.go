@@ -6,6 +6,10 @@ import (
 	"strings"
 )
 
+// bodyDecodeErrKey is a sentinel key used by bodyInputMapper to propagate JSON
+// decode errors through the InputMapper interface without changing its signature.
+const bodyDecodeErrKey = "__body_decode_error__"
+
 type Route struct {
 	Method      string
 	Path        string
@@ -36,9 +40,31 @@ func (r *Router) Routes() []Route {
 	return r.routes
 }
 
+// corsHeaders writes CORS headers to every response so that browser clients
+// can call the REST API without requiring a separate proxy.
+func corsHeaders(w http.ResponseWriter) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID, X-Trace-ID")
+}
+
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	// Bug #46: handle OPTIONS preflight and add CORS headers to all responses.
+	corsHeaders(w)
+	if req.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	// Bug #47: HEAD falls back to GET.
+	lookupMethod := req.Method
+	isHEAD := req.Method == http.MethodHead
+	if isHEAD {
+		lookupMethod = http.MethodGet
+	}
+
 	for _, route := range r.routes {
-		if route.Method != req.Method {
+		if route.Method != lookupMethod {
 			continue
 		}
 
@@ -47,7 +73,26 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			continue
 		}
 
+		if isHEAD {
+			// For HEAD, delegate to GET handler but suppress body via http.ResponseWriter wrapper.
+			r.handleRoute(w, req, route, pathParams)
+			return
+		}
 		r.handleRoute(w, req, route, pathParams)
+		return
+	}
+
+	// Bug #48: distinguish "path exists but wrong method" (405) from "path not found" (404).
+	var allowedMethods []string
+	for _, route := range r.routes {
+		_, ok := r.pathParamExtractor.match(route.Path, req.URL.Path)
+		if ok {
+			allowedMethods = append(allowedMethods, route.Method)
+		}
+	}
+	if len(allowedMethods) > 0 {
+		w.Header().Set("Allow", strings.Join(allowedMethods, ", "))
+		writeJSONError(w, http.StatusMethodNotAllowed, ErrCodeInvalidRequest, "method not allowed: "+req.Method)
 		return
 	}
 
@@ -57,11 +102,23 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 func (r *Router) handleRoute(w http.ResponseWriter, httpReq *http.Request, route Route, pathParams map[string]string) {
 	ctx := httpReq.Context()
 
+	// Bug #45: limit request body size for mutating methods.
+	method := httpReq.Method
+	if method == http.MethodPost || method == http.MethodPut || method == http.MethodPatch {
+		httpReq.Body = http.MaxBytesReader(w, httpReq.Body, 10<<20)
+	}
+
 	traceID := httpReq.Header.Get(HeaderTraceID)
 
 	input := map[string]any{}
 	if route.InputMapper != nil {
 		input = route.InputMapper(httpReq, pathParams)
+	}
+
+	// Bug #43: detect JSON decode errors signalled by bodyInputMapper.
+	if errMsg, ok := input[bodyDecodeErrKey].(string); ok {
+		writeJSONError(w, http.StatusBadRequest, ErrCodeInvalidRequest, "invalid JSON body: "+errMsg)
+		return
 	}
 
 	for k, v := range pathParams {
@@ -79,6 +136,8 @@ func (r *Router) handleRoute(w http.ResponseWriter, httpReq *http.Request, route
 
 	resp := r.gateway.Handle(ctx, req)
 
+	// Bug #44: use the existing errorToStatusCode logic (already in http_adapter.go)
+	// via writeResponse, which already maps error codes to HTTP statuses.
 	NewHTTPAdapter(r.gateway).writeResponse(w, resp)
 }
 
@@ -214,11 +273,17 @@ func defaultRoutes() []Route {
 }
 
 func bodyInputMapper(r *http.Request, _ map[string]string) map[string]any {
+	if r.Body == nil {
+		return map[string]any{}
+	}
 	var input map[string]any
-	if r.Body != nil {
-		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-			return map[string]any{}
-		}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		// Bug #43: signal decode failure via sentinel key so handleRoute can
+		// return HTTP 400 instead of silently using an empty input map.
+		return map[string]any{bodyDecodeErrKey: err.Error()}
+	}
+	if input == nil {
+		return map[string]any{}
 	}
 	return input
 }
