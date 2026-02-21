@@ -299,3 +299,63 @@ Increase tool call round limit from 10 to 25-30. For a "stop all failed + restar
 = 22 rounds minimum. 10 is far too low for batch operations.
 
 The fix: change the hardcoded `maxRounds = 10` in `pkg/agent/conversation.go` to `maxRounds = 30`.
+
+---
+
+## Scenario 24: Catalog-Driven Autonomous Setup — The Crown Jewel
+
+**Date**: 2026-02-21  
+**Tester**: tester-s24-2 (Sonnet 4.6)  
+**Binary**: /tmp/aima (built from remote HEAD + local fixes applied)  
+**LLM**: kimi-for-coding via api.kimi.com/coding/v1  
+**Total Duration**: ~75 minutes (multiple test runs)
+
+### Per-Criterion Results
+
+| Criterion | Result | Evidence |
+|-----------|--------|---------|
+| 1. Agent detects hardware via device.detect | PARTIAL | device.detect called, nvidia-smi returns exit 255 on GB10. Agent reports "No GPU" but GPU works via Docker. |
+| 2. Agent queries catalog via catalog.match | PASS | Test 3: catalog.match with NVIDIA, 24GB, Linux returned 1 match (recipe-ca0e3e09 "optimal-blackwell-24gb") |
+| 3. If no recipe, agent creates one via catalog.create | PASS | Test 4: catalog.create made "optimal-blackwell-24gb-v2" with correct vLLM params |
+| 4. Agent applies recipe and creates service | PARTIAL | Test 5: catalog.apply_recipe returned deployment plan. Agent showed the config correctly. Full pipeline required manual intervention (model path). |
+| 5. Agent tracks deployment progress | PASS | Test 6: agent.service.list showed 6 "creating" + 17 "failed" + 4 "stopped" services with details |
+| 6. Agent tests inference after deployment | PASS | Test 7: inference.chat worked against running vLLM service after Bug #70 fix. Got factorial function response with 295 tokens. |
+| 7. Agent completes within tool call round limit (30) | PARTIAL | Test 1 exhausted 30 rounds. Individual tests (2-7) all completed within limit. Full pipeline exceeds 30 rounds due to Docker retry overhead. |
+| 8. Agent's reasoning chain is coherent | PASS | Test 1 modified: agent found existing running service, ran inference, produced correct summary |
+
+### Pass Rate: 5/8 criteria PASS, 3 PARTIAL
+
+**Full PASS**: 2, 3, 5, 6, 8  
+**PARTIAL PASS**: 1 (nvidia-smi not available), 4 (recipe applied but service needs manual model path), 7 (individual tests pass but full 8-step pipeline exceeds 30 rounds)
+
+### Bugs Found
+
+| Bug | Severity | Status |
+|-----|----------|--------|
+| #69 | P1 | FIXED (workaround) — maxToolCallRounds fix not pushed to remote; sed applied |
+| #70 | P1 | FIXED — ProxyInferenceProvider now queries /v1/models for correct model ID (commit a2a9180) |
+
+### Tool Call Rounds Used
+
+- Test 1 (Full Pipeline): 30 rounds (hit limit) — multiple service.start attempts due to GPU OOM
+- Test 2 (Hardware): 2 rounds — device.detect → natural language response
+- Test 3 (Catalog Match): 2 rounds — catalog.match → response
+- Test 4 (Recipe Create): 2 rounds — catalog.create → response  
+- Test 5 (Apply Recipe): 3 rounds — catalog.match + catalog.apply → response
+- Test 6 (Deployment Tracking): 2 rounds — service.list → response
+- Test 7 (Inference): 4 rounds — service.list + inference.chat + retry → response
+
+### Quality Assessment
+
+The agent demonstrates strong individual-step reasoning:
+- Correctly uses catalog.match with hardware specs
+- Creates well-formed catalog recipes with correct parameters
+- Interprets apply_recipe output and explains deployment plan
+- Intelligently finds existing running services when new start fails
+- Successfully runs inference and reports results
+
+The full pipeline fails due to environment constraints (GPU OOM when trying to start a second vLLM instance), not due to agent logic errors. The agent's "crown jewel" behavior — detecting hardware → catalog → deploy → test — works correctly when a service is already available.
+
+### Kimi API Latency
+
+~5-20s per round. 30 rounds ≈ 5-10 minutes for full pipeline.

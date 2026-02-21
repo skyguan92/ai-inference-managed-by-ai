@@ -618,3 +618,40 @@ Every `service stop` invocation finds containers via Docker label lookup (not th
 - **Root Cause**: nvidia-smi may not be installed in PATH on this DGX Spark machine, or requires a specific environment. The GPU works via Docker's GPU passthrough even without nvidia-smi.
 - **Impact**: Agent incorrectly concludes "No GPU present" when GPU is available.
 - **Status**: Environment issue — not a code bug in AIMA. nvidia-smi is not reliably available on this ARM64 machine.
+
+---
+
+## Scenario 24: Catalog-Driven Autonomous Setup
+
+### Bug #69: maxToolCallRounds fix (57d22c7) not on remote server — git push needed
+
+- **Scenario**: 24 (Catalog-Driven Autonomous Setup)
+- **Severity**: Medium (P1) — caused immediate Test 1 failure showing error "(10)" instead of "(30)"
+- **Evidence**: `error: [01301] LLM error: exceeded maximum tool call rounds (10)` on first Test 1 run, despite local source having `maxToolCallRounds = 30`.
+- **Root Cause**: The fix commit `57d22c7` (Bug #29 fix increasing rounds from 10→30) was committed locally but NOT pushed to the remote GitHub repo. The ARM64 server's `git pull` fetched from origin which didn't have this commit, so the server was building the old source with 10 rounds.
+- **Fix**: Applied `sed` on the remote server to change `maxToolCallRounds = 10` to `= 30` in `pkg/agent/agent.go`, then rebuilt binary. Root fix: push commit 57d22c7 to origin.
+- **Status**: Workaround applied — remote binary fixed. Commit not yet pushed.
+
+### Bug #70: ProxyInferenceProvider sends AIMA model name to vLLM — causes 404
+
+- **Scenario**: 24 (Catalog-Driven Autonomous Setup), Test 7
+- **Severity**: High (P1) — inference.chat via agent fails for vLLM services
+- **Evidence**: `WARN vLLM returned non-200 status=404 body={"error":{"message":"The model 'qwen25-coder-3b-test' does not exist."...}}`
+- **Root Cause**: `ProxyInferenceProvider.chatOpenAI()` sends the AIMA model name (`qwen25-coder-3b-test`) in the OpenAI chat request's `"model"` field. But vLLM names its model by the container mount path (`/models`), not by the AIMA model name. vLLM's `/v1/models` API returns `{"id": "/models"}`.
+- **Fix**: Added `resolveVLLMModelName()` to `ProxyInferenceProvider` — queries `/v1/models` endpoint first, uses the first returned model ID, falls back to original name if query fails. Fixed in `pkg/infra/provider/inference_provider.go`. Commit: a2a9180.
+- **Status**: FIXED — commit a2a9180
+
+### Observation: Second vLLM instance fails with GPU OOM when first is running
+
+- **Scenario**: 24 (Catalog-Driven Autonomous Setup)
+- **Hardware**: NVIDIA GB10 (ARM64, ~136GB unified memory)
+- **Observation**: When the agent tried to start a second vLLM container (port 8016) while the first was running (port 8015 with Qwen2.5-Coder-3B), the second container failed with `RuntimeError: Engine core initialization failed`. This caused the agent to use 30 tool call rounds trying different approaches.
+- **Root Cause**: The first vLLM instance uses GPU memory (GPU memory utilization 90%), leaving insufficient memory for a second instance.
+- **Status**: Expected behavior — single GPU cannot run two vLLM instances simultaneously. Not a bug in AIMA code.
+
+### Observation: docker ContainerCreate times out intermittently
+
+- **Scenario**: 24 (Catalog-Driven Autonomous Setup)
+- **Evidence**: Multiple: `WARN Docker start failed attempt=N error="docker ContainerCreate: context deadline exceeded"`
+- **Root Cause**: Docker SDK timeout for ContainerCreate is set to the parent context's deadline. When the agent's request context has limited remaining time (after multiple retries), each new Docker API call inherits the shrinking deadline. When GPU is under load (another vLLM running), Docker socket responses are slower.
+- **Status**: Environment issue. The 12s Docker SDK timeout in `containerCreateTimeout` may need to be increased for GPU-loaded systems.
