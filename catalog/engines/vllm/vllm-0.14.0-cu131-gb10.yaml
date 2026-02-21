@@ -108,6 +108,10 @@ endpoints:
 
 ## 启动参数
 startup:
+  command:
+    - "vllm"
+    - "serve"
+    - "/models"
   default_args:
     - "--gpu-memory-utilization"
     - "0.9"

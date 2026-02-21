@@ -793,9 +793,12 @@ func applyPortToArgs(args []string, port int) []string {
 }
 
 func (p *HybridEngineProvider) buildDockerCommand(engineType string, image string, config map[string]any, port int) []string {
-	// Use YAML-asset DefaultArgs when available (with port substitution).
+	// Use YAML-asset command + DefaultArgs when available (with port substitution).
 	if asset, ok := p.engineAssets[engineType]; ok && len(asset.DefaultArgs) > 0 {
-		return applyPortToArgs(asset.DefaultArgs, port)
+		cmd := make([]string, 0, len(asset.BaseCommand)+len(asset.DefaultArgs)+2)
+		cmd = append(cmd, asset.BaseCommand...)
+		cmd = append(cmd, asset.DefaultArgs...)
+		return applyPortToArgs(cmd, port)
 	}
 
 	switch engineType {

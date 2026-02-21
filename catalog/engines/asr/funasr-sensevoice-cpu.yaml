@@ -79,6 +79,11 @@ endpoints:
 
 ## 启动参数
 startup:
+  command:
+    - "uvicorn"
+    - "main:app"
+    - "--host"
+    - "0.0.0.0"
   default_args:
     - "--model"
     - "/model"

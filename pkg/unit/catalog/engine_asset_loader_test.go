@@ -35,6 +35,8 @@ func TestLoadEngineAsset_vllm(t *testing.T) {
 	assert.Equal(t, 0, asset.DefaultPort)
 	assert.Contains(t, asset.DefaultArgs, "--gpu-memory-utilization")
 	assert.Contains(t, asset.DefaultArgs, "--trust-remote-code")
+	// BaseCommand should be populated from startup.command
+	assert.Equal(t, []string{"vllm", "serve", "/models"}, asset.BaseCommand)
 }
 
 func TestLoadEngineAsset_asr(t *testing.T) {

@@ -16,6 +16,7 @@ type EngineAsset struct {
 	Type               string   // e.g. "vllm", "asr", "tts"
 	ImageFullName      string   // e.g. "zhiwen-vllm:0128"
 	AlternativeNames   []string // fallback images
+	BaseCommand        []string // startup.command (e.g. ["vllm", "serve", "/models"])
 	DefaultArgs        []string // startup.default_args
 	HealthCheckPath    string   // startup.health_check.path
 	HealthCheckTimeout string   // startup.health_check.timeout
@@ -43,6 +44,7 @@ type engineAssetYAML struct {
 		} `yaml:"cpu"`
 	} `yaml:"requirements"`
 	Startup struct {
+		Command     []string `yaml:"command"`
 		DefaultArgs []string `yaml:"default_args"`
 		HealthCheck struct {
 			Path    string `yaml:"path"`
@@ -99,6 +101,7 @@ func LoadEngineAsset(path string) (EngineAsset, error) {
 		Type:               y.Type,
 		ImageFullName:      y.Image.FullName,
 		AlternativeNames:   y.Image.AlternativeNames,
+		BaseCommand:        y.Startup.Command,
 		DefaultArgs:        y.Startup.DefaultArgs,
 		HealthCheckPath:    y.Startup.HealthCheck.Path,
 		HealthCheckTimeout: y.Startup.HealthCheck.Timeout,
