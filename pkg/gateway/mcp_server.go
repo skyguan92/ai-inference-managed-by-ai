@@ -57,13 +57,16 @@ func (s *MCPServer) Serve(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
+			s.wg.Wait()
 			return ctx.Err()
 		default:
 			if !scanner.Scan() {
 				if err := scanner.Err(); err != nil {
 					slog.Error("stdin scanner error", "error", err)
+					s.wg.Wait()
 					return err
 				}
+				s.wg.Wait()
 				return nil
 			}
 

@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit"
@@ -55,6 +56,10 @@ func (a *MCPAdapter) handleToolsCall(ctx context.Context, req *MCPRequest) *MCPR
 
 	result, err := a.ExecuteTool(ctx, params.Name, params.Arguments)
 	if err != nil {
+		var mcpErr *MCPError
+		if errors.As(err, &mcpErr) {
+			return a.errorResponse(req.ID, mcpErr.Code, mcpErr.Message)
+		}
 		return a.errorResponseWithData(req.ID, MCPErrorCodeToolExecution, err.Error(), nil)
 	}
 
@@ -213,7 +218,7 @@ func (a *MCPAdapter) ExecuteTool(ctx context.Context, name string, arguments jso
 	} else if registry.GetQuery(unitName) != nil {
 		reqType = TypeQuery
 	} else {
-		return nil, fmt.Errorf("tool not found: %s", name)
+		return nil, &MCPError{Code: MCPErrorCodeMethodNotFound, Message: "tool not found: " + name}
 	}
 
 	req := &Request{

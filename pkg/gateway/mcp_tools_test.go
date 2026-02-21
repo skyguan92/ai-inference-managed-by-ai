@@ -326,8 +326,8 @@ func TestMCPAdapter_handleToolsCall(t *testing.T) {
 			t.Fatal("expected error")
 		}
 
-		if resp.Error.Code != MCPErrorCodeToolExecution {
-			t.Errorf("expected error code %d, got %d", MCPErrorCodeToolExecution, resp.Error.Code)
+		if resp.Error.Code != MCPErrorCodeMethodNotFound {
+			t.Errorf("expected error code %d, got %d", MCPErrorCodeMethodNotFound, resp.Error.Code)
 		}
 	})
 
