@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	catalogdata "github.com/jguan/ai-inference-managed-by-ai/catalog"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/docker"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/eventbus"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/unit/catalog"
@@ -83,12 +84,12 @@ func NewHybridEngineProvider(modelStore model.ModelStore) *HybridEngineProvider 
 // newHybridEngineProviderWithClient creates a HybridEngineProvider with a specific docker.Client.
 // Used in tests to inject a mock client.
 func newHybridEngineProviderWithClient(modelStore model.ModelStore, dc docker.Client) *HybridEngineProvider {
-	assets, err := catalog.LoadEngineAssets("catalog/engines")
+	assets, err := catalog.LoadEngineAssetsFromFS(catalogdata.EngineFS, "engines")
 	if err != nil {
-		slog.Warn("failed to load engine assets, using hardcoded defaults", "error", err)
+		slog.Warn("failed to load embedded engine assets, using hardcoded defaults", "error", err)
 		assets = make(map[string]catalog.EngineAsset)
 	} else {
-		slog.Info("loaded engine assets from YAML", "count", len(assets))
+		slog.Info("loaded engine assets from embedded YAML", "count", len(assets))
 	}
 
 	return &HybridEngineProvider{
@@ -793,6 +794,11 @@ func applyPortToArgs(args []string, port int) []string {
 }
 
 func (p *HybridEngineProvider) buildDockerCommand(engineType string, image string, config map[string]any, port int) []string {
+	// Image-specific overrides: custom images with their own CMD/ENTRYPOINT.
+	if strings.Contains(image, "aima-qwen3-omni-server") {
+		return nil // Custom FastAPI server, Dockerfile already has CMD
+	}
+
 	// Use YAML-asset command + DefaultArgs when available (with port substitution).
 	if asset, ok := p.engineAssets[engineType]; ok && len(asset.DefaultArgs) > 0 {
 		cmd := make([]string, 0, len(asset.BaseCommand)+len(asset.DefaultArgs)+2)
@@ -801,14 +807,9 @@ func (p *HybridEngineProvider) buildDockerCommand(engineType string, image strin
 		return applyPortToArgs(cmd, port)
 	}
 
+	// Hardcoded fallbacks for when YAML assets are not available.
 	switch engineType {
 	case "vllm":
-		// Check which image is being used
-		if strings.Contains(image, "aima-qwen3-omni-server") {
-			// Custom FastAPI server for Qwen3-Omni
-			// The Dockerfile already has CMD, so we don't override
-			return nil
-		}
 		if strings.Contains(image, "zhiwen-vllm") {
 			// GB10 compatible custom image uses nvidia_entrypoint.sh
 			// The entrypoint will handle vllm serve automatically

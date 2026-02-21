@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"bufio"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -82,13 +83,8 @@ func parseDefaultPort(args []string) int {
 	return 0
 }
 
-// LoadEngineAsset parses a single engine asset YAML file.
-func LoadEngineAsset(path string) (EngineAsset, error) {
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return EngineAsset{}, err
-	}
-
+// parseEngineAssetBytes parses raw YAML bytes into an EngineAsset.
+func parseEngineAssetBytes(raw []byte) (EngineAsset, error) {
 	cleaned := stripMarkdownHeaders(raw)
 
 	var y engineAssetYAML
@@ -96,7 +92,7 @@ func LoadEngineAsset(path string) (EngineAsset, error) {
 		return EngineAsset{}, err
 	}
 
-	asset := EngineAsset{
+	return EngineAsset{
 		Name:               y.Name,
 		Type:               y.Type,
 		ImageFullName:      y.Image.FullName,
@@ -109,9 +105,16 @@ func LoadEngineAsset(path string) (EngineAsset, error) {
 		GPURequired:        y.Requirements.GPU.Required,
 		MemoryMin:          y.Requirements.CPU.MemoryMin,
 		CPUCoresMin:        y.Requirements.CPU.CoresMin,
-	}
+	}, nil
+}
 
-	return asset, nil
+// LoadEngineAsset parses a single engine asset YAML file from the filesystem.
+func LoadEngineAsset(path string) (EngineAsset, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return EngineAsset{}, err
+	}
+	return parseEngineAssetBytes(raw)
 }
 
 // LoadEngineAssets reads all *.yaml files under dir (recursively), parses each
@@ -131,6 +134,41 @@ func LoadEngineAssets(dir string) (map[string]EngineAsset, error) {
 		asset, parseErr := LoadEngineAsset(path)
 		if parseErr != nil {
 			// Skip files that cannot be parsed rather than aborting.
+			return nil
+		}
+
+		if asset.Type != "" {
+			assets[asset.Type] = asset
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return assets, nil
+}
+
+// LoadEngineAssetsFromFS is like LoadEngineAssets but reads from an fs.FS
+// (e.g. an embed.FS). dir is the root directory within the FS to walk.
+func LoadEngineAssetsFromFS(fsys fs.FS, dir string) (map[string]EngineAsset, error) {
+	assets := make(map[string]EngineAsset)
+
+	err := fs.WalkDir(fsys, dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(d.Name(), ".yaml") {
+			return nil
+		}
+
+		raw, readErr := fs.ReadFile(fsys, path)
+		if readErr != nil {
+			return nil
+		}
+
+		asset, parseErr := parseEngineAssetBytes(raw)
+		if parseErr != nil {
 			return nil
 		}
 
