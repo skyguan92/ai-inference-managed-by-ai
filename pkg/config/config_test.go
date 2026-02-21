@@ -336,6 +336,163 @@ default_source = "modelscope"
 	})
 }
 
+func TestAuthConfigTOML(t *testing.T) {
+	content := `
+[auth]
+enabled = true
+api_keys = ["key-alpha", "key-beta"]
+`
+
+	tmpFile, err := os.CreateTemp("", "config-auth-*.toml")
+	if err != nil {
+		t.Fatalf("create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.WriteString(content); err != nil {
+		t.Fatalf("write temp file: %v", err)
+	}
+	_ = tmpFile.Close()
+
+	cfg, err := LoadFromFile(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("LoadFromFile: %v", err)
+	}
+
+	if !cfg.Auth.Enabled {
+		t.Error("Auth.Enabled should be true")
+	}
+	if len(cfg.Auth.APIKeys) != 2 {
+		t.Fatalf("Auth.APIKeys length = %d, want 2", len(cfg.Auth.APIKeys))
+	}
+	if cfg.Auth.APIKeys[0] != "key-alpha" {
+		t.Errorf("Auth.APIKeys[0] = %q, want %q", cfg.Auth.APIKeys[0], "key-alpha")
+	}
+	if cfg.Auth.APIKeys[1] != "key-beta" {
+		t.Errorf("Auth.APIKeys[1] = %q, want %q", cfg.Auth.APIKeys[1], "key-beta")
+	}
+}
+
+func TestAuthConfigDefaultDisabled(t *testing.T) {
+	cfg := Default()
+	if cfg.Auth.Enabled {
+		t.Error("Auth.Enabled should be false by default")
+	}
+	if len(cfg.Auth.APIKeys) != 0 {
+		t.Errorf("Auth.APIKeys should be empty by default, got %v", cfg.Auth.APIKeys)
+	}
+}
+
+func TestAuthConfigBackwardCompat(t *testing.T) {
+	// When legacy security.api_key is set, it should be promoted to auth.api_keys.
+	content := `
+[security]
+api_key = "legacy-key"
+`
+
+	tmpFile, err := os.CreateTemp("", "config-compat-*.toml")
+	if err != nil {
+		t.Fatalf("create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.WriteString(content); err != nil {
+		t.Fatalf("write temp file: %v", err)
+	}
+	_ = tmpFile.Close()
+
+	cfg, err := LoadFromFile(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("LoadFromFile: %v", err)
+	}
+
+	// Legacy key should be promoted.
+	found := false
+	for _, k := range cfg.Auth.APIKeys {
+		if k == "legacy-key" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("legacy-key not found in Auth.APIKeys: %v", cfg.Auth.APIKeys)
+	}
+}
+
+func TestAuthConfigBackwardCompat_NoDuplication(t *testing.T) {
+	// When both security.api_key and auth.api_keys contain the same key, no duplication.
+	content := `
+[security]
+api_key = "shared-key"
+
+[auth]
+api_keys = ["shared-key", "another-key"]
+`
+
+	tmpFile, err := os.CreateTemp("", "config-dedup-*.toml")
+	if err != nil {
+		t.Fatalf("create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.WriteString(content); err != nil {
+		t.Fatalf("write temp file: %v", err)
+	}
+	_ = tmpFile.Close()
+
+	cfg, err := LoadFromFile(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("LoadFromFile: %v", err)
+	}
+
+	count := 0
+	for _, k := range cfg.Auth.APIKeys {
+		if k == "shared-key" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("shared-key appears %d times in Auth.APIKeys, want 1: %v", count, cfg.Auth.APIKeys)
+	}
+}
+
+func TestApplyEnvOverrides_Auth(t *testing.T) {
+	cfg := Default()
+
+	_ = os.Setenv("AIMA_AUTH_ENABLED", "true")
+	_ = os.Setenv("AIMA_API_KEYS", "key1,key2, key3 ")
+	defer func() {
+		_ = os.Unsetenv("AIMA_AUTH_ENABLED")
+		_ = os.Unsetenv("AIMA_API_KEYS")
+	}()
+
+	ApplyEnvOverrides(cfg)
+
+	if !cfg.Auth.Enabled {
+		t.Error("Auth.Enabled should be true after AIMA_AUTH_ENABLED=true")
+	}
+	if len(cfg.Auth.APIKeys) != 3 {
+		t.Fatalf("Auth.APIKeys length = %d, want 3: %v", len(cfg.Auth.APIKeys), cfg.Auth.APIKeys)
+	}
+	if cfg.Auth.APIKeys[2] != "key3" {
+		t.Errorf("Auth.APIKeys[2] = %q, want %q (whitespace trimmed)", cfg.Auth.APIKeys[2], "key3")
+	}
+}
+
+func TestApplyEnvOverrides_AuthDisabled(t *testing.T) {
+	cfg := Default()
+	cfg.Auth.Enabled = true // start enabled
+
+	_ = os.Setenv("AIMA_AUTH_ENABLED", "false")
+	defer func() { _ = os.Unsetenv("AIMA_AUTH_ENABLED") }()
+
+	ApplyEnvOverrides(cfg)
+
+	if cfg.Auth.Enabled {
+		t.Error("Auth.Enabled should be false after AIMA_AUTH_ENABLED=false")
+	}
+}
+
 func TestPostProcess_DurationParsing(t *testing.T) {
 	content := `
 [gateway]

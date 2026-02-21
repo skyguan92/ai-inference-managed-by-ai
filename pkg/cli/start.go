@@ -14,7 +14,9 @@ import (
 	"time"
 
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/gateway"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/gateway/middleware"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/metrics"
+	"github.com/jguan/ai-inference-managed-by-ai/pkg/infra/ratelimit"
 	"github.com/spf13/cobra"
 )
 
@@ -77,9 +79,26 @@ func runStart(ctx context.Context, root *RootCommand, addr string, port int, tls
 	mux.HandleFunc("/api/v2/metrics", handlePrometheusMetrics(reqMetrics, sysCollector))
 	mux.Handle("/api/v2/", router)
 
+	// Build the root handler, applying auth and rate-limit middleware when configured.
+	var handler http.Handler = mux
+
+	// Auth middleware — wire auth.Enabled + api_keys from config.
+	// OFF by default; activates only when [auth] enabled = true in config.
+	authCfg := middleware.DefaultAuthConfig()
+	authCfg.Enabled = cfg.Auth.Enabled
+	authCfg.APIKeys = cfg.Auth.APIKeys
+	handler = middleware.Auth(authCfg)(handler)
+
+	// Rate-limit middleware — only active when rate_limit_per_min > 0.
+	if cfg.Security.RateLimitPerMin > 0 {
+		ratePerSec := float64(cfg.Security.RateLimitPerMin) / 60.0
+		limiter := ratelimit.New(ratePerSec, int64(cfg.Security.RateLimitPerMin))
+		handler = middleware.RateLimit(limiter)(handler)
+	}
+
 	server := &http.Server{
 		Addr:         listenAddr,
-		Handler:      mux,
+		Handler:      handler,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  120 * time.Second,

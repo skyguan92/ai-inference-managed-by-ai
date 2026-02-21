@@ -27,6 +27,7 @@ type Config struct {
 	Alert    AlertConfig    `toml:"alert"`
 	Remote   RemoteConfig   `toml:"remote"`
 	Security SecurityConfig `toml:"security"`
+	Auth     AuthConfig     `toml:"auth"`
 	Logging  LoggingConfig  `toml:"logging"`
 	Agent    AgentConfig    `toml:"agent"`
 	Docker   DockerConfig   `toml:"docker"`
@@ -91,6 +92,16 @@ type RemoteConfig struct {
 type SecurityConfig struct {
 	APIKey          string `toml:"api_key"`
 	RateLimitPerMin int    `toml:"rate_limit_per_min"`
+}
+
+// AuthConfig holds authentication settings for the HTTP server.
+// Auth is disabled by default (Enabled=false) to ensure backward compatibility.
+type AuthConfig struct {
+	// Enabled controls whether authentication is enforced for Recommended-level routes.
+	// Forced routes always require auth regardless of this flag.
+	Enabled bool `toml:"enabled"`
+	// APIKeys is the list of valid Bearer tokens.
+	APIKeys []string `toml:"api_keys"`
 }
 
 type LoggingConfig struct {
@@ -169,6 +180,10 @@ func Default() *Config {
 			APIKey:          "",
 			RateLimitPerMin: 120,
 		},
+		Auth: AuthConfig{
+			Enabled: false,
+			APIKeys: nil,
+		},
 		Logging: LoggingConfig{
 			Level:  "info",
 			Format: "json",
@@ -241,6 +256,21 @@ func (c *Config) postProcess() error {
 		return fmt.Errorf("expand logging.file: %w", err)
 	}
 
+	// Backward compat: if legacy Security.APIKey is set and Auth.APIKeys is empty,
+	// promote the single key to the new list.
+	if c.Security.APIKey != "" {
+		hasKey := false
+		for _, k := range c.Auth.APIKeys {
+			if k == c.Security.APIKey {
+				hasKey = true
+				break
+			}
+		}
+		if !hasKey {
+			c.Auth.APIKeys = append(c.Auth.APIKeys, c.Security.APIKey)
+		}
+	}
+
 	return nil
 }
 
@@ -304,6 +334,22 @@ func ApplyEnvOverrides(cfg *Config) {
 	}
 	if v := os.Getenv("AIMA_API_KEY"); v != "" {
 		cfg.Security.APIKey = v
+	}
+	if v := os.Getenv("AIMA_AUTH_ENABLED"); v != "" {
+		cfg.Auth.Enabled = strings.ToLower(v) == "true" || v == "1"
+	}
+	if v := os.Getenv("AIMA_API_KEYS"); v != "" {
+		// Comma-separated list of API keys.
+		parts := strings.Split(v, ",")
+		keys := make([]string, 0, len(parts))
+		for _, p := range parts {
+			if k := strings.TrimSpace(p); k != "" {
+				keys = append(keys, k)
+			}
+		}
+		if len(keys) > 0 {
+			cfg.Auth.APIKeys = keys
+		}
 	}
 	if v := os.Getenv("AIMA_LOG_LEVEL"); v != "" {
 		cfg.Logging.Level = v
