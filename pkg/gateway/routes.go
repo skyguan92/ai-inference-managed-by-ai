@@ -255,6 +255,7 @@ func defaultRoutes() []Route {
 		{Method: http.MethodPost, Path: "/api/v2/services/{id}/stop", Unit: "service.stop", Type: TypeCommand, InputMapper: serviceIDBodyMapper},
 		{Method: http.MethodGet, Path: "/api/v2/services/{id}/recommend", Unit: "service.recommend", Type: TypeQuery, InputMapper: serviceIDInputMapper},
 		{Method: http.MethodGet, Path: "/api/v2/services/{id}/status", Unit: "service.status", Type: TypeQuery, InputMapper: serviceIDInputMapper},
+		{Method: http.MethodGet, Path: "/api/v2/services/{id}/logs", Unit: "service.logs", Type: TypeQuery, InputMapper: serviceIDInputMapper},
 
 		// app — lifecycle, logs and templates
 		{Method: http.MethodDelete, Path: "/api/v2/apps/{id}", Unit: "app.uninstall", Type: TypeCommand, InputMapper: appIDInputMapper},

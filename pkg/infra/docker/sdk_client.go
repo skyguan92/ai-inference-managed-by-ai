@@ -198,8 +198,8 @@ func (c *SDKClient) StreamLogs(ctx context.Context, containerID string, since st
 }
 
 // ListContainers returns container IDs matching the given label filters.
-// Only non-running containers are returned (status: created, exited, dead, paused)
-// so that running containers belonging to other services are never removed.
+// All matching containers are returned regardless of state (running, exited, created, etc.).
+// Callers that only want non-running containers should filter by state themselves.
 func (c *SDKClient) ListContainers(ctx context.Context, labels map[string]string) ([]string, error) {
 	f := filters.NewArgs()
 	f.Add("label", "aima.managed=true")
@@ -214,11 +214,7 @@ func (c *SDKClient) ListContainers(ctx context.Context, labels map[string]string
 
 	ids := make([]string, 0, len(containers))
 	for _, ct := range containers {
-		// Only return non-running containers; skip containers that are
-		// actively serving another service (status "running" or "restarting").
-		if ct.State != "running" && ct.State != "restarting" {
-			ids = append(ids, ct.ID)
-		}
+		ids = append(ids, ct.ID)
 	}
 	return ids, nil
 }

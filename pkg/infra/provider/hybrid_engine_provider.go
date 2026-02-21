@@ -464,6 +464,14 @@ func (p *HybridEngineProvider) startDockerWithRetry(ctx context.Context, engineT
 		slog.Warn("stale container scan failed, proceeding without label cleanup", "engine", engineType, "error", err)
 	}
 	for _, cid := range staleIDs {
+		// Skip running containers — they may belong to another active service
+		// of the same engine type (e.g., two concurrent vLLM services).
+		if status, statusErr := p.dockerClient.GetContainerStatus(listCtx, cid); statusErr == nil {
+			if status == "running" || status == "restarting" {
+				slog.Debug("skipping running container during stale cleanup", "container_id", cid, "status", status, "engine", engineType)
+				continue
+			}
+		}
 		slog.Info("removing stale AIMA container before start", "container_id", cid, "engine", engineType)
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		if err := p.dockerClient.StopContainer(cleanupCtx, cid, 10); err != nil {
