@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -36,6 +37,7 @@ type MockContainer struct {
 	Cmd     []string
 	Ports   []string
 	Volumes []string
+	Labels  map[string]string
 }
 
 // MockImage 模拟镜像
@@ -73,6 +75,11 @@ func (c *MockClient) CreateContainer(ctx context.Context, name, image string, op
 		volumes = append(volumes, fmt.Sprintf("%s:%s", hostPath, containerPath))
 	}
 
+	labels := make(map[string]string, len(opts.Labels))
+	for k, v := range opts.Labels {
+		labels[k] = v
+	}
+
 	container := &MockContainer{
 		ID:      containerID,
 		Name:    name,
@@ -82,6 +89,7 @@ func (c *MockClient) CreateContainer(ctx context.Context, name, image string, op
 		Cmd:     opts.Cmd,
 		Ports:   ports,
 		Volumes: volumes,
+		Labels:  labels,
 	}
 
 	c.Containers[containerID] = container
@@ -560,6 +568,35 @@ func (c *MockClient) ContainerEvents(ctx context.Context, filters map[string]str
 	ch := make(chan ContainerEvent)
 	close(ch)
 	return ch, nil
+}
+
+// FindContainersByPort implements docker.Client: returns containers publishing the given host port.
+func (c *MockClient) FindContainersByPort(ctx context.Context, port int) ([]PortConflict, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
+	portStr := strconv.Itoa(port)
+	var conflicts []PortConflict
+	for _, ct := range c.Containers {
+		for _, p := range ct.Ports {
+			// Ports are stored as "hostPort:containerPort" strings.
+			parts := strings.SplitN(p, ":", 2)
+			if parts[0] == portStr {
+				isAIMA := ct.Labels["aima.managed"] == "true"
+				conflicts = append(conflicts, PortConflict{
+					ContainerID: ct.ID,
+					Name:        ct.Name,
+					Image:       ct.Image,
+					IsAIMA:      isAIMA,
+				})
+				break
+			}
+		}
+	}
+	return conflicts, nil
 }
 
 // Compile-time assertion: MockClient must implement docker.Client.

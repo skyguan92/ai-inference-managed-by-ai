@@ -149,6 +149,45 @@ func (c *SimpleClient) ListContainers(ctx context.Context, labels map[string]str
 	return containers, nil
 }
 
+// FindContainersByPort returns all containers publishing the given host port.
+// Uses `docker ps -a --filter publish=PORT` which finds ANY container on that
+// port regardless of labels, enabling orphan detection.
+func (c *SimpleClient) FindContainersByPort(ctx context.Context, port int) ([]PortConflict, error) {
+	args := []string{
+		"ps", "-a",
+		"--filter", fmt.Sprintf("publish=%d", port),
+		"--format", "{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Labels}}",
+	}
+
+	cmd := exec.CommandContext(ctx, "docker", args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("docker ps (port filter): %w\nOutput: %s", err, string(output))
+	}
+
+	var conflicts []PortConflict
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "\t", 4)
+		if len(parts) < 3 {
+			continue
+		}
+		labels := ""
+		if len(parts) == 4 {
+			labels = parts[3]
+		}
+		conflicts = append(conflicts, PortConflict{
+			ContainerID: parts[0],
+			Name:        parts[1],
+			Image:       parts[2],
+			IsAIMA:      strings.Contains(labels, "aima.managed=true"),
+		})
+	}
+	return conflicts, nil
+}
+
 // CheckDocker checks if Docker is available
 func CheckDocker() error {
 	cmd := exec.Command("docker", "version")

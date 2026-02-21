@@ -399,19 +399,38 @@ func (p *HybridEngineProvider) startDockerWithRetry(ctx context.Context, engineT
 
 	p.publishProgress(engineType, "pulling", "Image found: "+image, 50)
 
-	// Clean up any stale containers for this engine type before creating a new one.
-	// This catches orphaned containers left in "Created" or "Exited" state from
-	// previous failed start attempts, which would otherwise block the port.
+	// Phase 1 — Port-based: detect any container occupying the port we need.
+	// This finds externally-created containers that label-based listing would miss.
+	portConflicts, _ := p.dockerClient.FindContainersByPort(ctx, port)
+	for _, conflict := range portConflicts {
+		if !conflict.IsAIMA {
+			// Non-AIMA container: we cannot safely remove it; surface an actionable error.
+			return nil, fmt.Errorf(
+				"port %d is occupied by non-AIMA container %q (image: %s). Remove it with: docker rm -f %s",
+				port, conflict.Name, conflict.Image, conflict.ContainerID,
+			)
+		}
+		slog.Info("removing AIMA container blocking port", "container_id", conflict.ContainerID, "port", port, "engine", engineType)
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		if err := p.dockerClient.StopContainer(cleanupCtx, conflict.ContainerID, 10); err != nil {
+			slog.Warn("failed to remove conflicting AIMA container", "container_id", conflict.ContainerID, "error", err)
+		}
+		cancel()
+	}
+
+	// Phase 2 — Label-based: catch "created" state containers that haven't bound
+	// their port yet (so FindContainersByPort wouldn't find them).
 	staleIDs, _ := p.dockerClient.ListContainers(ctx, map[string]string{"aima.engine": engineType})
 	for _, cid := range staleIDs {
-		slog.Info("removing stale container before start", "container_id", cid, "engine", engineType)
+		slog.Info("removing stale AIMA container before start", "container_id", cid, "engine", engineType)
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		if err := p.dockerClient.StopContainer(cleanupCtx, cid, 10); err != nil {
 			slog.Warn("failed to remove stale container", "container_id", cid, "error", err)
 		}
 		cancel()
 	}
-	if len(staleIDs) > 0 {
+
+	if len(portConflicts) > 0 || len(staleIDs) > 0 {
 		// Brief wait for Docker to fully release ports after container removal.
 		time.Sleep(2 * time.Second)
 	}
@@ -661,6 +680,25 @@ func (p *HybridEngineProvider) Stop(ctx context.Context, name string, force bool
 				}
 			}
 			return &engine.StopResult{Success: true}, nil
+		}
+
+		// Port-based fallback: find AIMA containers by default port when label lookup
+		// misses them (e.g., started without aima.engine label from a previous AIMA version).
+		port := p.getDefaultPort(name)
+		if portConflicts, portErr := p.dockerClient.FindContainersByPort(ctx, port); portErr == nil {
+			stopped := 0
+			for _, conflict := range portConflicts {
+				if conflict.IsAIMA {
+					slog.Info("stopping AIMA container found by port", "container_id", conflict.ContainerID, "port", port, "engine", name)
+					if stopErr := p.dockerClient.StopContainer(ctx, conflict.ContainerID, timeout); stopErr != nil {
+						slog.Warn("failed to stop container found by port", "container_id", conflict.ContainerID, "error", stopErr)
+					}
+					stopped++
+				}
+			}
+			if stopped > 0 {
+				return &engine.StopResult{Success: true}, nil
+			}
 		}
 	}
 
