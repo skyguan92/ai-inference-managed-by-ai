@@ -2,12 +2,22 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"regexp"
 	"time"
 
+	coreagent "github.com/jguan/ai-inference-managed-by-ai/pkg/agent"
 	"github.com/jguan/ai-inference-managed-by-ai/pkg/gateway"
 	"github.com/spf13/cobra"
 )
+
+// safeConvIDPattern only allows alphanumeric characters, hyphens, and underscores.
+// This prevents path-traversal attacks when convID is used in filesystem paths.
+var safeConvIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 // agentChatTimeout is the per-request timeout for agent chat commands.
 // Agent conversations involve multi-turn LLM calls + tool executions and can
@@ -64,6 +74,13 @@ func runAgentChat(ctx context.Context, root *RootCommand, message, conversationI
 	gw := root.Gateway()
 	opts := root.OutputOptions()
 
+	// Load persisted conversation into agent memory before dispatching.
+	if conversationID != "" && root.Agent() != nil && root.DataDir() != "" {
+		if conv, err := loadConversationFromFile(root.DataDir(), conversationID); err == nil && conv != nil {
+			root.Agent().InjectConversation(conv)
+		}
+	}
+
 	input := map[string]any{"message": message}
 	if conversationID != "" {
 		input["conversation_id"] = conversationID
@@ -94,14 +111,68 @@ func runAgentChat(ctx context.Context, root *RootCommand, message, conversationI
 	if m, ok := resp.Data.(map[string]any); ok {
 		if reply, ok := m["response"].(string); ok {
 			fmt.Fprintln(opts.Writer, reply)
-			if convID, ok := m["conversation_id"].(string); ok {
+			var convID string
+			if id, ok := m["conversation_id"].(string); ok {
+				convID = id
 				fmt.Fprintf(opts.Writer, "\n[conversation: %s]\n", convID)
+			}
+
+			// Persist the updated conversation to disk.
+			if convID != "" && root.Agent() != nil && root.DataDir() != "" {
+				if conv := root.Agent().GetConversation(convID); conv != nil {
+					if err := saveConversationToFile(root.DataDir(), convID, conv); err != nil {
+						slog.Warn("failed to persist conversation", "id", convID, "error", err)
+					}
+				}
 			}
 			return nil
 		}
 	}
 
 	return PrintOutput(resp.Data, opts)
+}
+
+// loadConversationFromFile reads a persisted conversation from ~/.aima/conversations/<id>.json.
+// Returns (nil, nil) when the file does not exist.
+func loadConversationFromFile(dataDir, convID string) (*coreagent.Conversation, error) {
+	if !safeConvIDPattern.MatchString(convID) {
+		return nil, fmt.Errorf("invalid conversation ID %q: only alphanumeric, hyphens, and underscores are allowed", convID)
+	}
+	path := filepath.Join(dataDir, "conversations", convID+".json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var conv coreagent.Conversation
+	if err := json.Unmarshal(data, &conv); err != nil {
+		return nil, err
+	}
+	return &conv, nil
+}
+
+// saveConversationToFile persists a conversation to ~/.aima/conversations/<id>.json.
+// Uses an atomic write (temp file + rename) to avoid partial writes on crash.
+func saveConversationToFile(dataDir, convID string, conv *coreagent.Conversation) error {
+	if !safeConvIDPattern.MatchString(convID) {
+		return fmt.Errorf("invalid conversation ID %q: only alphanumeric, hyphens, and underscores are allowed", convID)
+	}
+	convDir := filepath.Join(dataDir, "conversations")
+	if err := os.MkdirAll(convDir, 0755); err != nil {
+		return err
+	}
+	data, err := json.Marshal(conv)
+	if err != nil {
+		return err
+	}
+	dest := filepath.Join(convDir, convID+".json")
+	tmp := dest + ".tmp"
+	if err := os.WriteFile(tmp, data, 0644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, dest)
 }
 
 // NewAgentAskCommand is a one-shot version of chat (no conversation tracking).
@@ -235,6 +306,14 @@ func runAgentReset(ctx context.Context, root *RootCommand, conversationID string
 	if !resp.Success {
 		PrintError(fmt.Errorf("%s: %s", resp.Error.Code, resp.Error.Message), opts)
 		return fmt.Errorf("agent reset failed: %s", resp.Error.Message)
+	}
+
+	// Also remove the persisted conversation file if it exists.
+	if root.DataDir() != "" {
+		convFile := filepath.Join(root.DataDir(), "conversations", conversationID+".json")
+		if err := os.Remove(convFile); err != nil && !os.IsNotExist(err) {
+			slog.Warn("failed to remove conversation file", "id", conversationID, "error", err)
+		}
 	}
 
 	PrintSuccess(fmt.Sprintf("Conversation %s reset", conversationID), opts)

@@ -47,6 +47,8 @@ type RootCommand struct {
 	eventBus     eventbus.EventBus
 	opts         *OutputOptions
 	formatStr    string
+	agent        *coreagent.Agent
+	dataDir      string
 }
 
 func NewRootCommand() *RootCommand {
@@ -189,6 +191,8 @@ func (r *RootCommand) persistentPreRunE(cmd *cobra.Command, args []string) error
 
 	// Expose serviceStore to setupAgent for local LLM auto-detection
 	r.serviceStore = serviceStore
+	// Store resolved dataDir for conversation persistence.
+	r.dataDir = dataDir
 
 	// Create inference provider that proxies to running services
 	inferenceProvider := provider.NewProxyInferenceProvider(serviceStore, modelStore)
@@ -273,6 +277,9 @@ func (r *RootCommand) setupAgent(ctx context.Context) error {
 		return fmt.Errorf("register agent domain: %w", err)
 	}
 
+	// Store reference so CLI commands can access the agent for conversation persistence.
+	r.agent = agentInstance
+
 	slog.Info("agent operator ready",
 		"provider", llmClient.Name(),
 		"model", llmClient.ModelName(),
@@ -337,6 +344,14 @@ func (r *RootCommand) SetOutputWriter(w interface{ Write([]byte) (int, error) })
 
 func (r *RootCommand) EventBus() eventbus.EventBus {
 	return r.eventBus
+}
+
+func (r *RootCommand) Agent() *coreagent.Agent {
+	return r.agent
+}
+
+func (r *RootCommand) DataDir() string {
+	return r.dataDir
 }
 
 func (r *RootCommand) Execute() error {
