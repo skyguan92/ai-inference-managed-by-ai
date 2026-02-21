@@ -242,3 +242,43 @@ Every `service stop` invocation finds containers via Docker label lookup (not th
 - **Actual**: Returns `{"error": "run not cancellable"}` — `RunStatusFailed` hit the `default` branch in the switch statement
 - **Root Cause**: `CancelCommand.Execute()` in `commands.go` treated only `RunStatusCompleted` and `RunStatusCancelled` as terminal no-op states; `RunStatusFailed` was sent to the `default` branch which returned `ErrRunNotCancellable`
 - **Status**: FIXED — Added `RunStatusFailed` to the terminal-state case in the cancel switch. Commit: d07f5d2
+
+### Bug #39: REST API routes never mounted — all domain endpoints return 404
+
+- **Scenario**: 11 (Catalog Recipe Matching) — discovered root cause of Bug #36
+- **Severity**: Critical (P0) — ALL REST domain endpoints broken in production server
+- **Endpoints affected**: All `/api/v2/{domain}/...` routes (catalog, skill, agent, model, service, engine, etc.)
+- **Expected**: POST `/api/v2/catalog/recipes` creates a recipe (200)
+- **Actual**: 404 for every domain endpoint; only `/api/v2/execute`, `/api/v2/health`, `/api/v2/metrics` worked
+- **Root Cause**: `pkg/cli/start.go` builds its own `http.ServeMux` with only 3 hardcoded routes, never calling `gateway.NewRouter(gw)`. The `gateway.Server` (which DOES mount the router) is never used in production. 200+ routes in `gateway/routes.go` were completely unreachable.
+- **Status**: FIXED — Added `router := gateway.NewRouter(gw)` and `mux.Handle("/api/v2/", router)` in `runStart()`. Commit: 044313d
+
+### Bug #40: `catalog.match` silently ignores `vram_gb` from GET query string
+
+- **Scenario**: 11 (Catalog Recipe Matching) — HIGH CONFIDENCE predicted bug confirmed
+- **Severity**: Medium (P1) — VRAM filtering broken for GET requests
+- **Command**: `GET /api/v2/catalog/recipes/match?vram_gb=24`
+- **Expected**: `vram_gb` parsed as integer 24 for VRAM scoring
+- **Actual**: `vram_gb` arrives as string `"24"` from `queryInputMapper`; `toInt()` had no `string` case, silently returned `0`, VRAM score always 0 and no filtering applied
+- **Root Cause**: `toInt()` in `commands.go` handled `int`, `int32`, `int64`, `float64`, `float32` but NOT `string`
+- **Status**: FIXED — Added `string` case using `fmt.Sscanf(val, "%d", &n)`. Commit: 6b68a0f
+
+### Bug #41: `scoreRecipe` scores NVIDIA recipes on AMD queries (vendor mismatch not filtered)
+
+- **Scenario**: 11 (Catalog Recipe Matching)
+- **Severity**: Medium (P1) — wrong recipes shown for vendor-specific queries
+- **Command**: `GET /api/v2/catalog/recipes/match?gpu_vendor=AMD`
+- **Expected**: NVIDIA-specific recipes excluded (score=0)
+- **Actual**: NVIDIA recipes appeared with OS+VRAM scores (e.g. score=15) despite vendor mismatch
+- **Root Cause**: `scoreRecipe()` only skipped the vendor bonus if vendor didn't match, but didn't exclude the recipe entirely
+- **Status**: FIXED — Added hard filter: if both recipe and query specify `gpu_vendor` and they differ, return 0. Commit: 6b68a0f
+
+### Bug #42: `scoreRecipe` includes 48GB-min recipes in 24GB queries (VRAM boundary not filtered)
+
+- **Scenario**: 11 (Catalog Recipe Matching)
+- **Severity**: Medium (P1) — incompatible recipes shown to users
+- **Command**: `GET /api/v2/catalog/recipes/match?vram_gb=24`
+- **Expected**: Recipe requiring `min_vram_gb=48` excluded from 24GB query
+- **Actual**: Recipe appeared in results with reduced score (missing +10 bonus but still score=45 from vendor+OS)
+- **Root Cause**: `scoreRecipe()` skipped the VRAM bonus but did not exclude the recipe when query VRAM < recipe minimum
+- **Status**: FIXED — Added hard filter: if `recipe.profile.vram_min_gb > 0 && query.vram_gb > 0 && query.vram_gb < recipe.vram_min_gb`, return 0. Commit: 6b68a0f
